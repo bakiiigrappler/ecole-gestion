@@ -38,9 +38,41 @@
                         </div>
                     </div>
 
+                    <!-- Vue d'ensemble des emplois du temps -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body text-center">
+                                    <h3 class="card-title">{{ $allSchedules->count() }}</h3>
+                                    <p class="card-text">Total des créneaux</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-success text-white">
+                                <div class="card-body text-center">
+                                    <h3 class="card-title">{{ $classesWithSchedules->count() }}</h3>
+                                    <p class="card-text">Classes avec emplois</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body text-center">
+                                    <h3 class="card-title">{{ $orphanSchedules->count() }}</h3>
+                                    <p class="card-text">Créneaux orphelins</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tableau des emplois du temps par classe -->
                     @if($classesWithSchedules->count() > 0)
-                        <!-- Tableau des emplois du temps modernisé -->
                         <div class="schedules-container">
+                            <h5 class="mb-3">
+                                <i class="fas fa-graduation-cap me-2"></i>
+                                Emplois du temps par classe
+                            </h5>
                             <div class="table-responsive shadow-sm">
                                 <table class="table schedules-table">
                                     <thead class="schedules-header">
@@ -67,37 +99,37 @@
                                             </th>
                                         </tr>
                                     </thead>
-                                <tbody>
-                                    @foreach($classesWithSchedules as $class)
-                                        @php
-                                            $scheduleCount = $class->schedules->count();
-                                            $lastUpdated = $class->schedules->max('updated_at');
-                                        @endphp
-                                        <tr class="schedule-row-item">
-                                            <td class="class-cell">
-                                                <div class="class-info">
-                                                    <div class="class-name">
-                                                        <i class="fas fa-school me-2 text-primary"></i>
-                                                        <strong>{{ $class->name }}</strong>
+                                    <tbody>
+                                        @foreach($classesWithSchedules as $class)
+                                            @php
+                                                $scheduleCount = $class->schedules->count();
+                                                $lastUpdated = $class->schedules->max('updated_at');
+                                            @endphp
+                                            <tr class="schedule-row-item">
+                                                <td class="class-cell">
+                                                    <div class="class-info">
+                                                        <div class="class-name">
+                                                            <i class="fas fa-school me-2"></i>
+                                                            <strong>{{ $class->name }}</strong>
+                                                        </div>
+                                                        @if($class->description)
+                                                            <div class="class-description">{{ $class->description }}</div>
+                                                        @endif
                                                     </div>
-                                                    @if($class->description)
-                                                        <div class="class-description">{{ $class->description }}</div>
-                                                    @endif
-                                                </div>
-                                            </td>
-                                            <td class="level-cell">
-                                                <div class="level-badge">
-                                                    <i class="fas fa-tag me-2"></i>
-                                                    {{ $class->getSafeLevelName() }}
-                                                </div>
-                                            </td>
-                                            <td class="slots-cell">
-                                                <div class="slots-badge">
-                                                    <i class="fas fa-clock me-2"></i>
-                                                    <span class="slots-number">{{ $scheduleCount }}</span>
-                                                    <span class="slots-text">créneaux</span>
-                                                </div>
-                                            </td>
+                                                </td>
+                                                <td class="level-cell">
+                                                    <div class="level-badge">
+                                                        <i class="fas fa-tag me-2"></i>
+                                                        {{ $class->getSafeLevelName() }}
+                                                    </div>
+                                                </td>
+                                                <td class="slots-cell">
+                                                    <div class="slots-badge">
+                                                        <i class="fas fa-clock me-2"></i>
+                                                        <span class="slots-number">{{ $scheduleCount }}</span>
+                                                        <span class="slots-text">créneaux</span>
+                                                    </div>
+                                                </td>
                                             <td class="date-cell">
                                                 @if($lastUpdated)
                                                     <div class="date-info">
@@ -114,15 +146,22 @@
                                             <td class="actions-cell">
                                                 <div class="action-buttons">
                                                     <!-- Bouton Détails -->
-                                                    <a href="{{ route('schedules.show', ['class' => $class->id, 'academic_year_id' => $currentAcademicYear->id]) }}" 
-                                                       class="action-btn view-btn" 
-                                                       title="Voir les détails">
-                                                        <i class="fas fa-eye"></i>
-                                                        <span>Détails</span>
-                                                    </a>
+                                                    @if($class->schedules->count() > 0)
+                                                        <a href="{{ route('schedules.show', ['schedule' => $class->schedules->first()->id, 'academic_year_id' => $currentAcademicYear->id]) }}" 
+                                                           class="action-btn view-btn" 
+                                                           title="Voir les détails">
+                                                            <i class="fas fa-eye"></i>
+                                                            <span>Détails</span>
+                                                        </a>
+                                                    @else
+                                                        <span class="action-btn view-btn disabled" title="Aucun emploi du temps">
+                                                            <i class="fas fa-eye"></i>
+                                                            <span>Détails</span>
+                                                        </span>
+                                                    @endif
                                                     
                                                     <!-- Bouton Modifier -->
-                                                    <a href="{{ route('schedules.edit', ['class' => $class->id, 'academic_year_id' => $currentAcademicYear->id]) }}" 
+                                                    <a href="{{ route('schedules.build', ['class_id' => $class->id, 'academic_year_id' => $currentAcademicYear->id]) }}" 
                                                        class="action-btn edit-btn" 
                                                        title="Modifier l'emploi du temps">
                                                         <i class="fas fa-edit"></i>
@@ -146,28 +185,90 @@
                         </div>
                     </div>
 
-                        <!-- Pagination -->
-                        <div class="d-flex justify-content-center">
-                            {{ $classesWithSchedules->withQueryString()->links() }}
-                        </div>
-                    @else
-                        <!-- Aucun emploi du temps -->
-                        <div class="text-center py-5">
-                            <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
-                            <h5 class="text-muted">Aucun emploi du temps trouvé</h5>
-                            <p class="text-muted mb-4">
-                                @if($currentAcademicYear)
-                                    Aucune classe n'a encore d'emploi du temps pour l'année {{ $currentAcademicYear->name }}.
-                                @else
-                                    Veuillez sélectionner une année académique.
-                                @endif
-                            </p>
-                            <a href="{{ route('schedules.create') }}" class="btn btn-primary">
-                                <i class="fas fa-plus me-1"></i>
-                                Créer le premier emploi du temps
-                            </a>
-                        </div>
+                        <!-- Pagination supprimée car $classesWithSchedules est maintenant une Collection -->
                     @endif
+                        
+                        <!-- Section des emplois du temps orphelins (sans classe) -->
+                        @if($orphanSchedules && $orphanSchedules->count() > 0)
+                            <div class="mt-5">
+                                <div class="alert alert-warning">
+                                    <h6 class="alert-heading">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        Emplois du temps sans classe assignée
+                                    </h6>
+                                    <p class="mb-0">Ces emplois du temps existent mais ne sont pas associés à une classe spécifique.</p>
+                                </div>
+                                
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered">
+                                        <thead class="table-warning">
+                                            <tr>
+                                                <th>Matière</th>
+                                                <th>Professeur</th>
+                                                <th>Jour</th>
+                                                <th>Heure</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($orphanSchedules as $schedule)
+                                                <tr>
+                                                    <td>
+                                                        <i class="fas fa-book me-2"></i>
+                                                        {{ $schedule->subject ? $schedule->subject->name : 'N/A' }}
+                                                    </td>
+                                                    <td>
+                                                        <i class="fas fa-user me-2"></i>
+                                                        {{ $schedule->teacher ? $schedule->teacher->first_name . ' ' . $schedule->teacher->last_name : 'N/A' }}
+                                                    </td>
+                                                    <td>
+                                                        <span class="badge bg-info">
+                                                            {{ $schedule->dayName }}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <i class="fas fa-clock me-2"></i>
+                                                        {{ $schedule->timeSlot }}
+                                                    </td>
+                                                    <td>
+                                                        <div class="btn-group btn-group-sm">
+                                                            <a href="{{ route('schedules.build', ['class_id' => $schedule->class_id, 'academic_year_id' => $schedule->academic_year_id]) }}" 
+                                                               class="btn btn-outline-primary btn-sm">
+                                                                <i class="fas fa-edit"></i>
+                                                            </a>
+                                                            <button type="button" class="btn btn-outline-danger btn-sm delete-schedule-btn"
+                                                                    data-schedule-id="{{ $schedule->id }}" 
+                                                                    data-schedule-type="Orphelin">
+                                                                <i class="fas fa-trash"></i>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        @endif
+                        
+                        @if($classesWithSchedules->count() === 0 && (!$orphanSchedules || $orphanSchedules->count() === 0))
+                            <!-- Aucun emploi du temps -->
+                            <div class="text-center py-5">
+                                <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">Aucun emploi du temps trouvé</h5>
+                                <p class="text-muted mb-4">
+                                    @if($currentAcademicYear)
+                                        Aucune classe n'a encore d'emploi du temps pour l'année {{ $currentAcademicYear->name }}.
+                                    @else
+                                        Veuillez sélectionner une année académique.
+                                    @endif
+                                </p>
+                                <a href="{{ route('schedules.create') }}" class="btn btn-primary">
+                                    <i class="fas fa-plus me-1"></i>
+                                    Créer le premier emploi du temps
+                                </a>
+                            </div>
+                        @endif
                 </div>
             </div>
         </div>
@@ -461,6 +562,40 @@ function confirmDelete(classId, className) {
     document.getElementById('className').textContent = className;
     new bootstrap.Modal(document.getElementById('deleteModal')).show();
 }
+
+function confirmDeleteSchedule(scheduleId, scheduleType) {
+    if (confirm(`Êtes-vous sûr de vouloir supprimer ce créneau ${scheduleType} ?`)) {
+        fetch(`/schedules/${scheduleId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erreur lors de la suppression: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+            alert('Une erreur est survenue lors de la suppression.');
+        });
+    }
+}
+
+// Gestionnaire pour les boutons de suppression des créneaux orphelins
+document.addEventListener('click', function(e) {
+    if (e.target.closest('.delete-schedule-btn')) {
+        const button = e.target.closest('.delete-schedule-btn');
+        const scheduleId = button.dataset.scheduleId;
+        const scheduleType = button.dataset.scheduleType;
+        confirmDeleteSchedule(scheduleId, scheduleType);
+    }
+});
 
 document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
     if (!classToDelete) return;

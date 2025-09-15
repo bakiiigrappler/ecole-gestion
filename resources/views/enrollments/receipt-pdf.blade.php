@@ -137,7 +137,7 @@
         @if($schoolSettings && $schoolSettings->school_logo)
             <img src="{{ $schoolSettings->logo_local_path }}" alt="Logo {{ $schoolSettings->school_name }}" style="max-height: 50px; margin-bottom: 10px;">
         @endif
-        <h1>{{ $schoolSettings->school_name ?? 'StudiaGabon' }}</h1>
+        <h1>{{ $schoolSettings->school_name ?? 'Egesco' }}</h1>
         <p>{{ $schoolSettings->school_type ?? 'Système de Gestion Scolaire' }} - {{ $schoolSettings->city ?? 'Libreville' }}, {{ $schoolSettings->country ?? 'Gabon' }}</p>
         <p>Tél: {{ $schoolSettings->school_phone ?? '+241 XX XX XX XX' }}</p>
     </div>
@@ -241,7 +241,7 @@
     <!-- Pied de page -->
     <div class="footer">
         <p><strong>Ce reçu fait foi de paiement - À conserver précieusement</strong></p>
-        <p>{{ $schoolSettings->school_name ?? 'StudiaGabon' }} - {{ now()->format('d/m/Y H:i') }}</p>
+        <p>{{ $schoolSettings->school_name ?? 'Egesco' }} - {{ now()->format('d/m/Y H:i') }}</p>
     </div>
 </body>
 </html> 

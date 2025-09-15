@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Gestion des Frais - StudiaGabon')
+@section('title', 'Gestion des Frais - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item active">Frais scolaires</li>

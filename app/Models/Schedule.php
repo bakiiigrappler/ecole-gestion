@@ -23,8 +23,8 @@ class Schedule extends Model
     ];
 
     protected $casts = [
-        'start_time' => 'datetime:H:i',
-        'end_time' => 'datetime:H:i',
+        'start_time' => 'string',
+        'end_time' => 'string',
         'is_active' => 'boolean',
         'day_of_week' => 'integer'
     ];
@@ -68,12 +68,14 @@ class Schedule extends Model
 
     public function getTimeSlotAttribute()
     {
-        return $this->start_time->format('H:i') . ' - ' . $this->end_time->format('H:i');
+        return $this->start_time . ' - ' . $this->end_time;
     }
 
     public function getDurationInMinutesAttribute()
     {
-        return $this->start_time->diffInMinutes($this->end_time);
+        $start = \Carbon\Carbon::createFromFormat('H:i:s', $this->start_time);
+        $end = \Carbon\Carbon::createFromFormat('H:i:s', $this->end_time);
+        return $start->diffInMinutes($end);
     }
 
     public function getDisplayTitleAttribute()

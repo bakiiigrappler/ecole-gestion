@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Gestion des Notes - StudiaGabon')
+@section('title', 'Gestion des Notes - Egesco')
 
 @section('head')
     <meta name="csrf-token" content="{{ csrf_token() }}">

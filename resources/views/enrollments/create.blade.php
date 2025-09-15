@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Nouvelle Inscription - StudiaGabon')
+@section('title', 'Nouvelle Inscription - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('enrollments.index') }}">Inscriptions</a></li>

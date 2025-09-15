@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('payment_id')->unique(); // Numéro de reçu
             $table->foreignId('student_id')->constrained()->onDelete('cascade');
             $table->foreignId('fee_id')->constrained()->onDelete('cascade');
-            $table->decimal('amount_paid', 10, 2);
+            $table->decimal('amount', 10, 2);
             $table->date('payment_date');
             $table->enum('payment_method', ['cash', 'bank_transfer', 'check', 'mobile_money'])->default('cash');
             $table->string('reference_number')->nullable(); // Numéro de référence bancaire

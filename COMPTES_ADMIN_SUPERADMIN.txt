@@ -1,0 +1,102 @@
+===============================================
+    COMPTES ADMINISTRATEUR ET SUPER ADMIN
+===============================================
+
+COMPTES CRÉÉS AUTOMATIQUEMENT :
+
+1. SUPER ADMINISTRATEUR
+   Email: superadmin@ecole.com
+   Mot de passe: superadmin123
+   Rôle: superadmin
+   Matricule: SUPER001
+   Statut: Actif
+
+2. ADMINISTRATEUR
+   Email: admin@ecole.com
+   Mot de passe: admin123
+   Rôle: admin
+   Matricule: ADMIN001
+   Statut: Actif
+
+===============================================
+    COMMENT UTILISER CES COMPTES
+===============================================
+
+POUR CRÉER LES COMPTES :
+1. Ouvrir le terminal dans le dossier du projet
+2. Exécuter la commande : php artisan db:seed --class=AdminSuperAdminSeeder
+
+OU POUR RECRÉER TOUTE LA BASE :
+php artisan migrate:fresh --seed
+
+===============================================
+    FONCTIONNALITÉS PAR RÔLE
+===============================================
+
+SUPER ADMINISTRATEUR (superadmin) :
+- Accès complet à toutes les fonctionnalités
+- Gestion des paramètres système
+- Gestion des utilisateurs
+- Accès aux logs et maintenance
+- Création/suppression d'autres administrateurs
+
+ADMINISTRATEUR (admin) :
+- Gestion des élèves, enseignants, parents
+- Gestion des classes et matières
+- Gestion des notes et présences
+- Gestion des paiements
+- Paramètres de l'établissement
+- Gestion des utilisateurs (sauf super admin)
+
+===============================================
+    SÉCURITÉ
+===============================================
+
+IMPORTANT :
+- Changez les mots de passe par défaut après la première connexion
+- Ne partagez pas ces identifiants
+- Utilisez des mots de passe forts
+- Activez l'authentification à deux facteurs si disponible
+
+===============================================
+    CONNEXION
+===============================================
+
+1. Aller sur la page de connexion : /login
+2. Utiliser l'un des comptes ci-dessus
+3. Accéder au tableau de bord selon vos permissions
+
+===============================================
+    EN CAS DE PROBLÈME
+===============================================
+
+Si les comptes ne sont pas créés :
+1. Vérifier que la base de données est configurée
+2. Exécuter : php artisan migrate
+3. Puis : php artisan db:seed --class=AdminSuperAdminSeeder
+
+Pour vérifier les comptes créés :
+php artisan tinker
+>>> App\Models\User::whereIn('role', ['admin', 'superadmin'])->get(['name', 'email', 'role']);
+
+===============================================
+    MAINTENANCE
+===============================================
+
+Pour créer d'autres administrateurs :
+1. Se connecter en tant que super admin
+2. Aller dans la section "Gestion des utilisateurs"
+3. Créer un nouvel utilisateur avec le rôle approprié
+
+Pour désactiver un compte :
+1. Aller dans "Gestion des utilisateurs"
+2. Cliquer sur "Désactiver" pour le compte concerné
+
+===============================================
+    CONTACT SUPPORT
+===============================================
+
+En cas de problème avec ces comptes, contactez l'administrateur système.
+
+Date de création : 2024-12-19
+Version : 1.0

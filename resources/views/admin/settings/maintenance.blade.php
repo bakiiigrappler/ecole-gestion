@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Maintenance Système - StudiaGabon')
+@section('title', 'Maintenance Système - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('admin.settings.index') }}">Administration</a></li>

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Détails de la Matière - StudiaGabon')
+@section('title', 'Détails de la Matière - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('subjects.index') }}">Matières</a></li>

@@ -11,18 +11,34 @@ class Payment extends Model
     use HasFactory;
 
     protected $fillable = [
+        'transaction_id',
         'enrollment_id',
+        'enrollment_fee_id',
+        'parent_id',
+        'student_id',
         'amount',
-        'payment_date',
+        'currency',
+        'payment_type',
         'payment_method',
-        'reference',
+        'payment_gateway_id',
         'status',
-        'notes'
+        'payer_name',
+        'payer_phone',
+        'payer_email',
+        'gateway_transaction_id',
+        'gateway_response',
+        'paid_at',
+        'ip_address',
+        'user_agent',
+        'metadata',
+        'notes',
+        'receipt_number'
     ];
 
     protected $casts = [
-        'payment_date' => 'date',
-        'amount' => 'decimal:2'
+        'paid_at' => 'datetime',
+        'amount' => 'decimal:2',
+        'metadata' => 'array'
     ];
 
     /**

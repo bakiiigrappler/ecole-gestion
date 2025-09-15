@@ -1475,91 +1475,161 @@ function generatePDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
     
-    // Configuration
+    // Configuration exacte comme le modal
     const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
     const margin = 10;
     let yPos = margin;
     
-    // Bordure de page
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.5);
-    doc.rect(margin, margin, pageWidth - 2 * margin, 277);
+    // Bordure de page exacte comme le modal (2px solid #333)
+    doc.setDrawColor(51, 51, 51);
+    doc.setLineWidth(2);
+    doc.rect(margin, margin, pageWidth - 2 * margin, pageHeight - 2 * margin);
     
-    // Header
+    // HEADER EXACT COMME LE MODAL
     yPos = margin + 5;
     
-    // Logo Gabon (cercle)
-    doc.circle(margin + 15, yPos + 12, 10);
-    doc.setFontSize(6);
-    doc.text('ARMOIRIES', margin + 15, yPos + 10, { align: 'center' });
-    doc.text('GABON', margin + 15, yPos + 14, { align: 'center' });
+    // Fond gris comme le modal (#f9f9f9)
+    doc.setFillColor(249, 249, 249);
+    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 25, 'F');
     
-    // Ministère et école
+    // Logo de l'école (vraie image)
+    const schoolLogo = document.querySelector('.school-logo img');
+    if (schoolLogo && schoolLogo.src) {
+        try {
+            doc.addImage(schoolLogo.src, 'JPEG', margin + 8, yPos + 2, 20, 20);
+        } catch (e) {
+            // Fallback si l'image ne peut pas être chargée
+            doc.setFillColor(255, 255, 255);
+            doc.rect(margin + 8, yPos + 2, 20, 20, 'FD');
+            doc.setFontSize(6);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0, 0, 0);
+            doc.text('LOGO', margin + 18, yPos + 8, { align: 'center' });
+            doc.text('ÉCOLE', margin + 18, yPos + 12, { align: 'center' });
+        }
+    } else {
+        doc.setFillColor(255, 255, 255);
+        doc.rect(margin + 8, yPos + 2, 20, 20, 'FD');
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('LOGO', margin + 18, yPos + 8, { align: 'center' });
+        doc.text('ÉCOLE', margin + 18, yPos + 12, { align: 'center' });
+    }
+    
+    // Informations de l'école exactes comme le modal
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('Ministère de l\'Education Nationale', margin + 30, yPos + 5);
-    doc.setFontSize(13);
-    doc.text('{{ $schoolSettings->school_name ?? "Lycée XXXXX" }}', margin + 30, yPos + 12);
+    doc.setTextColor(0, 0, 0);
+    doc.text('{{ $schoolSettings->school_name ?? "Lycée XXXXX" }}', margin + 35, yPos + 8);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text('{{ $schoolSettings->school_bp ?? "BP: 6" }}, Téléphone: {{ $schoolSettings->school_phone ?? "06037499" }}', margin + 30, yPos + 18);
+    doc.text('{{ $schoolSettings->school_bp ?? "BP: 6" }}, Téléphone: {{ $schoolSettings->school_phone ?? "06037499" }}', margin + 35, yPos + 14);
     
-    // Titre centré
-    doc.setFontSize(16);
+    // Titre centré exact comme le modal
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('BULLETIN - ' + document.querySelector('.bulletin-title').textContent.split(' - ')[1], pageWidth / 2, yPos + 30, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    const bulletinTitle = document.querySelector('.bulletin-title').textContent;
+    doc.text(bulletinTitle, pageWidth / 2, yPos + 20, { align: 'center' });
     
-    // Année scolaire et sceau
-    doc.setFontSize(11);
-    doc.text(document.querySelector('.year-line').textContent, pageWidth - margin - 5, yPos + 5, { align: 'right' });
-    doc.circle(pageWidth - margin - 15, yPos + 18, 8);
-    doc.setFontSize(5);
-    doc.text('RÉPUBLIQUE', pageWidth - margin - 15, yPos + 14, { align: 'center' });
-    doc.text('GABONAISE', pageWidth - margin - 15, yPos + 16, { align: 'center' });
-    doc.text('★ ★', pageWidth - margin - 15, yPos + 19, { align: 'center' });
-    doc.text('UNION • TRAVAIL • JUSTICE', pageWidth - margin - 15, yPos + 22, { align: 'center' });
+    // Sceau République Gabonaise (vraie image)
+    const republicSeal = document.querySelector('.republic-seal img');
+    if (republicSeal && republicSeal.src) {
+        try {
+            doc.addImage(republicSeal.src, 'JPEG', pageWidth - margin - 25, yPos + 2, 20, 20);
+        } catch (e) {
+            // Fallback si l'image ne peut pas être chargée
+            doc.setFillColor(255, 255, 255);
+            doc.rect(pageWidth - margin - 25, yPos + 2, 20, 20, 'FD');
+            doc.setFontSize(5);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(0, 0, 0);
+            doc.text('SCEAU', pageWidth - margin - 15, yPos + 8, { align: 'center' });
+            doc.text('RÉPUBLIQUE', pageWidth - margin - 15, yPos + 11, { align: 'center' });
+            doc.text('GABONAISE', pageWidth - margin - 15, yPos + 14, { align: 'center' });
+        }
+    } else {
+        doc.setFillColor(255, 255, 255);
+        doc.rect(pageWidth - margin - 25, yPos + 2, 20, 20, 'FD');
+        doc.setFontSize(5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text('SCEAU', pageWidth - margin - 15, yPos + 8, { align: 'center' });
+        doc.text('RÉPUBLIQUE', pageWidth - margin - 15, yPos + 11, { align: 'center' });
+        doc.text('GABONAISE', pageWidth - margin - 15, yPos + 14, { align: 'center' });
+    }
     
-    yPos += 45;
+    // Ministère et année scolaire exacts comme le modal
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('Ministère de l\'Education Nationale', pageWidth - margin - 5, yPos + 5, { align: 'right' });
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    const yearText = document.querySelector('.year-line').textContent;
+    doc.text(yearText, pageWidth - margin - 5, yPos + 11, { align: 'right' });
     
-    // Section étudiant (gris)
-    doc.setFillColor(232, 232, 232);
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 25, 'F');
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 25, 'D');
+    yPos += 30;
     
-    // Photo placeholder
-    doc.setFillColor(255, 255, 255);
-    doc.rect(margin + 8, yPos + 3, 18, 19, 'FD');
-    doc.setFontSize(6);
-    doc.text('Photo', margin + 17, yPos + 10, { align: 'center' });
-    doc.text('de l\'élève', margin + 17, yPos + 15, { align: 'center' });
+    // SECTION ÉTUDIANT EXACTE COMME LE MODAL (tableau avec bordures)
+    // Fond gris comme le modal (#f8f8f8)
+    doc.setFillColor(248, 248, 248);
+    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 30, 'F');
     
-         // Nom et infos étudiant
-     // Utiliser les variables globales déjà chargées
-     if (!studentData || !studentInfo) {
-         console.error('Données étudiant non disponibles pour le PDF');
-         return;
-     }
-     
-     // Données du profil de classe pour le PDF
-     const classProfileData = {
-         forteMoyenne: '{{ $classProfile["meilleure_note"] ?? "N/C" }}',
-         faibleMoyenne: '{{ $classProfile["plus_basse_note"] ?? "N/C" }}',
-         moyenneClasse: '{{ $classProfile["moyenne_classe"] ?? "N/C" }}',
-         principalTeacher: principalTeacher
-     };
-     
-     doc.setFontSize(14);
-     doc.setFont('helvetica', 'bold');
-     doc.text(`${studentInfo.last_name.toUpperCase()} ${studentInfo.first_name} X [${studentInfo.matricule}]`, margin + 30, yPos + 8);
-     
-     doc.setFontSize(8);
-     doc.setFont('helvetica', 'normal');
-     doc.text(`Né(e) le : ${studentInfo.birth_date}     Lieu de naissance: ${studentInfo.birth_place}     Sexe : ${studentInfo.gender} | Statut: [T]`, margin + 8, yPos + 15);
-     doc.text(`Classe : ${studentData.school_class?.name || 'N/C'}     Effectif : ${studentData.total_students || 'N/C'} Masculin: ${studentData.male_students || 'N/C'} | Féminin: ${studentData.female_students || 'N/C'}     Nationalité : ${studentInfo.nationality}`, margin + 8, yPos + 20);
+    // Bordures noires comme le modal
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(1);
+    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 30, 'D');
+    
+    // Photo de l'élève (vraie image) - taille exacte comme le modal (80x100px)
+    const studentPhoto = document.querySelector('.photo-cell img');
+    if (studentPhoto && studentPhoto.src) {
+        try {
+            doc.addImage(studentPhoto.src, 'JPEG', margin + 8, yPos + 3, 22, 24);
+        } catch (e) {
+            // Fallback si l'image ne peut pas être chargée
+            doc.setFillColor(255, 255, 255);
+            doc.rect(margin + 8, yPos + 3, 22, 24, 'FD');
+            doc.setFontSize(6);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(100, 100, 100);
+            doc.text('Photo', margin + 19, yPos + 12, { align: 'center' });
+            doc.text('de', margin + 19, yPos + 15, { align: 'center' });
+            doc.text('l\'élève', margin + 19, yPos + 18, { align: 'center' });
+        }
+    } else {
+        doc.setFillColor(255, 255, 255);
+        doc.rect(margin + 8, yPos + 3, 22, 24, 'FD');
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100, 100, 100);
+        doc.text('Photo', margin + 19, yPos + 12, { align: 'center' });
+        doc.text('de', margin + 19, yPos + 15, { align: 'center' });
+        doc.text('l\'élève', margin + 19, yPos + 18, { align: 'center' });
+    }
+    
+    // Nom et informations de l'élève exactes comme le modal
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    const studentName = document.querySelector('.name-cell strong').textContent;
+    doc.text(studentName, margin + 35, yPos + 8);
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    // Récupérer les informations depuis les cellules HTML exactement comme dans le modal
+    const infoCells = document.querySelectorAll('.info-cell');
+    if (infoCells.length >= 3) {
+        doc.text(infoCells[0].textContent.trim(), margin + 35, yPos + 15);
+        doc.text(infoCells[1].textContent.trim(), margin + 35, yPos + 20);
+        doc.text(infoCells[2].textContent.trim(), margin + 35, yPos + 25);
+    }
     
     yPos += 35;
     
-    // Tableau des notes
+    // TABLEAU EXACT COMME LE MODAL
     const tableHeaders = [
         'DISCIPLINES',
         'MOYENNE\nApprenant',
@@ -1572,7 +1642,7 @@ function generatePDF() {
         'Professeur'
     ];
     
-    // Récupérer les données du tableau HTML
+    // Récupérer les données du tableau HTML exactement comme affiché
     const tableData = [];
     document.querySelectorAll('.grades-table tbody tr:not(.totals-row)').forEach(row => {
         const cells = row.querySelectorAll('td');
@@ -1603,72 +1673,75 @@ function generatePDF() {
                 cells[3].textContent.trim(),
                 cells[4].textContent.trim(),
                 cells[5].textContent.trim(),
-                cells[6].textContent.trim() + (cells[7] ? ' ' + cells[7].textContent.trim() : '') + (cells[8] ? ' ' + cells[8].textContent.trim() : ''),
-                '',
-                ''
+                cells[6].textContent.trim(),
+                cells[7] ? cells[7].textContent.trim() : '',
+                cells[8] ? cells[8].textContent.trim() : ''
             ]);
         }
     }
     
+    // Tableau avec style exact comme le modal
     doc.autoTable({
         startY: yPos,
         head: [tableHeaders],
         body: tableData,
         theme: 'grid',
         styles: {
-            fontSize: 6,
-            cellPadding: 1,
-            lineColor: [0, 0, 0],
-            lineWidth: 0.1
+            fontSize: 9, // Exact comme le modal
+            cellPadding: 3, // Exact comme le modal
+            lineColor: [221, 221, 221], // #ddd comme le modal
+            lineWidth: 1, // Exact comme le modal
+            halign: 'center',
+            valign: 'middle'
         },
         headStyles: {
-            fillColor: [144, 238, 144], // Vert exact
-            textColor: [0, 0, 0],
-            fontStyle: 'bold'
+            fillColor: [144, 238, 144], // linear-gradient(135deg, #90EE90 0%, #7CFC00 100%) comme le modal
+            textColor: [44, 62, 80], // #2c3e50 comme le modal
+            fontStyle: 'bold',
+            fontSize: 8, // Exact comme le modal
+            lineHeight: 1.2 // Exact comme le modal
         },
         columnStyles: {
-            0: { cellWidth: 22, halign: 'left' },
-            1: { cellWidth: 16 },
-            2: { cellWidth: 16 },
-            3: { cellWidth: 10 },
-            4: { cellWidth: 16 },
-            5: { cellWidth: 10 },
-            6: { cellWidth: 14 },
-            7: { cellWidth: 18 },
-            8: { cellWidth: 28 }
+            0: { cellWidth: 25, halign: 'left' }, // subject-cell comme le modal
+            1: { cellWidth: 18 },
+            2: { cellWidth: 18 },
+            3: { cellWidth: 12 },
+            4: { cellWidth: 18 },
+            5: { cellWidth: 12 },
+            6: { cellWidth: 16 },
+            7: { cellWidth: 20 },
+            8: { cellWidth: 30 }
         }
     });
     
     yPos = doc.lastAutoTable.finalY + 5;
     
-    // Moyenne trimestrielle
-    doc.setFillColor(232, 245, 232);
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 8, 'F');
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 8, 'D');
-    doc.setFontSize(10);
+    // MOYENNE TRIMESTRIELLE EXACTE COMME LE MODAL
+    doc.setFontSize(11); // Exact comme le modal
     doc.setFont('helvetica', 'bold');
-    doc.text('Moyenne trimestrielle: 12.03 ▲', pageWidth / 2, yPos + 5, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    const moyenneText = document.querySelector('.moyenne-trimestre').textContent;
+    doc.text(moyenneText, pageWidth / 2, yPos + 5, { align: 'center' });
     
     yPos += 15;
     
-    // Profil et Bilan
+    // PROFIL DE LA CLASSE ET BILAN EXACTS COMME LE MODAL
     const sectionWidth = (pageWidth - 2 * margin - 15) / 2;
     
-    // Profil de la classe
-    doc.rect(margin + 5, yPos, sectionWidth, 30, 'D');
-    doc.setFontSize(10);
+    // Profil de la classe - style exact comme le modal
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('PROFIL DE LA CLASSE', margin + 5 + sectionWidth/2, yPos + 6, { align: 'center' });
-    doc.line(margin + 8, yPos + 8, margin + sectionWidth - 2, yPos + 8);
+    doc.setTextColor(0, 0, 0);
+    doc.text('PROFIL DE LA CLASSE', margin + 5 + sectionWidth/2, yPos + 8, { align: 'center' });
     
-    doc.setFontSize(7);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     const profilItems = [
-         ['Forte moyenne trim', classProfileData.forteMoyenne],
-         ['Faible moyenne trim', classProfileData.faibleMoyenne],
-         ['Moyenne de la classe', classProfileData.moyenneClasse],
-         ['PROFESSEUR', 'PROFESSEUR PRINCIPAL'],
-         ['PRINCIPAL', classProfileData.principalTeacher]
+        ['Forte moyenne trim', '{{ $classProfile["meilleure_note"] ?? "N/C" }}'],
+        ['Faible moyenne trim', '{{ $classProfile["plus_basse_note"] ?? "N/C" }}'],
+        ['Moyenne de la classe', '{{ $classProfile["moyenne_classe"] ?? "N/C" }}'],
+        ['PROFESSEUR', 'PROFESSEUR PRINCIPAL'],
+        ['PRINCIPAL', '{{ $principalTeacherName }}']
     ];
     
     let profilY = yPos + 12;
@@ -1685,12 +1758,18 @@ function generatePDF() {
     doc.setFont('helvetica', 'bold');
     doc.text('BILAN', bilanX + sectionWidth/2, yPos + 6, { align: 'center' });
     
-    const bilanData = [
-        ['1er Trimestre', '7.28', '8.89 44'],
-        ['2ème Trimestre', '9.1 ▲', '8.61 24'],
-        ['3ème Trimestre', '12.03 ▲', '10.79 18'],
-        ['MOYENNE ANNUELLE:', '9.47 +0.09 (CC*)=10.00', '9.42 23']
-    ];
+    // Récupérer les données du bilan depuis l'aperçu HTML
+    const bilanData = [];
+    document.querySelectorAll('.bilan-table tbody tr').forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 3) {
+            bilanData.push([
+                cells[0].textContent.trim(),
+                cells[1].textContent.trim(),
+                cells[2].textContent.trim()
+            ]);
+        }
+    });
     
     doc.autoTable({
         startY: yPos + 9,
@@ -1712,366 +1791,107 @@ function generatePDF() {
     
     yPos += 40;
     
-    // Décision du conseil
+    // DÉCISION DU CONSEIL DE CLASSE
     doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 20, 'D');
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('DECISION DU CONSEIL DE CLASSE', pageWidth / 2, yPos + 6, { align: 'center' });
     
+    // Récupérer les données de décision depuis l'aperçu HTML
+    const decisionItems = document.querySelectorAll('.decision-items span');
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text('Conduite : NC', margin + 20, yPos + 12);
-    doc.text('Travail : Assez Bien/TH', pageWidth / 2, yPos + 12, { align: 'center' });
-    doc.text('Fréquentation : A suivre', pageWidth - margin - 40, yPos + 12);
     
-    // Badge Admis
-    doc.setFillColor(0, 0, 0);
-    doc.rect(pageWidth / 2 - 12, yPos + 14, 24, 5, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Admis(e)', pageWidth / 2, yPos + 17, { align: 'center' });
-    doc.setTextColor(0, 0, 0);
+    if (decisionItems.length >= 3) {
+        doc.text(decisionItems[0].textContent.trim(), margin + 20, yPos + 12);
+        doc.text(decisionItems[1].textContent.trim(), pageWidth / 2, yPos + 12, { align: 'center' });
+        doc.text(decisionItems[2].textContent.trim(), pageWidth - margin - 40, yPos + 12);
+    }
+    
+    // Badge Admis(e)
+    const admissionBadge = document.querySelector('.admission-badge');
+    if (admissionBadge) {
+        doc.setFillColor(0, 0, 0);
+        doc.rect(pageWidth / 2 - 12, yPos + 14, 24, 5, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.text(admissionBadge.textContent.trim(), pageWidth / 2, yPos + 17, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+    }
     
     yPos += 25;
     
-    // Footer
+    // FOOTER EXACT COMME LE MODAL
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(1);
     doc.line(margin + 5, yPos, pageWidth - margin - 5, yPos);
     yPos += 5;
     
-         // Code-barre à gauche
-     doc.rect(margin + 5, yPos + 3, 35, 8, 'D');
-     doc.text('||||||||||||||||||||||||||||||||', margin + 22, yPos + 7, { align: 'center' });
-     
-     doc.setFontSize(8);
-     doc.text(`*${String(studentData.id).padStart(16, '0')}*`, margin + 22, yPos + 15, { align: 'center' });
-     
-     // Signature à droite
-     doc.setFontSize(8);
-     doc.setFont('helvetica', 'bold');
-     doc.text('Le Proviseur,', pageWidth - margin - 25, yPos + 3);
-     doc.circle(pageWidth - margin - 25, yPos + 12, 6);
-     // Zone blanche pour le cachet (pas de texte)
-     
-     // Conseil de classe au centre
-     doc.setFontSize(6);
-     doc.text('* Conseil de Classe', pageWidth / 2, yPos + 25, { align: 'center' });
+    // Code-barre à gauche (vraie image) - exact comme le modal
+    const barcodeImg = document.querySelector('.barcode-section img');
+    if (barcodeImg && barcodeImg.src) {
+        try {
+            doc.addImage(barcodeImg.src, 'PNG', margin + 5, yPos, 50, 15);
+        } catch (e) {
+            // Fallback si l'image ne peut pas être chargée
+            doc.rect(margin + 5, yPos + 3, 40, 8, 'D');
+            doc.text('||||||||||||||||||||||||||||||||', margin + 25, yPos + 7, { align: 'center' });
+        }
+    } else {
+        doc.rect(margin + 5, yPos + 3, 40, 8, 'D');
+        doc.text('||||||||||||||||||||||||||||||||', margin + 25, yPos + 7, { align: 'center' });
+    }
     
-    // Date
-    doc.setFontSize(7);
-    doc.text('05-01-2017', pageWidth / 2, yPos + 25, { align: 'center' });
+    // Matricule bulletin exact comme le modal
+    const bulletinCode = document.querySelector('.bulletin-code');
+    if (bulletinCode) {
+        doc.setFontSize(10); // Exact comme le modal
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        doc.text(bulletinCode.textContent.trim(), margin + 25, yPos + 18, { align: 'center' });
+    }
     
-    doc.save(`bulletin-${studentData.first_name}-${studentData.last_name}.pdf`);
+    // Conseil de classe au centre exact comme le modal
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text('* Conseil de Classe', pageWidth / 2, yPos + 8, { align: 'center' });
+    
+    // Signature à droite exacte comme le modal
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text('Le Proviseur,', pageWidth - margin - 5, yPos + 8, { align: 'right' });
+    
+    // Zone pour le cachet exacte comme le modal
+    doc.setFillColor(255, 255, 255);
+    doc.rect(pageWidth - margin - 25, yPos + 12, 20, 15, 'FD');
+    doc.setDrawColor(0, 0, 0);
+    doc.rect(pageWidth - margin - 25, yPos + 12, 20, 15, 'D');
+    
+    // Date de décision exacte comme le modal
+    const decisionDate = document.querySelector('.decision-date');
+    if (decisionDate) {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(0, 0, 0);
+        doc.text(decisionDate.textContent.trim(), pageWidth / 2, yPos + 20, { align: 'center' });
+    }
+    
+    // Sauvegarder le PDF avec nom amélioré
+    const fileName = `bulletin_${studentData.first_name}_${studentData.last_name}_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
 }
 
 function printPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('p', 'mm', 'a4');
-    
-    // Configuration
-    const pageWidth = doc.internal.pageSize.width;
-    const margin = 10;
-    let yPos = margin;
-    
-    // Bordure de page
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(0.5);
-    doc.rect(margin, margin, pageWidth - 2 * margin, 277);
-    
-    // Header
-    yPos = margin + 5;
-    
-    // Logo Gabon (cercle)
-    doc.circle(margin + 15, yPos + 12, 10);
-    doc.setFontSize(6);
-    doc.text('ARMOIRIES', margin + 15, yPos + 10, { align: 'center' });
-    doc.text('GABON', margin + 15, yPos + 14, { align: 'center' });
-    
-    // Ministère et école
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Ministère de l\'Education Nationale', margin + 30, yPos + 5);
-    doc.setFontSize(13);
-    doc.text('{{ $schoolSettings->school_name ?? "Lycée XXXXX" }}', margin + 30, yPos + 12);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text('{{ $schoolSettings->school_bp ?? "BP: 6" }}, Téléphone: {{ $schoolSettings->school_phone ?? "06037499" }}', margin + 30, yPos + 18);
-    
-    // Titre centré
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('BULLETIN - ' + document.querySelector('.bulletin-title').textContent.split(' - ')[1], pageWidth / 2, yPos + 30, { align: 'center' });
-    
-    // Année scolaire et sceau
-    doc.setFontSize(11);
-    doc.text(document.querySelector('.year-line').textContent, pageWidth - margin - 5, yPos + 5, { align: 'right' });
-    doc.circle(pageWidth - margin - 15, yPos + 18, 8);
-    doc.setFontSize(5);
-    doc.text('RÉPUBLIQUE', pageWidth - margin - 15, yPos + 14, { align: 'center' });
-    doc.text('GABONAISE', pageWidth - margin - 15, yPos + 16, { align: 'center' });
-    doc.text('★ ★', pageWidth - margin - 15, yPos + 19, { align: 'center' });
-    doc.text('UNION • TRAVAIL • JUSTICE', pageWidth - margin - 15, yPos + 22, { align: 'center' });
-    
-    yPos += 45;
-    
-    // Section étudiant (gris)
-    doc.setFillColor(232, 232, 232);
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 25, 'F');
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 25, 'D');
-    
-    // Photo placeholder
-    doc.setFillColor(255, 255, 255);
-    doc.rect(margin + 8, yPos + 3, 18, 19, 'FD');
-    doc.setFontSize(6);
-    doc.text('Photo', margin + 17, yPos + 10, { align: 'center' });
-    doc.text('de l\'élève', margin + 17, yPos + 15, { align: 'center' });
-    
-    // Nom et infos étudiant
-    // Utiliser les variables globales déjà chargées
-    if (!studentData || !studentInfo) {
-        console.error('Données étudiant non disponibles pour l\'impression');
-        return;
-    }
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${studentInfo.last_name.toUpperCase()} ${studentInfo.first_name} X [${studentInfo.matricule}]`, margin + 30, yPos + 8);
-    
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Né(e) le : ${studentInfo.birth_date}     Lieu de naissance: ${studentInfo.birth_place}     Sexe : ${studentInfo.gender} | Statut: [T]`, margin + 8, yPos + 15);
-    doc.text(`Classe : ${studentData.school_class?.name || 'N/C'}     Effectif : ${studentData.total_students || 'N/C'} Masculin: ${studentData.male_students || 'N/C'} | Féminin: ${studentData.female_students || 'N/C'}     Nationalité : ${studentInfo.nationality}`, margin + 8, yPos + 20);
-    
-    yPos += 35;
-    
-    // Tableau des notes
-    const tableHeaders = [
-        'DISCIPLINES',
-        'MOYENNE\nApprenant',
-        'MOYENNE\nClasse',
-        'COEF',
-        'NOTE X\nCOEF',
-        'RANG',
-        'ABSENCES',
-        'Appréciation',
-        'Professeur'
-    ];
-    
-    // Récupérer les données du tableau HTML
-    const tableData = [];
-    document.querySelectorAll('.grades-table tbody tr:not(.totals-row)').forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length >= 9) {
-            tableData.push([
-                cells[0].textContent.trim(),
-                cells[1].textContent.trim(),
-                cells[2].textContent.trim(),
-                cells[3].textContent.trim(),
-                cells[4].textContent.trim(),
-                cells[5].textContent.trim(),
-                cells[6].textContent.trim(),
-                cells[7].textContent.trim(),
-                cells[8].textContent.trim()
-            ]);
-        }
-    });
-    
-    // Ligne totaux
-    const totalsRow = document.querySelector('.grades-table .totals-row');
-    if (totalsRow) {
-        const cells = totalsRow.querySelectorAll('td');
-        if (cells.length >= 6) {
-            tableData.push([
-                cells[0].textContent.trim(),
-                cells[1].textContent.trim(),
-                cells[2].textContent.trim(),
-                cells[3].textContent.trim(),
-                cells[4].textContent.trim(),
-                cells[5].textContent.trim(),
-                cells[6].textContent.trim() + (cells[7] ? ' ' + cells[7].textContent.trim() : '') + (cells[8] ? ' ' + cells[8].textContent.trim() : ''),
-                '',
-                ''
-            ]);
-        }
-    }
-    
-    doc.autoTable({
-        startY: yPos,
-        head: [tableHeaders],
-        body: tableData,
-        theme: 'grid',
-        styles: {
-            fontSize: 6,
-            cellPadding: 1,
-            lineColor: [0, 0, 0],
-            lineWidth: 0.1
-        },
-        headStyles: {
-            fillColor: [144, 238, 144], // Vert exact
-            textColor: [0, 0, 0],
-            fontStyle: 'bold'
-        },
-        columnStyles: {
-            0: { cellWidth: 22, halign: 'left' },
-            1: { cellWidth: 16 },
-            2: { cellWidth: 16 },
-            3: { cellWidth: 10 },
-            4: { cellWidth: 16 },
-            5: { cellWidth: 10 },
-            6: { cellWidth: 14 },
-            7: { cellWidth: 18 },
-            8: { cellWidth: 28 }
-        }
-    });
-    
-    yPos = doc.lastAutoTable.finalY + 5;
-    
-    // Moyenne trimestrielle
-    doc.setFillColor(232, 245, 232);
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 8, 'F');
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 8, 'D');
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Moyenne trimestrielle: 12.03 ▲', pageWidth / 2, yPos + 5, { align: 'center' });
-    
-    yPos += 15;
-    
-    // Profil et Bilan
-    const sectionWidth = (pageWidth - 2 * margin - 15) / 2;
-    
-    // Profil de la classe
-    doc.rect(margin + 5, yPos, sectionWidth, 30, 'D');
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('PROFIL DE LA CLASSE', margin + 5 + sectionWidth/2, yPos + 6, { align: 'center' });
-    doc.line(margin + 8, yPos + 8, margin + sectionWidth - 2, yPos + 8);
-    
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    
-    // Données du profil de classe pour l'impression
-    const classProfileData = {
-        forteMoyenne: '{{ $classProfile["meilleure_note"] ?? "N/C" }}',
-        faibleMoyenne: '{{ $classProfile["plus_basse_note"] ?? "N/C" }}',
-        moyenneClasse: '{{ $classProfile["moyenne_classe"] ?? "N/C" }}',
-        principalTeacher: principalTeacher || 'N/C'
-    };
-    
-    const profilItems = [
-        ['Forte moyenne trim', classProfileData.forteMoyenne],
-        ['Faible moyenne trim', classProfileData.faibleMoyenne],
-        ['Moyenne de la classe', classProfileData.moyenneClasse],
-        ['PROFESSEUR', 'EKOMESSE OLLO Giscard'],
-        ['PRINCIPAL', classProfileData.principalTeacher]
-    ];
-    
-    let profilY = yPos + 12;
-    profilItems.forEach(item => {
-        doc.text(item[0], margin + 8, profilY);
-        doc.text(item[1], margin + sectionWidth - 8, profilY, { align: 'right' });
-        profilY += 3;
-    });
-    
-    // Bilan
-    const bilanX = margin + sectionWidth + 10;
-    doc.rect(bilanX, yPos, sectionWidth, 30, 'D');
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('BILAN', bilanX + sectionWidth/2, yPos + 6, { align: 'center' });
-    
-    const bilanData = [
-        ['1er Trimestre', '7.28', '8.89 44'],
-        ['2ème Trimestre', '9.1 ▲', '8.61 24'],
-        ['3ème Trimestre', '12.03 ▲', '10.79 18'],
-        ['MOYENNE ANNUELLE:', '9.47 +0.09 (CC*)=10.00', '9.42 23']
-    ];
-    
-    doc.autoTable({
-        startY: yPos + 9,
-        head: [['Moyenne', 'Apprenant', 'Classe Rang']],
-        body: bilanData,
-        theme: 'grid',
-        styles: {
-            fontSize: 5,
-            cellPadding: 1
-        },
-        headStyles: {
-            fillColor: [144, 238, 144],
-            textColor: [0, 0, 0],
-            fontStyle: 'bold'
-        },
-        margin: { left: bilanX + 2, right: margin + 5 },
-        tableWidth: sectionWidth - 4
-    });
-    
-    yPos += 40;
-    
-    // Décision du conseil
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 20, 'D');
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('DECISION DU CONSEIL DE CLASSE', pageWidth / 2, yPos + 6, { align: 'center' });
-    
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Conduite : NC', margin + 20, yPos + 12);
-    doc.text('Travail : Assez Bien/TH', pageWidth / 2, yPos + 12, { align: 'center' });
-    doc.text('Fréquentation : A suivre', pageWidth - margin - 40, yPos + 12);
-    
-    // Badge Admis
-    doc.setFillColor(0, 0, 0);
-    doc.rect(pageWidth / 2 - 12, yPos + 14, 24, 5, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Admis(e)', pageWidth / 2, yPos + 17, { align: 'center' });
-    doc.setTextColor(0, 0, 0);
-    
-    yPos += 25;
-    
-    // Footer
-    doc.line(margin + 5, yPos, pageWidth - margin - 5, yPos);
-    yPos += 5;
-    
-    // Code-barre à gauche
-    doc.rect(margin + 5, yPos + 3, 35, 8, 'D');
-    doc.text('||||||||||||||||||||||||||||||||', margin + 22, yPos + 7, { align: 'center' });
-    
-    doc.setFontSize(8);
-    doc.text(`*${String(studentData.id).padStart(16, '0')}*`, margin + 22, yPos + 15, { align: 'center' });
-    
-    // Signature à droite
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Le Proviseur,', pageWidth - margin - 25, yPos + 3);
-    doc.circle(pageWidth - margin - 25, yPos + 12, 6);
-    // Zone blanche pour le cachet (pas de texte)
-    
-    // Conseil de classe au centre
-    doc.setFontSize(6);
-    doc.text('* Conseil de Classe', pageWidth / 2, yPos + 25, { align: 'center' });
-    
-         // Date
-     doc.setFontSize(7);
-     doc.text('05-01-2017', pageWidth / 2, yPos + 25, { align: 'center' });
-     
-     // Imprimer directement le PDF
-     const pdfBlob = doc.output('blob');
-     const pdfUrl = URL.createObjectURL(pdfBlob);
-     
-     // Créer une nouvelle fenêtre pour l'impression
-     const printWindow = window.open(pdfUrl, '_blank');
-     printWindow.onload = function() {
-         printWindow.print();
-         // Fermer la fenêtre après l'impression
-         setTimeout(() => {
-             printWindow.close();
-             URL.revokeObjectURL(pdfUrl);
-         }, 1000);
-     };
- }
+    // Utiliser la même fonction que generatePDF mais pour l'impression
+    generatePDF();
+}
 
- function printHTML() {
-     // Masquer les boutons d'action pour l'impression
-     const actionButtons = document.querySelector('.action-buttons');
-     if (actionButtons) {
+function printHTML() {
+    // Masquer les boutons d'action pour l'impression
+    const actionButtons = document.querySelector('.action-buttons');
+    if (actionButtons) {
          actionButtons.style.display = 'none';
      }
      

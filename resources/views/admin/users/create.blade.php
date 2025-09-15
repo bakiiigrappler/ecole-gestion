@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Créer Utilisateur - StudiaGabon')
+@section('title', 'Créer Utilisateur - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('admin.settings.index') }}">Administration</a></li>
@@ -179,7 +179,7 @@
                                            class="form-control form-control-modern" 
                                            id="email" 
                                            name="email" 
-                                           placeholder="Ex: jean.dupont@studiagabon.com"
+                                           placeholder="Ex: jean.dupont@Egesco.com"
                                            required>
                                     <div class="invalid-feedback"></div>
                                 </div>

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Ajouter une Matière - StudiaGabon')
+@section('title', 'Ajouter une Matière - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('subjects.index') }}">Matières</a></li>

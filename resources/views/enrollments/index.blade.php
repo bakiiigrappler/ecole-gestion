@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Gestion des Inscriptions - StudiaGabon')
+@section('title', 'Gestion des Inscriptions - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item active">Inscriptions</li>

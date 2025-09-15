@@ -19,10 +19,10 @@ class DashboardController extends Controller
         $totalClasses = SchoolClass::where('is_active', true)->count();
         
         // Revenus du mois (exemple)
-        $monthlyRevenue = Payment::whereMonth('payment_date', now()->month)
-                                ->whereYear('payment_date', now()->year)
+        $monthlyRevenue = Payment::whereMonth('paid_at', now()->month)
+                                ->whereYear('paid_at', now()->year)
                                 ->where('status', 'completed')
-                                ->sum('amount_paid');
+                                ->sum('amount');
         
         // Taux de paiement (exemple)
         $paymentRate = 95;
@@ -49,10 +49,10 @@ class DashboardController extends Controller
             'students' => Student::count(),
             'teachers' => Teacher::where('status', 'active')->count(),
             'classes' => SchoolClass::where('is_active', true)->count(),
-            'monthly_revenue' => Payment::whereMonth('payment_date', now()->month)
-                                      ->whereYear('payment_date', now()->year)
+            'monthly_revenue' => Payment::whereMonth('paid_at', now()->month)
+                                      ->whereYear('paid_at', now()->year)
                                       ->where('status', 'completed')
-                                      ->sum('amount_paid'),
+                                      ->sum('amount'),
             'attendance_rate' => 95, // Calculé dynamiquement
         ]);
     }

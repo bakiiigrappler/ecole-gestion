@@ -96,11 +96,19 @@
                                                                 @endforeach
                                                             </select>
 
-                                                                                                        <select name="schedule[{{ $index }}][{{ $dayNumber }}][teacher_id]" 
-                                                    class="form-select form-select-sm mb-1 teacher-select">
-                                                <option value="">-- Enseignant --</option>
-                                                <!-- Les options seront mises à jour dynamiquement selon la matière -->
-                                            </select>
+                                                                                                                                                                    <select name="schedule[{{ $index }}][{{ $dayNumber }}][teacher_id]" 
+                                                                    class="form-select form-select-sm mb-1 teacher-select">
+                                                                <option value="">-- Enseignant --</option>
+                                                                <!-- Les options seront mises à jour dynamiquement selon la matière -->
+                                                            </select>
+
+                                                            <!-- Affichage du nom du professeur sélectionné -->
+                                                            <div class="selected-teacher-info d-none">
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-user-tie me-1"></i>
+                                                                    <span class="teacher-name"></span>
+                                                                </small>
+                                                            </div>
 
                                                             <input type="text" 
                                                                    name="schedule[{{ $index }}][{{ $dayNumber }}][room]" 
@@ -259,6 +267,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Gestion du changement de matière - filtrer les enseignants
         if (e.target.classList.contains('subject-select')) {
             updateTeachersForSubject(e.target);
+        }
+        
+        // Gestion du changement d'enseignant - afficher le nom
+        if (e.target.classList.contains('teacher-select')) {
+            updateTeacherInfo(e.target);
         }
     });
 
@@ -511,6 +524,55 @@ function loadExistingSchedule() {
             // Trouver la cellule correspondante et remplir les données
             console.log('Schedule à charger:', schedule);
         });
+    }
+}
+
+// Gestion des matières et enseignants
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('subject-select')) {
+        const subjectId = e.target.value;
+        const teacherSelect = e.target.closest('.course-fields').querySelector('.teacher-select');
+        const teacherInfo = e.target.closest('.course-fields').querySelector('.selected-teacher-info');
+        
+        // Réinitialiser le select des enseignants
+        teacherSelect.innerHTML = '<option value="">-- Enseignant --</option>';
+        teacherInfo.classList.add('d-none');
+        
+        if (subjectId) {
+            // Récupérer les enseignants pour cette matière
+            const teachers = teachersBySubject[subjectId] || [];
+            
+            teachers.forEach(teacher => {
+                const option = document.createElement('option');
+                option.value = teacher.id;
+                option.textContent = teacher.name;
+                teacherSelect.appendChild(option);
+            });
+            
+            // Si un seul enseignant, le sélectionner automatiquement
+            if (teachers.length === 1) {
+                teacherSelect.value = teachers[0].id;
+                updateTeacherInfo(teacherSelect);
+            }
+        }
+    }
+    
+    if (e.target.classList.contains('teacher-select')) {
+        updateTeacherInfo(e.target);
+    }
+});
+
+// Mettre à jour l'affichage des informations du professeur
+function updateTeacherInfo(teacherSelect) {
+    const teacherInfo = teacherSelect.closest('.course-fields').querySelector('.selected-teacher-info');
+    const teacherNameSpan = teacherInfo.querySelector('.teacher-name');
+    
+    if (teacherSelect.value) {
+        const selectedOption = teacherSelect.options[teacherSelect.selectedIndex];
+        teacherNameSpan.textContent = selectedOption.textContent;
+        teacherInfo.classList.remove('d-none');
+    } else {
+        teacherInfo.classList.add('d-none');
     }
 }
 </script>

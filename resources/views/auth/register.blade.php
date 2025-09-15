@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Inscription - StudiaGabon</title>
+    <title>Inscription - Egesco</title>
     
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -367,7 +367,7 @@
                     <i class="bi bi-person-plus-fill"></i>
                 </div>
                 <h1 class="register-title">Créer un compte</h1>
-                <p class="register-subtitle">Rejoignez StudiaGabon</p>
+                <p class="register-subtitle">Rejoignez Egesco</p>
             </div>
 
             <!-- Form -->
@@ -495,7 +495,7 @@
 
         <!-- Footer -->
         <div class="footer-text">
-            <p>&copy; {{ date('Y') }} StudiaGabon. Tous droits réservés.</p>
+            <p>&copy; {{ date('Y') }} Egesco. Tous droits réservés.</p>
         </div>
     </div>
 

@@ -267,14 +267,29 @@ Route::middleware('auth')->group(function () {
     Route::get('/levels/{level}/subjects', [SubjectController::class, 'byLevel'])->name('subjects.byLevel');
 
     // Routes pour la gestion des emplois du temps
-    Route::get('/schedules', [ScheduleController::class, 'index'])->name('schedules.index');
-    Route::get('/schedules/create', [ScheduleController::class, 'create'])->name('schedules.create');
+    Route::resource('schedules', ScheduleController::class)->names([
+        'index' => 'schedules.index',
+        'create' => 'schedules.create',
+        'store' => 'schedules.store',
+        'show' => 'schedules.show',
+        'edit' => 'schedules.edit',
+        'destroy' => 'schedules.destroy',
+    ]);
     Route::get('/schedules/build', [ScheduleController::class, 'build'])->name('schedules.build');
-    Route::post('/schedules', [ScheduleController::class, 'store'])->name('schedules.store');
-    Route::get('/schedules/class/{class}', [ScheduleController::class, 'show'])->name('schedules.show');
-    Route::get('/schedules/class/{class}/print', [ScheduleController::class, 'print'])->name('schedules.print');
-    Route::get('/schedules/class/{class}/edit', [ScheduleController::class, 'edit'])->name('schedules.edit');
-    Route::delete('/schedules/class/{class}', [ScheduleController::class, 'destroy'])->name('schedules.destroy');
+    Route::get('/schedules/check-existing', [ScheduleController::class, 'checkExisting'])->name('schedules.check-existing');
+    Route::get('/schedules/{class}/print', [ScheduleController::class, 'print'])->name('schedules.print');
+
+    // Routes pour la gestion des présences
+    Route::get('/attendances', [App\Http\Controllers\AttendanceController::class, 'index'])->name('attendances.index');
+    Route::get('/attendances/{class}/manage', [App\Http\Controllers\AttendanceController::class, 'manage'])->name('attendances.manage');
+        Route::get('/attendances/{class}/edit/{date}', [App\Http\Controllers\AttendanceController::class, 'edit'])->name('attendances.edit');
+        Route::get('/attendances/{class}/view/{date}', [App\Http\Controllers\AttendanceController::class, 'view'])->name('attendances.view');
+    Route::post('/attendances/{class}/store', [App\Http\Controllers\AttendanceController::class, 'store'])->name('attendances.store');
+    Route::put('/attendances/{class}/update', [App\Http\Controllers\AttendanceController::class, 'update'])->name('attendances.update');
+    Route::delete('/attendances/{class}/delete', [App\Http\Controllers\AttendanceController::class, 'delete'])->name('attendances.delete');
+    Route::get('/attendances/{class}/show/{date}', [App\Http\Controllers\AttendanceController::class, 'show'])->name('attendances.show');
+    Route::post('/attendances/{class}/filter', [App\Http\Controllers\AttendanceController::class, 'filter'])->name('attendances.filter');
+    Route::get('/attendances/{class}/reports', [App\Http\Controllers\AttendanceController::class, 'reports'])->name('attendances.reports');
 
     // Routes pour la gestion des inscriptions
     Route::resource('enrollments', EnrollmentController::class)->names([
@@ -383,3 +398,5 @@ Route::middleware('auth')->group(function () {
         Route::post('/change-password', [ParentPortalController::class, 'changePassword'])->name('change-password');
     });
 });
+
+

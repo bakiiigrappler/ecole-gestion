@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Connexion - StudiaGabon</title>
+    <title>Connexion - Egesco</title>
     
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -428,7 +428,7 @@
                 <div class="cover-logo">
                     <i class="bi bi-mortarboard-fill"></i>
                 </div>
-                <h1 class="cover-title">StudiaGabon</h1>
+                <h1 class="cover-title">Egesco</h1>
                 <p class="cover-subtitle">Système de Gestion Scolaire Moderne</p>
                 
                 <div class="cover-features">
@@ -556,7 +556,7 @@
 
                 <!-- Footer -->
                 <div class="text-center mt-4">
-                    <small class="text-muted">&copy; {{ date('Y') }} StudiaGabon. Tous droits réservés.</small>
+                    <small class="text-muted">&copy; {{ date('Y') }} Egesco. Tous droits réservés.</small>
                 </div>
             </div>
         </div>

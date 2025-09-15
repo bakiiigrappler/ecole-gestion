@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Reçu d\'inscription - StudiaGabon')
+@section('title', 'Reçu d\'inscription - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('enrollments.index') }}">Inscriptions</a></li>
@@ -35,10 +35,10 @@
                         @if($schoolSettings && $schoolSettings->school_logo)
                             <img src="{{ $schoolSettings->logo_url }}" alt="Logo {{ $schoolSettings->school_name }}" class="mb-2" style="max-height: 60px;">
                         @endif
-                        <h2 class="text-primary mb-1">{{ $schoolSettings->school_name ?? 'StudiaGabon' }}</h2>
+                        <h2 class="text-primary mb-1">{{ $schoolSettings->school_name ?? 'Egesco' }}</h2>
                         <p class="mb-1">{{ $schoolSettings->school_type ?? 'Système de Gestion Scolaire' }}</p>
                         <p class="mb-1 text-muted">{{ $schoolSettings->city ?? 'Libreville' }}, {{ $schoolSettings->country ?? 'Gabon' }}</p>
-                        <p class="mb-0 text-muted">Tél: {{ $schoolSettings->school_phone ?? '+241 XX XX XX XX' }} | Email: {{ $schoolSettings->school_email ?? 'contact@studiagabon.ga' }}</p>
+                        <p class="mb-0 text-muted">Tél: {{ $schoolSettings->school_phone ?? '+241 XX XX XX XX' }} | Email: {{ $schoolSettings->school_email ?? 'contact@Egesco.ga' }}</p>
                     </div>
 
                     <!-- Informations du reçu -->

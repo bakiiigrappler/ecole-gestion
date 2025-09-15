@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Détails du Paiement - StudiaGabon')
+@section('title', 'Détails du Paiement - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('payments.index') }}">Paiements</a></li>

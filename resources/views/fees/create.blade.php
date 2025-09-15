@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Créer un Frais - StudiaGabon')
+@section('title', 'Créer un Frais - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('fees.index') }}">Frais scolaires</a></li>

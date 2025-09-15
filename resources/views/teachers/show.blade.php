@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Détails Enseignant - StudiaGabon')
+@section('title', 'Détails Enseignant - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('teachers.index') }}">Enseignants</a></li>

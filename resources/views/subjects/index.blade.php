@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Gestion des Matières - StudiaGabon')
+@section('title', 'Gestion des Matières - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item active">Matières</li>

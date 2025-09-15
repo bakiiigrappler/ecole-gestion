@@ -40,6 +40,14 @@ class SchoolClass extends Model
         return $this->hasMany(Schedule::class, 'class_id');
     }
 
+    // Relation avec les étudiants via les inscriptions
+    public function students()
+    {
+        return $this->belongsToMany(Student::class, 'enrollments', 'class_id', 'student_id')
+                    ->withPivot('academic_year_id', 'enrollment_date', 'status')
+                    ->withTimestamps();
+    }
+
     // Relation avec les professeurs généralistes assignés
     public function teachers()
     {

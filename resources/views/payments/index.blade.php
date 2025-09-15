@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Gestion des Paiements - StudiaGabon')
+@section('title', 'Gestion des Paiements - Egesco')
 
 @section('breadcrumb')
 <li class="breadcrumb-item active">Paiements</li>

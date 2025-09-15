@@ -17,7 +17,7 @@
                             <i class="fas fa-file-pdf me-1"></i>
                             Télécharger PDF
                         </button>
-                        <a href="{{ route('schedules.edit', ['class' => $class->id, 'academic_year_id' => $academicYear->id]) }}" 
+                        <a href="{{ route('schedules.build', ['class_id' => $class->id, 'academic_year_id' => $academicYear->id]) }}" 
                            class="btn btn-warning me-2">
                             <i class="fas fa-edit me-1"></i>
                             Modifier
@@ -102,12 +102,92 @@
                                         // Récupérer tous les emplois du temps existants
                                         $allSchedules = $schedulesByDay->flatten();
                                         
+                                        // Créneaux horaires par défaut selon le cycle
+                                        $cycle = $class->level ? $class->level->cycle : 'primaire';
+                                        $defaultTimeSlots = [];
+                                        
+                                        switch ($cycle) {
+                                            case 'maternelle':
+                                                $defaultTimeSlots = [
+                                                    ['start' => '08:00:00', 'end' => '08:30:00'],
+                                                    ['start' => '08:30:00', 'end' => '09:00:00'],
+                                                    ['start' => '09:00:00', 'end' => '09:30:00'],
+                                                    ['start' => '09:30:00', 'end' => '10:00:00'],
+                                                    ['start' => '10:00:00', 'end' => '10:15:00'], // Récréation
+                                                    ['start' => '10:15:00', 'end' => '10:45:00'],
+                                                    ['start' => '10:45:00', 'end' => '11:15:00'],
+                                                    ['start' => '11:15:00', 'end' => '11:45:00'],
+                                                    ['start' => '11:45:00', 'end' => '12:00:00'], // Pause
+                                                ];
+                                                break;
+                                                
+                                            case 'primaire':
+                                                $defaultTimeSlots = [
+                                                    ['start' => '08:00:00', 'end' => '09:00:00'],
+                                                    ['start' => '09:00:00', 'end' => '10:00:00'],
+                                                    ['start' => '10:00:00', 'end' => '10:15:00'], // Récréation
+                                                    ['start' => '10:15:00', 'end' => '11:15:00'],
+                                                    ['start' => '11:15:00', 'end' => '12:15:00'],
+                                                    ['start' => '12:15:00', 'end' => '13:15:00'], // Pause déjeuner
+                                                    ['start' => '13:15:00', 'end' => '14:15:00'],
+                                                    ['start' => '14:15:00', 'end' => '15:15:00'],
+                                                    ['start' => '15:15:00', 'end' => '15:30:00'], // Récréation
+                                                    ['start' => '15:30:00', 'end' => '16:30:00'],
+                                                ];
+                                                break;
+                                                
+                                            default: // Collège et Lycée
+                                                $defaultTimeSlots = [
+                                                    ['start' => '08:00:00', 'end' => '09:00:00'],
+                                                    ['start' => '09:00:00', 'end' => '10:00:00'],
+                                                    ['start' => '10:00:00', 'end' => '10:15:00'], // Récréation
+                                                    ['start' => '10:15:00', 'end' => '11:15:00'],
+                                                    ['start' => '11:15:00', 'end' => '12:15:00'],
+                                                    ['start' => '12:15:00', 'end' => '13:15:00'], // Pause déjeuner
+                                                    ['start' => '13:15:00', 'end' => '14:15:00'],
+                                                    ['start' => '14:15:00', 'end' => '15:15:00'],
+                                                    ['start' => '15:15:00', 'end' => '15:30:00'], // Récréation
+                                                    ['start' => '15:30:00', 'end' => '16:30:00'],
+                                                    ['start' => '16:30:00', 'end' => '17:30:00'],
+                                                ];
+                                                break;
+                                        }
+                                        
                                         // Grouper par créneaux horaires
                                         $schedulesByTimeSlot = [];
-                                        foreach($allSchedules as $schedule) {
-                                            $timeSlot = $schedule->start_time->format('H:i') . '-' . $schedule->end_time->format('H:i');
+                                        foreach($schedules as $schedule) {
+                                            $timeSlot = $schedule->start_time . '-' . $schedule->end_time;
                                             $schedulesByTimeSlot[$timeSlot][$schedule->day_of_week] = $schedule;
                                         }
+                                        
+                                        // Combiner les créneaux existants et les créneaux par défaut
+                                        $existingTimeSlots = [];
+                                        foreach($schedules as $schedule) {
+                                            $timeSlot = $schedule->start_time . '-' . $schedule->end_time;
+                                            $existingTimeSlots[$timeSlot] = true;
+                                        }
+                                        
+                                        $allTimeSlots = [];
+                                        
+                                        // Ajouter d'abord les créneaux par défaut
+                                        foreach($defaultTimeSlots as $slot) {
+                                            $timeSlot = $slot['start'] . '-' . $slot['end'];
+                                            $allTimeSlots[] = $timeSlot;
+                                        }
+                                        
+                                        // Ajouter les créneaux existants qui ne sont pas dans les créneaux par défaut
+                                        foreach($existingTimeSlots as $timeSlot => $exists) {
+                                            if (!in_array($timeSlot, $allTimeSlots)) {
+                                                $allTimeSlots[] = $timeSlot;
+                                            }
+                                        }
+                                        
+                                        // Trier les créneaux par heure de début
+                                        usort($allTimeSlots, function($a, $b) {
+                                            $timeA = explode('-', $a)[0];
+                                            $timeB = explode('-', $b)[0];
+                                            return strcmp($timeA, $timeB);
+                                        });
                                         
                                         // Tous les jours de la semaine (1=Lundi, 2=Mardi, ..., 6=Samedi)
                                         $allDays = [1, 2, 3, 4, 5, 6];
@@ -176,23 +256,27 @@
                                         </h6>
                                         <div class="row">
                                             @php
-                                                $totalSchedules = $allSchedules->count();
-                                                $courseCount = $allSchedules->where('type', 'course')->count();
-                                                $breakCount = $allSchedules->where('type', 'break')->count();
+                                                $totalSchedules = $schedules->count();
+                                                $courseCount = $schedules->where('type', 'course')->count();
+                                                $breakCount = $schedules->where('type', 'break')->count();
                                                 
                                                 // Calculer les heures de cours par matière
                                                 $subjectHours = [];
-                                                foreach($allSchedules->where('type', 'course') as $schedule) {
+                                                foreach($schedules->where('type', 'course') as $schedule) {
                                                     $subjectName = $schedule->subject->name ?? 'Non définie';
-                                                    $duration = $schedule->start_time->diffInMinutes($schedule->end_time);
+                                                    $start = \Carbon\Carbon::createFromFormat('H:i:s', $schedule->start_time);
+                                                    $end = \Carbon\Carbon::createFromFormat('H:i:s', $schedule->end_time);
+                                                    $duration = $start->diffInMinutes($end);
                                                     $subjectHours[$subjectName] = ($subjectHours[$subjectName] ?? 0) + $duration;
                                                 }
                                                 
                                                 // Calculer les heures par enseignant
                                                 $teacherHours = [];
-                                                foreach($allSchedules->where('type', 'course') as $schedule) {
+                                                foreach($schedules->where('type', 'course') as $schedule) {
                                                     $teacherName = $schedule->teacher ? $schedule->teacher->first_name . ' ' . $schedule->teacher->last_name : 'Non défini';
-                                                    $duration = $schedule->start_time->diffInMinutes($schedule->end_time);
+                                                    $start = \Carbon\Carbon::createFromFormat('H:i:s', $schedule->start_time);
+                                                    $end = \Carbon\Carbon::createFromFormat('H:i:s', $schedule->end_time);
+                                                    $duration = $start->diffInMinutes($end);
                                                     $teacherHours[$teacherName] = ($teacherHours[$teacherName] ?? 0) + $duration;
                                                 }
                                             @endphp
@@ -679,8 +763,8 @@
         foreach($allSchedules as $schedule) {
             $jsScheduleData[] = [
                 'day' => $schedule->day_of_week,
-                'start_time' => $schedule->start_time->format('H:i'),
-                'end_time' => $schedule->end_time->format('H:i'),
+                'start_time' => $schedule->start_time,
+                'end_time' => $schedule->end_time,
                 'type' => $schedule->type,
                 'subject' => $schedule->subject ? $schedule->subject->name : null,
                 'teacher' => $schedule->teacher ? $schedule->teacher->first_name . ' ' . $schedule->teacher->last_name : null,
