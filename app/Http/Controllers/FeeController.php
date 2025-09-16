@@ -16,38 +16,8 @@ class FeeController extends Controller
      */
     public function index()
     {
-        // Récupérer les frais avec les relations
-        $fees = Fee::with(['schoolClass', 'academicYear'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(15);
-
-        // Calculer les statistiques
-        $stats = $this->calculateFeeStats();
-
-        // Données pour les filtres
-        $classes = SchoolClass::orderBy('name')->get();
-        $academicYears = AcademicYear::orderBy('name', 'desc')->get();
-
-        // Données pour le modal "Nouveau frais"
-        $feeTypes = [
-            'tuition' => 'Scolarité',
-            'registration' => 'Inscription',
-            'uniform' => 'Uniforme',
-            'transport' => 'Transport',
-            'meal' => 'Repas',
-            'other' => 'Autre'
-        ];
-
-        $frequencies = [
-            'monthly' => 'Mensuel',
-            'quarterly' => 'Trimestriel',
-            'yearly' => 'Annuel',
-            'one_time' => 'Unique'
-        ];
-
-        return view('fees.index', compact(
-            'fees', 'stats', 'classes', 'academicYears', 'feeTypes', 'frequencies'
-        ));
+        // Rediriger vers le nouveau système de gestion des frais
+        return redirect('/fees/dashboard');
     }
 
     /**

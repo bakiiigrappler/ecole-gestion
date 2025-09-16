@@ -1,0 +1,8 @@
+warning: in the working copy of 'resources/views/payments/create.blade.php', CRLF will be replaced by LF the next time Git touches it
+app/Models/Attendance.php
+app/Models/Payment.php
+resources/views/fees/index.blade.php
+resources/views/payments/create.blade.php
+resources/views/payments/index.blade.php
+resources/views/reports/statistics.blade.php
+routes/api.php

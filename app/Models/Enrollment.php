@@ -79,6 +79,44 @@ class Enrollment extends Model
         return $this->hasMany(OnlinePayment::class);
     }
 
+    /**
+     * Get the payments for this enrollment.
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * Relation avec les frais d'inscription
+     */
+    public function enrollmentFees(): HasMany
+    {
+        return $this->hasMany(EnrollmentFee::class);
+    }
+
+    /**
+     * Get the parent through the student relationship.
+     * This is not a true Eloquent relationship, just a helper method.
+     */
+    public function getParent()
+    {
+        if (!$this->student) {
+            return null;
+        }
+        
+        return $this->student->parents()->first();
+    }
+
+    /**
+     * Get the parent ID through the student relationship.
+     */
+    public function getParentIdAttribute()
+    {
+        $parent = $this->getParent();
+        return $parent ? $parent->id : null;
+    }
+
     // Accesseurs
     public function getStatusBadgeAttribute()
     {

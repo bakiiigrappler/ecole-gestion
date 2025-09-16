@@ -15,7 +15,7 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h1 class="h3 mb-0">Modifier le Paiement</h1>
-                    <p class="text-muted">Modifiez les informations du paiement #{{ $payment->reference }}</p>
+                    <p class="text-muted">Modifiez les informations du paiement #{{ $payment->transaction_id }}</p>
                 </div>
                 <div>
                     <a href="{{ route('payments.index') }}" class="btn btn-secondary">
@@ -40,8 +40,8 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-3">
-                            <strong>Référence:</strong><br>
-                            <span class="text-muted">{{ $payment->reference }}</span>
+                            <strong>Transaction ID:</strong><br>
+                            <span class="text-muted">{{ $payment->transaction_id }}</span>
                         </div>
                         <div class="col-md-3">
                             <strong>Montant:</strong><br>
@@ -49,7 +49,15 @@
                         </div>
                         <div class="col-md-3">
                             <strong>Date:</strong><br>
-                            <span class="text-muted">{{ $payment->payment_date->format('d/m/Y') }}</span>
+                            <span class="text-muted">
+                                @if($payment->paid_at)
+                                    {{ $payment->paid_at->format('d/m/Y') }}
+                                @elseif($payment->created_at)
+                                    {{ $payment->created_at->format('d/m/Y') }}
+                                @else
+                                    Non disponible
+                                @endif
+                            </span>
                         </div>
                         <div class="col-md-3">
                             <strong>Statut:</strong><br>
@@ -110,11 +118,11 @@
                         <div class="row">
                             <!-- Date de paiement -->
                             <div class="col-md-6 mb-3">
-                                <label for="payment_date" class="form-label">Date de paiement <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control @error('payment_date') is-invalid @enderror" 
-                                       id="payment_date" name="payment_date" 
-                                       value="{{ old('payment_date', $payment->payment_date->format('Y-m-d')) }}" required>
-                                @error('payment_date')
+                                <label for="paid_at" class="form-label">Date de paiement <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control @error('paid_at') is-invalid @enderror" 
+                                       id="paid_at" name="paid_at" 
+                                       value="{{ old('paid_at', $payment->paid_at ? $payment->paid_at->format('Y-m-d') : '') }}">
+                                @error('paid_at')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
@@ -137,15 +145,15 @@
                             </div>
                         </div>
 
-                        <!-- Référence -->
+                        <!-- Transaction ID -->
                         <div class="mb-3">
-                            <label for="reference" class="form-label">Référence</label>
-                            <input type="text" class="form-control @error('reference') is-invalid @enderror" 
-                                   id="reference" name="reference" value="{{ old('reference', $payment->reference) }}">
-                            @error('reference')
+                            <label for="transaction_id" class="form-label">Transaction ID</label>
+                            <input type="text" class="form-control @error('transaction_id') is-invalid @enderror" 
+                                   id="transaction_id" name="transaction_id" value="{{ old('transaction_id', $payment->transaction_id) }}" readonly>
+                            @error('transaction_id')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
-                            <div class="form-text">Laissez vide pour générer automatiquement une référence</div>
+                            <div class="form-text">L'ID de transaction ne peut pas être modifié</div>
                         </div>
 
                         <!-- Notes -->

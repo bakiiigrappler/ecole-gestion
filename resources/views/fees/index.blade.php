@@ -14,854 +14,502 @@
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h1 class="h3 mb-0">Gestion des Frais Scolaires</h1>
-                    <p class="text-muted">Configurez et gérez les différents types de frais</p>
+                    <p class="text-muted">Système de gestion des frais modernisé avec architecture hiérarchique</p>
                 </div>
                 <div>
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createFeeModal">
-                        <i class="bi bi-cash-stack me-2"></i>
-                        Nouveau frais
-                    </button>
+                    <a href="{{ route('fees.dashboard') }}" class="btn btn-primary">
+                        <i class="bi bi-speedometer2 me-2"></i>
+                        Nouveau Tableau de Bord
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Statistics Cards -->
+    <!-- Migration Notice -->
     <div class="row mb-4">
-        <div class="col-lg-3 col-md-6 mb-4">
-            <div class="card border-primary">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-info-circle fs-4 me-3"></i>
                         <div>
-                            <h6 class="card-title text-muted">Total des frais</h6>
-                            <h3 class="mb-0 text-primary">{{ $stats['total_fees'] ?? 0 }}</h3>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-cash-stack fs-1 text-primary"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-            <div class="card border-success">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title text-muted">Frais actifs</h6>
-                            <h3 class="mb-0 text-success">{{ $stats['active_fees'] ?? 0 }}</h3>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-check-circle fs-1 text-success"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-            <div class="card border-warning">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title text-muted">Montant total</h6>
-                            <h3 class="mb-0 text-warning">{{ number_format($stats['total_amount'] ?? 0) }} FCFA</h3>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-currency-exchange fs-1 text-warning"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-4">
-            <div class="card border-info">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title text-muted">Taux de paiement</h6>
-                            <h3 class="mb-0 text-info">{{ number_format($stats['payment_rate'] ?? 0, 1) }}%</h3>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-graph-up fs-1 text-info"></i>
-                        </div>
+                        <h5 class="alert-heading mb-1">Système Modernisé Disponible !</h5>
+                        <p class="mb-0">
+                            Un nouveau système de gestion des frais avec architecture hiérarchique est maintenant disponible. 
+                            Il offre une meilleure organisation : <strong>Niveau → Classe → Étudiant</strong> avec intégration complète des paiements.
+                        </p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Filters -->
+    <!-- New System Cards -->
+    <div class="row mb-4">
+        <!-- Card principale - Tableau de Bord -->
+        <div class="col-lg-6 col-md-12 mb-4">
+            <div class="card h-100 border-primary shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-speedometer2 fs-3 me-3"></i>
+                        <div>
+                            <h5 class="card-title mb-0">Tableau de Bord</h5>
+                            <small>Vue d'ensemble du système</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Vue d'ensemble complète avec statistiques en temps réel, frais échus et paiements récents.</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted small">
+                            <i class="bi bi-graph-up me-1"></i>
+                            Statistiques en temps réel
+                        </div>
+                        <a href="{{ route('fees.dashboard') }}" class="btn btn-primary">
+                            <i class="bi bi-arrow-right me-2"></i>Accéder
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Card principale - Paiements -->
+        <div class="col-lg-6 col-md-12 mb-4">
+            <div class="card h-100 border-success shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-credit-card fs-3 me-3"></i>
+                        <div>
+                            <h5 class="card-title mb-0">Paiements</h5>
+                            <small>Gestion des transactions</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Gérez les paiements avec intégration complète et traçabilité des frais.</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted small">
+                            <i class="bi bi-shield-check me-1"></i>
+                            Traçabilité complète
+                        </div>
+                        <a href="{{ route('payments.index') }}" class="btn btn-success">
+                            <i class="bi bi-arrow-right me-2"></i>Gérer
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cards de gestion des frais -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="mb-3">
+                <i class="bi bi-gear me-2"></i>Configuration des Frais
+            </h4>
+                        </div>
+        
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card h-100 border-info shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <div class="bg-info text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                            <i class="bi bi-layers fs-2"></i>
+                        </div>
+                        </div>
+                    <h5 class="card-title">Frais de Niveau</h5>
+                    <p class="card-text">Gérez les frais applicables à tous les niveaux (Préprimaire, Primaire, Collège, Lycée).</p>
+                    <div class="mt-auto">
+                        <a href="{{ route('fees.level-fees') }}" class="btn btn-outline-info">
+                            <i class="bi bi-gear me-2"></i>Configurer
+                            </a>
+                        </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card h-100 border-warning shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <div class="bg-warning text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                            <i class="bi bi-collection fs-2"></i>
+        </div>
+    </div>
+                    <h5 class="card-title">Frais de Classe</h5>
+                    <p class="card-text">Configurez les frais spécifiques à chaque classe avec suppléments et réductions.</p>
+                    <div class="mt-auto">
+                        <a href="{{ route('fees.class-fees') }}" class="btn btn-outline-warning">
+                            <i class="bi bi-sliders me-2"></i>Personnaliser
+                        </a>
+                    </div>
+                </div>
+                                                </div>
+                                            </div>
+        
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card h-100 border-secondary shadow-sm">
+                <div class="card-body text-center">
+                    <div class="mb-3">
+                        <div class="bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                            <i class="bi bi-people fs-2"></i>
+                        </div>
+                                    </div>
+                    <h5 class="card-title">Frais d'Inscription</h5>
+                    <p class="card-text">Suivez les frais assignés aux étudiants avec gestion des paiements en temps réel.</p>
+                    <div class="mt-auto">
+                        <a href="{{ route('fees.enrollment-fees') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-eye me-2"></i>Suivre
+                        </a>
+                        </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cards de rapports et analyses -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4 class="mb-3">
+                <i class="bi bi-graph-up me-2"></i>Rapports et Analyses
+            </h4>
+</div>
+
+        <div class="col-lg-6 col-md-12 mb-4">
+            <div class="card h-100 border-dark shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-dark text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 60px; height: 60px;">
+                            <i class="bi bi-file-earmark-text fs-4"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">Rapports Détaillés</h5>
+                            <small class="text-muted">Analyses financières complètes</small>
+                        </div>
+                    </div>
+                    <p class="card-text">Générez des rapports détaillés avec filtres avancés et analyses financières.</p>
+                    <a href="{{ route('fees.report') }}" class="btn btn-dark">
+                        <i class="bi bi-download me-2"></i>Générer Rapport
+                    </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+        <div class="col-lg-6 col-md-12 mb-4">
+            <div class="card h-100 border-primary shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 60px; height: 60px;">
+                            <i class="bi bi-bar-chart fs-4"></i>
+                        </div>
+                        <div>
+                            <h5 class="card-title mb-1">Statistiques Avancées</h5>
+                            <small class="text-muted">Métriques et tendances</small>
+                        </div>
+                    </div>
+                    <p class="card-text">Analysez les tendances de paiement et les performances financières de l'école.</p>
+                    <a href="{{ route('reports.statistics') }}" class="btn btn-primary">
+                        <i class="bi bi-graph-up me-2"></i>Voir Statistiques
+                    </a>
+                        </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+    <!-- Features Comparison -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
-                <div class="card-body">
-                    <form method="GET" action="{{ route('fees.index') }}" class="row g-3">
-                        <div class="col-md-3">
-                            <label for="search" class="form-label">Rechercher</label>
-                            <input type="text" class="form-control" id="search" name="search" 
-                                   value="{{ request('search') }}" placeholder="Nom du frais...">
-                        </div>
-                        <div class="col-md-2">
-                            <label for="type" class="form-label">Type</label>
-                            <select class="form-select" id="type" name="type">
-                                <option value="">Tous</option>
-                                <option value="tuition" {{ request('type') == 'tuition' ? 'selected' : '' }}>Scolarité</option>
-                                <option value="registration" {{ request('type') == 'registration' ? 'selected' : '' }}>Inscription</option>
-                                <option value="uniform" {{ request('type') == 'uniform' ? 'selected' : '' }}>Uniforme</option>
-                                <option value="transport" {{ request('type') == 'transport' ? 'selected' : '' }}>Transport</option>
-                                <option value="meal" {{ request('type') == 'meal' ? 'selected' : '' }}>Cantine</option>
-                                <option value="other" {{ request('type') == 'other' ? 'selected' : '' }}>Autre</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label for="frequency" class="form-label">Fréquence</label>
-                            <select class="form-select" id="frequency" name="frequency">
-                                <option value="">Toutes</option>
-                                <option value="monthly" {{ request('frequency') == 'monthly' ? 'selected' : '' }}>Mensuel</option>
-                                <option value="quarterly" {{ request('frequency') == 'quarterly' ? 'selected' : '' }}>Trimestriel</option>
-                                <option value="yearly" {{ request('frequency') == 'yearly' ? 'selected' : '' }}>Annuel</option>
-                                <option value="one_time" {{ request('frequency') == 'one_time' ? 'selected' : '' }}>Unique</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label for="status" class="form-label">Statut</label>
-                            <select class="form-select" id="status" name="status">
-                                <option value="">Tous</option>
-                                <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Actif</option>
-                                <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Inactif</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3 d-flex align-items-end">
-                            <button type="submit" class="btn btn-primary me-2">
-                                <i class="bi bi-search me-2"></i>Filtrer
-                            </button>
-                            <a href="{{ route('fees.index') }}" class="btn btn-outline-secondary">
-                                <i class="bi bi-arrow-clockwise me-2"></i>Réinitialiser
-                            </a>
-                        </div>
-                    </form>
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-arrow-left-right me-2"></i>Comparaison des Systèmes
+                    </h5>
                 </div>
-            </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-muted">Ancien Système</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="bi bi-x-circle text-danger me-2"></i>Frais isolés sans hiérarchie</li>
+                                <li><i class="bi bi-x-circle text-danger me-2"></i>Pas de lien direct avec les paiements</li>
+                                <li><i class="bi bi-x-circle text-danger me-2"></i>Calculs manuels des montants</li>
+                                <li><i class="bi bi-x-circle text-danger me-2"></i>Interface basique</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-success">Nouveau Système</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Architecture hiérarchique Niveau → Classe → Étudiant</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Intégration complète avec les paiements</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Calculs automatiques et statistiques en temps réel</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Interface moderne avec modals et AJAX</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
         </div>
     </div>
+</div>
 
-    <!-- Fees Table -->
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-gradient-primary text-white">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-graph-up me-2"></i>Aperçu Rapide du Système
+                </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="stat-item">
+                                <div class="stat-icon bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
+                                    <i class="bi bi-layers"></i>
+            </div>
+                                <h3 class="text-primary mb-1">27</h3>
+                                <p class="text-muted mb-0 small">Frais de Niveau</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="stat-item">
+                                <div class="stat-icon bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
+                                    <i class="bi bi-collection"></i>
+                                </div>
+                                <h3 class="text-success mb-1">6</h3>
+                                <p class="text-muted mb-0 small">Frais de Classe</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="stat-item">
+                                <div class="stat-icon bg-info text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
+                                    <i class="bi bi-people"></i>
+                    </div>
+                                <h3 class="text-info mb-1">8</h3>
+                                <p class="text-muted mb-0 small">Frais d'Inscription</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6 mb-3">
+                            <div class="stat-item">
+                                <div class="stat-icon bg-warning text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width: 50px; height: 50px;">
+                                    <i class="bi bi-cash-stack"></i>
+                                </div>
+                                <h3 class="text-warning mb-1">1.12M</h3>
+                                <p class="text-muted mb-0 small">FCFA Total</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+    <!-- Migration Guide -->
     <div class="row">
         <div class="col-12">
             <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
+                <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="bi bi-table me-2"></i>
-                        Liste des frais ({{ $fees->total() }})
+                        <i class="bi bi-book me-2"></i>Guide de Migration
                     </h5>
-                    <div class="btn-group" role="group">
-                        <button type="button" class="btn btn-outline-success btn-sm" onclick="exportFees()">
-                            <i class="bi bi-download me-2"></i>Exporter
-                        </button>
-                    </div>
                 </div>
-                <div class="card-body p-0">
-                    @if($fees->count() > 0)
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Nom du frais</th>
-                                        <th>Type</th>
-                                        <th>Montant</th>
-                                        <th>Fréquence</th>
-                                        <th>Classes</th>
-                                        <th>Statut</th>
-                                        <th>Échéance</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($fees as $fee)
-                                    <tr>
-                                        <td>
-                                            <div class="d-flex align-items-center">
-                                                <i class="bi bi-cash-stack text-primary me-2"></i>
-                                                <div>
-                                                    <span class="fw-bold">{{ $fee->name }}</span>
-                                                    @if($fee->description)
-                                                        <br><small class="text-muted">{{ Str::limit($fee->description, 50) }}</small>
-                                                    @endif
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-{{ $fee->type_color }}">{{ $fee->type_label }}</span>
-                                        </td>
-                                        <td>
-                                            <span class="fw-bold text-success">{{ number_format($fee->amount) }} FCFA</span>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-{{ $fee->frequency_color }}">{{ $fee->frequency_label }}</span>
-                                        </td>
-                                        <td>
-                                            @if($fee->class)
-                                                <span class="badge bg-secondary">{{ $fee->class->name }}</span>
-                                            @else
-                                                <span class="badge bg-info">Toutes</span>
-                                            @endif
-                                        </td>
-                                        <td>
-                                            @if($fee->is_active)
-                                                <span class="badge bg-success">Actif</span>
-                                            @else
-                                                <span class="badge bg-secondary">Inactif</span>
-                                            @endif
-                                        </td>
-                                        <td>
-                                            @if($fee->due_date)
-                                                <span class="text-muted">{{ $fee->due_date->format('d/m/Y') }}</span>
-                                            @else
-                                                <span class="text-muted">-</span>
-                                            @endif
-                                        </td>
-                                        <td>
-                                            <div class="btn-group" role="group">
-                                                <button type="button" class="btn btn-sm btn-outline-primary" title="Voir" 
-                                                        onclick="showFee({{ $fee->id }})">
-                                                    <i class="bi bi-eye"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-outline-warning" title="Modifier" 
-                                                        onclick="editFee({{ $fee->id }})">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-sm btn-outline-danger" title="Supprimer" 
-                                                        onclick="deleteFee({{ $fee->id }}, '{{ $fee->name }}')">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="text-center mb-3">
+                                <div class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                    <span class="fs-4">1</span>
+                            </div>
+                                <h6 class="mt-2">Configuration</h6>
+                                <p class="text-muted small">Configurez les frais de niveau pour chaque cycle d'enseignement</p>
+                            </div>
                         </div>
-                        
-                        <!-- Pagination -->
-                        @if($fees->hasPages())
-                            <div class="card-footer bg-white border-0 py-3">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div class="text-muted small">
-                                        Affichage de {{ $fees->firstItem() ?? 0 }} à {{ $fees->lastItem() ?? 0 }} sur {{ $fees->total() ?? 0 }} frais
-                                    </div>
-                                    <nav aria-label="Pagination des frais">
-                                        {{ $fees->links('pagination::bootstrap-5') }}
-                                    </nav>
+                        <div class="col-md-4">
+                            <div class="text-center mb-3">
+                                <div class="bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                    <span class="fs-4">2</span>
+                    </div>
+                                <h6 class="mt-2">Personnalisation</h6>
+                                <p class="text-muted small">Ajustez les frais par classe avec suppléments ou réductions</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center mb-3">
+                                <div class="bg-info text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                    <span class="fs-4">3</span>
                                 </div>
-                            </div>
-                        @endif
-                    @else
-                        <div class="text-center py-5">
-                            <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
-                            <h5 class="text-muted">Aucun frais trouvé</h5>
-                            <p class="text-muted">Commencez par créer votre premier frais scolaire.</p>
-                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createFeeModal">
-                                <i class="bi bi-plus-circle me-2"></i>Créer un frais
-                            </button>
-                        </div>
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Create Fee Modal -->
-<div class="modal fade" id="createFeeModal" tabindex="-1" aria-labelledby="createFeeModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="createFeeModalLabel">
-                    <i class="bi bi-plus-circle text-primary me-2"></i>
-                    Nouveau Frais Scolaire
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form id="createFeeForm" method="POST" action="{{ route('fees.store') }}">
-                @csrf
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="name" class="form-label">Nom du frais <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="name" name="name" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="fee_type" class="form-label">Type de frais <span class="text-danger">*</span></label>
-                                <select class="form-select" id="fee_type" name="fee_type" required>
-                                    <option value="">Sélectionner un type</option>
-                                    @foreach($feeTypes as $value => $label)
-                                        <option value="{{ $value }}">{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="amount" class="form-label">Montant (FCFA) <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="amount" name="amount" min="0" step="100" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="frequency" class="form-label">Fréquence <span class="text-danger">*</span></label>
-                                <select class="form-select" id="frequency" name="frequency" required>
-                                    <option value="">Sélectionner une fréquence</option>
-                                    @foreach($frequencies as $value => $label)
-                                        <option value="{{ $value }}">{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="class_id" class="form-label">Classe</label>
-                                <select class="form-select" id="class_id" name="class_id">
-                                    <option value="">Toutes les classes</option>
-                                    @foreach($classes as $class)
-                                        <option value="{{ $class->id }}">{{ $class->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="academic_year_id" class="form-label">Année académique <span class="text-danger">*</span></label>
-                                <select class="form-select" id="academic_year_id" name="academic_year_id" required>
-                                    <option value="">Sélectionner une année</option>
-                                    @foreach($academicYears as $year)
-                                        <option value="{{ $year->id }}">{{ $year->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="due_date" class="form-label">Date d'échéance</label>
-                                <input type="date" class="form-control" id="due_date" name="due_date">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="description" class="form-label">Description</label>
-                                <textarea class="form-control" id="description" name="description" rows="2"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="is_mandatory" name="is_mandatory" value="1">
-                                <label class="form-check-label" for="is_mandatory">
-                                    Frais obligatoire
-                                </label>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="is_active" name="is_active" value="1" checked>
-                                <label class="form-check-label" for="is_active">
-                                    Frais actif
-                                </label>
+                                <h6 class="mt-2">Suivi</h6>
+                                <p class="text-muted small">Suivez les paiements et générez des rapports détaillés</p>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <i class="bi bi-x-circle me-2"></i>Annuler
-                    </button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-circle me-2"></i>Créer le frais
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Edit Fee Modal -->
-<div class="modal fade" id="editFeeModal" tabindex="-1" aria-labelledby="editFeeModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="editFeeModalLabel">
-                    <i class="bi bi-pencil text-warning me-2"></i>
-                    Modifier le Frais
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form id="editFeeForm" method="POST">
-                @csrf
-                @method('PUT')
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="edit_name" class="form-label">Nom du frais <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="edit_name" name="name" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="edit_fee_type" class="form-label">Type de frais <span class="text-danger">*</span></label>
-                                <select class="form-select" id="edit_fee_type" name="fee_type" required>
-                                    <option value="">Sélectionner un type</option>
-                                    @foreach($feeTypes as $value => $label)
-                                        <option value="{{ $value }}">{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="edit_amount" class="form-label">Montant (FCFA) <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="edit_amount" name="amount" min="0" step="100" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="edit_frequency" class="form-label">Fréquence <span class="text-danger">*</span></label>
-                                <select class="form-select" id="edit_frequency" name="frequency" required>
-                                    <option value="">Sélectionner une fréquence</option>
-                                    @foreach($frequencies as $value => $label)
-                                        <option value="{{ $value }}">{{ $label }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="edit_class_id" class="form-label">Classe</label>
-                                <select class="form-select" id="edit_class_id" name="class_id">
-                                    <option value="">Toutes les classes</option>
-                                    @foreach($classes as $class)
-                                        <option value="{{ $class->id }}">{{ $class->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="edit_academic_year_id" class="form-label">Année académique <span class="text-danger">*</span></label>
-                                <select class="form-select" id="edit_academic_year_id" name="academic_year_id" required>
-                                    <option value="">Sélectionner une année</option>
-                                    @foreach($academicYears as $year)
-                                        <option value="{{ $year->id }}">{{ $year->name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="edit_due_date" class="form-label">Date d'échéance</label>
-                                <input type="date" class="form-control" id="edit_due_date" name="due_date">
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="edit_description" class="form-label">Description</label>
-                                <textarea class="form-control" id="edit_description" name="description" rows="2"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="edit_is_mandatory" name="is_mandatory">
-                                <label class="form-check-label" for="edit_is_mandatory">
-                                    Frais obligatoire
-                                </label>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="edit_is_active" name="is_active">
-                                <label class="form-check-label" for="edit_is_active">
-                                    Frais actif
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <i class="bi bi-x-circle me-2"></i>Annuler
-                    </button>
-                    <button type="submit" class="btn btn-warning">
-                        <i class="bi bi-check-circle me-2"></i>Mettre à jour
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Show Fee Modal -->
-<div class="modal fade" id="showFeeModal" tabindex="-1" aria-labelledby="showFeeModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="showFeeModalLabel">
-                    <i class="bi bi-eye text-primary me-2"></i>
-                    Détails du Frais
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="showFeeModalBody">
-                <!-- Le contenu sera chargé dynamiquement -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle me-2"></i>Fermer
-                </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Delete Confirmation Modal -->
-<div class="modal fade" id="deleteFeeModal" tabindex="-1" aria-labelledby="deleteFeeModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteFeeModalLabel">
-                    <i class="bi bi-exclamation-triangle text-danger me-2"></i>
-                    Confirmer la suppression
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>Êtes-vous sûr de vouloir supprimer le frais <strong id="feeNameToDelete"></strong> ?</p>
-                <p class="text-danger small">
-                    <i class="bi bi-info-circle me-1"></i>
-                    Cette action est irréversible et supprimera également tous les paiements associés.
-                </p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-circle me-2"></i>Annuler
-                </button>
-                <form id="deleteFeeForm" method="POST" style="display: inline;">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-trash me-2"></i>Supprimer
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Toast Container -->
-<div class="toast-container position-fixed bottom-0 end-0 p-3">
-    <div id="toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="toast-header">
-            <i class="bi bi-info-circle me-2"></i>
-            <strong class="me-auto" id="toastTitle">Notification</strong>
-            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-        <div class="toast-body" id="toastBody">
-        </div>
-    </div>
-</div>
-
-@endsection
-
-@push('scripts')
-<script>
-// Fonction pour afficher un frais
-function showFee(id) {
-    fetch(`/fees/${id}`)
-        .then(response => response.text())
-        .then(html => {
-            document.getElementById('showFeeModalBody').innerHTML = html;
-            const modal = new bootstrap.Modal(document.getElementById('showFeeModal'));
-            modal.show();
-        })
-        .catch(error => {
-            showToast('Erreur lors du chargement des détails', 'error');
-        });
+<style>
+/* Styles pour les cartes */
+.card {
+    transition: all 0.3s ease;
+    border: none;
+    border-radius: 12px;
+    overflow: hidden;
 }
 
-// Fonction pour éditer un frais
-function editFee(id) {
-    fetch(`/fees/${id}/edit`)
-        .then(response => response.text())
-        .then(html => {
-            // Extraire les données du HTML pour remplir le formulaire
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            
-            // Remplir le formulaire avec les données existantes
-            document.getElementById('edit_name').value = doc.querySelector('input[name="name"]')?.value || '';
-            document.getElementById('edit_fee_type').value = doc.querySelector('select[name="fee_type"]')?.value || '';
-            document.getElementById('edit_amount').value = doc.querySelector('input[name="amount"]')?.value || '';
-            document.getElementById('edit_frequency').value = doc.querySelector('select[name="frequency"]')?.value || '';
-            document.getElementById('edit_class_id').value = doc.querySelector('select[name="class_id"]')?.value || '';
-            document.getElementById('edit_academic_year_id').value = doc.querySelector('select[name="academic_year_id"]')?.value || '';
-            document.getElementById('edit_due_date').value = doc.querySelector('input[name="due_date"]')?.value || '';
-            document.getElementById('edit_description').value = doc.querySelector('textarea[name="description"]')?.value || '';
-            document.getElementById('edit_is_mandatory').checked = doc.querySelector('input[name="is_mandatory"]')?.checked || false;
-            document.getElementById('edit_is_active').checked = doc.querySelector('input[name="is_active"]')?.checked || false;
-            
-            // Mettre à jour l'action du formulaire
-            document.getElementById('editFeeForm').action = `/fees/${id}`;
-            
-            const modal = new bootstrap.Modal(document.getElementById('editFeeModal'));
-            modal.show();
-        })
-        .catch(error => {
-            showToast('Erreur lors du chargement des données', 'error');
-        });
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15);
 }
 
-function deleteFee(id, name) {
-    document.getElementById('feeNameToDelete').textContent = name;
-    document.getElementById('deleteFeeForm').action = `/fees/${id}`;
-    
-    const modal = new bootstrap.Modal(document.getElementById('deleteFeeModal'));
-    modal.show();
+.card-header {
+    border: none;
+    border-radius: 12px 12px 0 0 !important;
+    padding: 1.5rem;
 }
 
-function exportFees() {
-    // Implementation for exporting fees data
-    showToast('Fonctionnalité d\'export en cours de développement', 'info');
+.card-body {
+    padding: 1.5rem;
 }
 
-function showToast(message, type = 'success') {
-    const toast = document.getElementById('toast');
-    const toastTitle = document.getElementById('toastTitle');
-    const toastBody = document.getElementById('toastBody');
-    
-    // Set toast content based on type
-    switch(type) {
-        case 'success':
-            toastTitle.innerHTML = '<i class="bi bi-check-circle text-success me-2"></i>Succès';
-            toast.classList.add('bg-success', 'text-white');
-            break;
-        case 'error':
-            toastTitle.innerHTML = '<i class="bi bi-exclamation-triangle text-danger me-2"></i>Erreur';
-            toast.classList.add('bg-danger', 'text-white');
-            break;
-        case 'warning':
-            toastTitle.innerHTML = '<i class="bi bi-exclamation-triangle text-warning me-2"></i>Avertissement';
-            toast.classList.add('bg-warning', 'text-dark');
-            break;
-        case 'info':
-            toastTitle.innerHTML = '<i class="bi bi-info-circle text-info me-2"></i>Information';
-            toast.classList.add('bg-info', 'text-white');
-            break;
-    }
-    
-    toastBody.textContent = message;
-    
-    // Show toast
-    const bsToast = new bootstrap.Toast(toast);
-    bsToast.show();
-    
-    // Remove type-specific classes after hiding
-    toast.addEventListener('hidden.bs.toast', function() {
-        toast.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-info', 'text-white', 'text-dark');
-    }, { once: true });
+/* Styles pour les icônes circulaires */
+.bg-primary, .bg-success, .bg-info, .bg-warning, .bg-secondary, .bg-dark {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
-// Handle create form submission
-document.getElementById('createFeeForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    // Client-side validation
-    const requiredFields = ['name', 'fee_type', 'amount', 'frequency', 'academic_year_id'];
-    let isValid = true;
-    
-    requiredFields.forEach(field => {
-        const element = this.querySelector(`[name="${field}"]`);
-        if (!element.value.trim()) {
-            element.classList.add('is-invalid');
-            isValid = false;
-        } else {
-            element.classList.remove('is-invalid');
-        }
-    });
-    
-    if (!isValid) {
-        showToast('Veuillez remplir tous les champs obligatoires', 'error');
-        submitBtn.disabled = false;
-        return;
-    }
-    
-    const submitBtn = this.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    
-    try {
-        const formData = new FormData(this);
-        
-        // Debug: Log the form data being sent
-        console.log('Form data being sent:');
-        for (let [key, value] of formData.entries()) {
-            console.log(key + ': ' + value);
-        }
-        
-        const response = await fetch(this.action, {
-            method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-            },
-            body: formData
-        });
-        
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            console.error('Server response error:', error);
-            
-            if (error.errors) {
-                // Handle validation errors
-                const errorMessages = Object.values(error.errors).flat().join(', ');
-                throw new Error('Erreurs de validation: ' + errorMessages);
-            } else {
-                throw new Error(error.message || 'Erreur lors de la création');
-            }
-        }
-        
-        // Hide modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('createFeeModal'));
-        modal.hide();
-        
-        // Show success message
-        showToast('Frais créé avec succès !', 'success');
-        
-        // Reload page after a short delay
-        setTimeout(() => {
-            window.location.reload();
-        }, 1000);
-        
-    } catch (error) {
-        showToast(error.message || 'Erreur lors de la création', 'error');
-    } finally {
-        submitBtn.disabled = false;
-    }
-});
+/* Styles pour les boutons */
+.btn {
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
 
-// Handle edit form submission
-document.getElementById('editFeeForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const submitBtn = this.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    
-    try {
-        const formData = new FormData(this);
-        const response = await fetch(this.action, {
-            method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-            },
-            body: formData
-        });
-        
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error.message || 'Erreur lors de la modification');
-        }
-        
-        // Hide modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('editFeeModal'));
-        modal.hide();
-        
-        // Show success message
-        showToast('Frais modifié avec succès !', 'success');
-        
-        // Reload page after a short delay
-        setTimeout(() => {
-            window.location.reload();
-        }, 1000);
-        
-    } catch (error) {
-        showToast(error.message || 'Erreur lors de la modification', 'error');
-    } finally {
-        submitBtn.disabled = false;
-    }
-});
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
 
-// Handle delete form submission
-document.getElementById('deleteFeeForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    
-    const submitBtn = this.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    
-    try {
-        const response = await fetch(this.action, {
-            method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams(new FormData(this))
-        });
-        
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error.message || 'Erreur lors de la suppression');
-        }
-        
-        // Hide modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('deleteFeeModal'));
-        modal.hide();
-        
-        // Show success message
-        showToast('Frais supprimé avec succès !', 'success');
-        
-        // Reload page after a short delay
-        setTimeout(() => {
-            window.location.reload();
-        }, 1000);
-        
-    } catch (error) {
-        showToast(error.message || 'Erreur lors de la suppression', 'error');
-    } finally {
-        submitBtn.disabled = false;
-    }
-});
+/* Styles pour les sections */
+h4 {
+    color: #2c3e50;
+    font-weight: 600;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 0.5rem;
+}
 
-// Show success message if redirected from create/edit
-@if(session('success'))
-    showToast('{{ session('success') }}', 'success');
-@endif
+/* Styles pour les cartes principales */
+.card.border-primary {
+    border-left: 4px solid #007bff !important;
+}
+
+.card.border-success {
+    border-left: 4px solid #28a745 !important;
+}
+
+/* Styles pour les cartes de configuration */
+.card.border-info {
+    border-top: 4px solid #17a2b8 !important;
+}
+
+.card.border-warning {
+    border-top: 4px solid #ffc107 !important;
+}
+
+.card.border-secondary {
+    border-top: 4px solid #6c757d !important;
+}
+
+/* Styles pour les cartes de rapports */
+.card.border-dark {
+    border-left: 4px solid #343a40 !important;
+}
+
+/* Styles pour les statistiques */
+.border-end {
+    border-right: 1px solid #dee2e6 !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .border-end {
+        border-right: none !important;
+        border-bottom: 1px solid #dee2e6 !important;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+    }
+    
+    .card-header {
+        padding: 1rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    h4 {
+        font-size: 1.25rem;
+    }
+}
+
+/* Animation pour les icônes */
+.bi {
+    transition: transform 0.3s ease;
+}
+
+.card:hover .bi {
+    transform: scale(1.1);
+}
+
+/* Styles pour les descriptions */
+.card-text {
+    color: #6c757d;
+    line-height: 1.6;
+}
+
+/* Styles pour les petits textes */
+.text-muted.small {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* Styles pour les statistiques */
+.stat-item {
+    transition: transform 0.3s ease;
+}
+
+.stat-item:hover {
+    transform: translateY(-2px);
+}
+
+.stat-icon {
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.stat-item:hover .stat-icon {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+/* Gradient pour l'en-tête des statistiques */
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+}
+
+/* Styles pour les cartes de statistiques */
+.card.shadow-sm {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
+}
+
+.card.shadow-sm:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+</style>
 
 @if(session('error'))
     showToast('{{ session('error') }}', 'error');
 @endif
 </script>
-@endpush 
+@endpush
+@endsection

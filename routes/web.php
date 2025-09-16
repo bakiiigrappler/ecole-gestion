@@ -10,6 +10,7 @@ use App\Http\Controllers\ClassController;
 use App\Http\Controllers\GradeController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\FeeController;
+use App\Http\Controllers\FeeManagementController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SubjectController;
 use App\Http\Controllers\ScheduleController;
@@ -129,6 +130,9 @@ Route::middleware('auth')->group(function () {
 
     // Route pour les statistiques
     Route::get('/statistics', [StatisticsController::class, 'index'])->name('statistics');
+    
+    // API pour les statistiques dynamiques
+    Route::post('/api/statistics', [StatisticsController::class, 'api'])->name('api.statistics');
 
     // Routes pour les bulletins
     Route::get('/bulletins', [BulletinController::class, 'index'])->name('bulletins.index');
@@ -230,27 +234,56 @@ Route::middleware('auth')->group(function () {
         'destroy' => 'attendances.destroy',
     ]);
 
-    // Routes pour la gestion des frais
-    Route::resource('fees', FeeController::class)->names([
-        'index' => 'fees.index',
-        'create' => 'fees.create',
-        'store' => 'fees.store',
-        'show' => 'fees.show',
-        'edit' => 'fees.edit',
-        'update' => 'fees.update',
-        'destroy' => 'fees.destroy',
-    ]);
+    // Routes pour la gestion des frais (ancien système) - Redirigé vers le nouveau système
+    Route::get('fees', [FeeController::class, 'index'])->name('fees.index');
+
+    // Routes pour la nouvelle gestion des frais
+    Route::prefix('fees')->name('fees.')->group(function () {
+        // Tableau de bord
+        Route::get('dashboard', [App\Http\Controllers\FeeManagementController::class, 'dashboard'])->name('dashboard');
+        
+        // Frais de niveau
+        Route::get('level-fees', [App\Http\Controllers\FeeManagementController::class, 'levelFees'])->name('level-fees');
+        Route::post('level-fee', [App\Http\Controllers\FeeManagementController::class, 'createLevelFee'])->name('level-fee.store');
+        Route::get('level-fee/{levelFee}', [App\Http\Controllers\FeeManagementController::class, 'showLevelFee'])->name('level-fee.show');
+        Route::put('level-fee/{levelFee}', [App\Http\Controllers\FeeManagementController::class, 'updateLevelFee'])->name('level-fee.update');
+        Route::delete('level-fee/{levelFee}', [App\Http\Controllers\FeeManagementController::class, 'destroyLevelFee'])->name('level-fee.destroy');
+        
+        // Frais de classe
+        Route::get('class-fees', [App\Http\Controllers\FeeManagementController::class, 'classFees'])->name('class-fees');
+        Route::post('class-fee', [App\Http\Controllers\FeeManagementController::class, 'createClassFee'])->name('class-fee.store');
+        Route::get('class-fee/{classFee}', [App\Http\Controllers\FeeManagementController::class, 'showClassFee'])->name('class-fee.show');
+        Route::put('class-fee/{classFee}', [App\Http\Controllers\FeeManagementController::class, 'updateClassFee'])->name('class-fee.update');
+        Route::delete('class-fee/{classFee}', [App\Http\Controllers\FeeManagementController::class, 'destroyClassFee'])->name('class-fee.destroy');
+        
+        // Frais d'inscription
+        Route::get('enrollment-fees', [App\Http\Controllers\FeeManagementController::class, 'enrollmentFees'])->name('enrollment-fees');
+        Route::get('enrollment-fee/{enrollmentFee}', [App\Http\Controllers\FeeManagementController::class, 'showEnrollmentFee'])->name('enrollment-fee.show');
+        Route::post('enrollment-fee/{enrollmentFee}/mark-paid', [App\Http\Controllers\FeeManagementController::class, 'markAsPaid'])->name('enrollment-fee.mark-paid');
+        Route::post('enrollment-fee/{enrollmentFee}/mark-unpaid', [App\Http\Controllers\FeeManagementController::class, 'markAsUnpaid'])->name('enrollment-fee.mark-unpaid');
+        
+        // Rapports
+        Route::get('report', [App\Http\Controllers\FeeManagementController::class, 'generateReport'])->name('report');
+        Route::post('duplicate', [App\Http\Controllers\FeeManagementController::class, 'duplicateFees'])->name('duplicate');
+    });
 
     // Routes pour la gestion des paiements
-    Route::resource('payments', PaymentController::class)->names([
+    Route::resource('payments', PaymentController::class)->except(['create'])->names([
         'index' => 'payments.index',
-        'create' => 'payments.create',
         'store' => 'payments.store',
         'show' => 'payments.show',
         'edit' => 'payments.edit',
         'update' => 'payments.update',
         'destroy' => 'payments.destroy',
     ]);
+    
+    // Routes supplémentaires pour les paiements
+    Route::post('payments/{payment}/cancel', [PaymentController::class, 'cancel'])->name('payments.cancel');
+    Route::post('payments/{payment}/complete', [PaymentController::class, 'complete'])->name('payments.complete');
+    Route::post('payments/{payment}/refund', [PaymentController::class, 'refund'])->name('payments.refund');
+Route::get('payments/{payment}/receipt', [PaymentController::class, 'receipt'])->name('payments.receipt');
+Route::get('payments/{payment}/edit-modal', [PaymentController::class, 'editModal'])->name('payments.edit-modal');
+Route::get('payments/export', [PaymentController::class, 'export'])->name('payments.export');
 
     // Routes pour la gestion des matières
     Route::resource('subjects', SubjectController::class)->names([

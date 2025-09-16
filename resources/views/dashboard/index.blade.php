@@ -132,9 +132,9 @@
                             </a>
                         </div>
                         <div class="col-lg-3 col-md-6 mb-3">
-                            <a href="{{ route('payments.create') }}" class="btn btn-outline-info w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
+                            <a href="{{ route('payments.index') }}" class="btn btn-outline-info w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
                                 <i class="bi bi-credit-card-2-front fs-1 mb-2"></i>
-                                <span>Nouveau paiement</span>
+                                <span>Gestion paiements</span>
                             </a>
                         </div>
                     </div>

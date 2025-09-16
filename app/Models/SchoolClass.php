@@ -62,6 +62,24 @@ class SchoolClass extends Model
                     ->withTimestamps();
     }
 
+    // Relation avec les présences
+    public function attendances()
+    {
+        return $this->hasMany(Attendance::class, 'class_id');
+    }
+
+    // Relation avec les inscriptions
+    public function enrollments()
+    {
+        return $this->hasMany(Enrollment::class, 'class_id');
+    }
+
+    // Relation avec les notes
+    public function grades()
+    {
+        return $this->hasMany(Grade::class, 'class_id');
+    }
+
     // Accesseur pour le nom complet avec niveau
     public function getFullNameAttribute()
     {
@@ -87,6 +105,14 @@ class SchoolClass extends Model
         return $query->whereHas('levelData', function($q) use ($cycle) {
             $q->where('cycle', $cycle);
         });
+    }
+
+    /**
+     * Relation avec les frais de classe
+     */
+    public function classFees(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ClassFee::class, 'class_id');
     }
 
     /**

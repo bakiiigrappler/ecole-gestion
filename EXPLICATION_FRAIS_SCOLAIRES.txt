@@ -1,0 +1,170 @@
+================================================================================
+                    EXPLICATION DES PAGES DE GESTION DES FRAIS SCOLAIRES
+                              Système StudiaGabon
+================================================================================
+
+📚 FRAIS DE NIVEAU (/fees/level-fees)
+================================================================================
+
+FONCTION :
+----------
+Cette page permet de configurer les frais généraux qui s'appliquent à tous les 
+niveaux de l'école (Petite Section, Moyenne Section, CP, CE1, 6ème, etc.).
+
+CE QU'ELLE FAIT :
+-----------------
+✅ Créer des frais par niveau : Scolarité, Inscription, Uniforme, Transport, 
+   Cantine, Livres, Activités
+✅ Définir les montants et la fréquence (mensuel, trimestriel, annuel, unique)
+✅ Gérer les échéances et les frais obligatoires/optionnels
+✅ Filtrer par niveau et type de frais
+✅ Automatiquement créer des frais de classe : Quand vous créez un frais de 
+   niveau, le système crée automatiquement des frais correspondants pour 
+   chaque classe de ce niveau
+
+EXEMPLE :
+---------
+Si vous créez "Scolarité 6ème - 50 000 FCFA/mois", le système créera 
+automatiquement :
+- "Scolarité 6ème - 6ème A" - 50 000 FCFA
+- "Scolarité 6ème - 6ème B" - 50 000 FCFA
+- etc.
+
+FONCTIONNALITÉS :
+-----------------
+- Filtres par niveau, type de frais, fréquence
+- Recherche par nom de frais
+- Création, modification, suppression de frais
+- Gestion des statuts (actif/inactif, obligatoire/optionnel)
+- Tri par ordre d'affichage
+
+================================================================================
+
+🏫 FRAIS DE CLASSE (/fees/class-fees)
+================================================================================
+
+FONCTION :
+----------
+Cette page permet de personnaliser les frais pour des classes spécifiques, 
+en plus des frais de niveau.
+
+CE QU'ELLE FAIT :
+-----------------
+✅ Créer des frais spécifiques à une classe particulière
+✅ Modifier les montants des frais hérités du niveau
+✅ Ajouter des frais supplémentaires (ex: sortie éducative, matériel spécialisé)
+✅ Gérer les frais par classe individuellement
+✅ Filtrer par classe et type de frais
+
+EXEMPLES :
+----------
+- 6ème A : Frais de laboratoire - 15 000 FCFA
+- 6ème B : Frais de sport - 10 000 FCFA
+- CE1 A : Frais de sortie - 5 000 FCFA
+
+FONCTIONNALITÉS :
+-----------------
+- Filtres par classe, type de frais, fréquence
+- Recherche par nom de frais
+- Création, modification, suppression de frais
+- Héritage des frais de niveau
+- Personnalisation par classe
+
+================================================================================
+
+👥 FRAIS D'INSCRIPTION (/fees/enrollment-fees)
+================================================================================
+
+FONCTION :
+----------
+Cette page permet de suivre et gérer les frais assignés aux étudiants lors 
+de leur inscription.
+
+CE QU'ELLE FAIT :
+-----------------
+✅ Afficher tous les frais des étudiants inscrits
+✅ Marquer les paiements comme effectués
+✅ Suivre les retards de paiement
+✅ Filtrer par classe, statut de paiement, type de frais
+✅ Générer des rapports de paiement
+✅ Gérer les échéances et les frais échus
+
+PROCESSUS AUTOMATIQUE :
+-----------------------
+1. Lors de l'inscription d'un étudiant, le système :
+   - Récupère tous les frais de niveau de sa classe
+   - Récupère tous les frais spécifiques à sa classe
+   - Crée automatiquement des "Frais d'Inscription" pour cet étudiant
+   - Calcule le total des frais à payer
+
+2. L'étudiant peut ensuite :
+   - Voir ses frais dans le portail parent
+   - Effectuer des paiements en ligne
+   - Télécharger des reçus
+
+FONCTIONNALITÉS :
+-----------------
+- Filtres par classe, statut de paiement, type de frais, échéance
+- Recherche par nom d'étudiant
+- Marquer comme payé (individuel ou en lot)
+- Génération de rapports
+- Suivi des retards de paiement
+- Export des données
+
+================================================================================
+
+🔄 HIÉRARCHIE DES FRAIS
+================================================================================
+
+Frais de Niveau (Général)
+    ↓ (Héritage automatique)
+Frais de Classe (Spécifique)
+    ↓ (Assignation automatique)
+Frais d'Inscription (Individuel)
+
+EXPLICATION :
+-------------
+1. FRAIS DE NIVEAU : Configuration générale par cycle d'enseignement
+2. FRAIS DE CLASSE : Personnalisation et ajouts spécifiques par classe
+3. FRAIS D'INSCRIPTION : Suivi individuel des frais de chaque étudiant
+
+================================================================================
+
+📊 TYPES DE FRAIS DISPONIBLES
+================================================================================
+
+- SCOLARITÉ : Frais de scolarité mensuels/trimestriels/annuels
+- INSCRIPTION : Frais d'inscription (généralement unique)
+- UNIFORME : Frais d'uniforme scolaire
+- TRANSPORT : Frais de transport scolaire
+- CANTINE : Frais de restauration scolaire
+- LIVRES : Frais de manuels et fournitures
+- ACTIVITÉS : Frais d'activités extra-scolaires
+- AUTRE : Autres frais divers
+
+================================================================================
+
+⚙️ FRÉQUENCES DE PAIEMENT
+================================================================================
+
+- MENSUEL : Paiement chaque mois
+- TRIMESTRIEL : Paiement chaque trimestre
+- ANNUEL : Paiement une fois par an
+- UNIQUE : Paiement unique (ex: frais d'inscription)
+
+================================================================================
+
+🎯 RÉSUMÉ GÉNÉRAL
+================================================================================
+
+Frais de Niveau = Configuration générale par cycle
+Frais de Classe = Personnalisation par classe
+Frais d'Inscription = Suivi individuel des étudiants
+
+Cette architecture permet une gestion flexible et hiérarchisée des frais 
+scolaires, avec une automatisation complète du processus d'assignation 
+des frais aux étudiants lors de leur inscription.
+
+================================================================================
+                              Fin du document
+================================================================================

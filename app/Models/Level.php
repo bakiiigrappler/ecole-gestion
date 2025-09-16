@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Level extends Model
 {
@@ -31,6 +32,12 @@ class Level extends Model
     public function subjects(): HasMany
     {
         return $this->hasMany(Subject::class);
+    }
+
+    // Relation avec les inscriptions (via les classes)
+    public function enrollments(): HasManyThrough
+    {
+        return $this->hasManyThrough(Enrollment::class, SchoolClass::class, 'level_id', 'class_id');
     }
 
     // Scope pour les niveaux actifs
@@ -73,5 +80,13 @@ class Level extends Model
     public static function getLyceeLevels()
     {
         return self::where('cycle', 'lycee')->active()->orderBy('order')->get();
+    }
+
+    /**
+     * Relation avec les frais de niveau
+     */
+    public function levelFees(): HasMany
+    {
+        return $this->hasMany(LevelFee::class);
     }
 }

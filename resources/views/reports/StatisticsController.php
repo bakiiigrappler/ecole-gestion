@@ -53,8 +53,8 @@ class StatisticsController extends Controller
 
             $monthlyRevenue = Payment::whereHas('enrollment', function ($q) use ($currentYear) {
                 $q->where('academic_year_id', $currentYear->id);
-            })->whereMonth('payment_date', now()->month)
-              ->whereYear('payment_date', now()->year)
+            })->whereMonth('paid_at', now()->month)
+              ->whereYear('paid_at', now()->year)
               ->sum('amount');
 
             $paymentsCompleted = Payment::whereHas('enrollment', function ($q) use ($currentYear) {
@@ -86,8 +86,8 @@ class StatisticsController extends Controller
         } else {
             // Global fallback if no current academic year
             $totalRevenue = Payment::sum('amount');
-            $monthlyRevenue = Payment::whereMonth('payment_date', now()->month)
-                ->whereYear('payment_date', now()->year)
+            $monthlyRevenue = Payment::whereMonth('paid_at', now()->month)
+                ->whereYear('paid_at', now()->year)
                 ->sum('amount');
             $paymentsCompleted = Payment::where('status', 'completed')->count();
             $paymentsPending = Payment::where('status', 'pending')->count();
@@ -95,11 +95,11 @@ class StatisticsController extends Controller
         }
         // Revenus mensuels optimisés
         $revenusParMois = Payment::select(
-                DB::raw('MONTH(payment_date) as mois'),
+                DB::raw('MONTH(paid_at) as mois'),
                 DB::raw('SUM(amount) as total')
             )
-            ->whereYear('payment_date', now()->year)
-            ->groupBy(DB::raw('MONTH(payment_date)'))
+            ->whereYear('paid_at', now()->year)
+            ->groupBy(DB::raw('MONTH(paid_at)'))
             ->pluck('total', 'mois'); // => [1 => 15000, 2 => 20000, ...]
 
         $monthlyRevenueLabels = [];

@@ -1,72 +1,53 @@
-# 🏫 Système de Gestion Scolaire - Version Complète
+# Egesco - Système de Gestion Scolaire
 
-Une application web complète de gestion scolaire développée avec Laravel, offrant toutes les fonctionnalités nécessaires pour gérer un établissement scolaire moderne.
+## Description
+Egesco est un système complet de gestion scolaire développé avec Laravel, offrant une solution moderne et intuitive pour la gestion des établissements éducatifs.
 
-## ✨ Fonctionnalités Principales
-
-### 👥 Gestion des Utilisateurs
-- **Système d'authentification** avec rôles multiples (Enseignant, Secrétaire, Administrateur, Super Admin)
-- **Interface personnalisée** selon le rôle utilisateur
-- **Gestion des permissions** et accès sécurisés
+## Fonctionnalités Principales
 
 ### 🎓 Gestion Académique
-- **Élèves** : CRUD complet avec photos, matricules automatiques, informations détaillées
-- **Enseignants** : Gestion complète avec affectations aux classes et matières
-- **Classes** : Création, affectation des enseignants, gestion des effectifs
-- **Matières** : Configuration par niveau avec coefficients
-- **Inscriptions** : Processus complet avec validation et reçus PDF
+- **Gestion des étudiants** : Inscription, réinscription, suivi des performances
+- **Gestion des classes** : Organisation par niveaux et cycles
+- **Gestion des enseignants** : Attribution des matières et emplois du temps
+- **Système de notes** : Saisie et suivi des évaluations
 
-### 📊 Système de Notes et Évaluations
-- **Saisie des notes** par matière avec coefficients
-- **Note de conduite** (coefficient 0) pour évaluer le comportement
-- **Calculs automatiques** : moyennes par matière, moyennes générales
-- **Bulletins** : Génération PDF avec code-barres et logo de l'établissement
-- **Historique** des notes par trimestre
+### 📊 Présence et Assiduité
+- **Pointage quotidien** : Suivi de présence par créneaux horaires
+- **Statistiques de présence** : Analyses et rapports détaillés
+- **Gestion des absences** : Justification et suivi
 
 ### 💰 Gestion Financière
-- **Frais scolaires** : Configuration par classe et niveau
-- **Suivi des paiements** : Statuts, montants, dates
-- **Reçus d'inscription** : Génération PDF avec logo de l'établissement
-- **Rapports financiers** détaillés
+- **Système de frais hiérarchique** : Niveau → Classe → Étudiant
+- **Gestion des paiements** : Suivi des transactions et reçus
+- **Rapports financiers** : Analyses des revenus et statistiques
 
-### 📅 Présences et Emplois du Temps
-- **Système de présences** par classe et par jour
-- **Emplois du temps** : Création et gestion par classe
-- **Impression** des emplois du temps
+### 📈 Tableaux de Bord et Statistiques
+- **Dashboard principal** : Vue d'ensemble des performances
+- **Statistiques avancées** : Analyses détaillées avec graphiques
+- **Rapports personnalisés** : Export et visualisation des données
 
-### 📈 Rapports et Statistiques
-- **Tableau de bord** avec statistiques en temps réel
-- **Rapports de performance** par classe et niveau
-- **Statistiques d'inscription** et financières
+## Technologies Utilisées
 
-### 🏢 Administration de l'Établissement
-- **Paramètres de l'établissement** : Nom, logo, informations de contact
-- **Gestion des utilisateurs** par les administrateurs
-- **Configuration système** avancée
+- **Backend** : Laravel 11.x
+- **Frontend** : Bootstrap 5, Chart.js
+- **Base de données** : MySQL
+- **Authentification** : Laravel Sanctum
+- **API** : RESTful API avec documentation
 
-## 🛠️ Technologies Utilisées
-
-- **Backend** : Laravel 10+ (PHP 8.2+)
-- **Frontend** : Bootstrap 5, JavaScript, CSS3
-- **Base de données** : SQLite (développement) / MySQL (production)
-- **Génération PDF** : DomPDF, jsPDF
-- **Authentification** : Laravel Breeze
-- **Interface** : Responsive design, animations CSS
-
-## 🚀 Installation et Configuration
+## Installation
 
 ### Prérequis
-- PHP 8.2 ou supérieur
+- PHP 8.2+
 - Composer
-- Node.js et NPM
-- Git
+- MySQL 8.0+
+- Node.js & NPM
 
-### Installation
+### Étapes d'installation
 
 1. **Cloner le repository**
 ```bash
-git clone https://github.com/bakii-hanma/ecolegestion.git
-cd ecolegestion
+git clone https://github.com/bakii-hanma/egestco.git
+cd egestco
 ```
 
 2. **Installer les dépendances**
@@ -82,10 +63,14 @@ php artisan key:generate
 ```
 
 4. **Configuration de la base de données**
-```bash
-# Modifier .env avec vos paramètres de base de données
-DB_CONNECTION=sqlite
-DB_DATABASE=/path/to/database.sqlite
+Modifiez le fichier `.env` avec vos paramètres de base de données :
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=egestco
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
 ```
 
 5. **Migration et seeding**
@@ -99,170 +84,99 @@ php artisan db:seed
 npm run build
 ```
 
-7. **Démarrer le serveur**
+7. **Démarrage du serveur**
 ```bash
 php artisan serve
 ```
 
-### Configuration Initiale
+## Configuration Serveur
 
-1. **Accéder à l'application** : `http://localhost:8000`
-2. **Se connecter** avec les identifiants par défaut :
-   - **Super Admin** : `superadmin@studia.com` / `password`
-   - **Admin** : `admin@studia.com` / `password`
-3. **Configurer les paramètres de l'établissement** via le menu Administration
+### Apache (.htaccess)
+Le projet inclut un fichier `.htaccess` optimisé pour Apache avec :
+- Configuration PHP pour éviter les timeouts
+- Gestion des headers d'autorisation
+- Redirection vers le contrôleur frontal
 
-## 📁 Structure du Projet
+### Base de données
+- **MySQL** : Base de données principale
+- **Migrations** : Structure complète des tables
+- **Seeders** : Données de test et comptes administrateurs
+
+## Comptes par Défaut
+
+### Super Administrateur
+- **Email** : superadmin@egestco.com
+- **Mot de passe** : superadmin123
+- **Rôle** : Accès complet au système
+
+### Administrateur
+- **Email** : admin@egestco.com
+- **Mot de passe** : admin123
+- **Rôle** : Gestion quotidienne
+
+## Structure du Projet
 
 ```
-gestion-ecole/
+egestco/
 ├── app/
-│   ├── Console/Commands/     # Commandes artisan personnalisées
-│   ├── Http/Controllers/     # Contrôleurs de l'application
-│   │   ├── Admin/           # Contrôleurs d'administration
-│   │   └── ...
+│   ├── Http/Controllers/     # Contrôleurs
 │   ├── Models/              # Modèles Eloquent
-│   └── Providers/           # Fournisseurs de services
+│   ├── Services/            # Services métier
+│   └── ...
 ├── database/
-│   ├── migrations/          # Migrations de base de données
-│   └── seeders/             # Seeders pour les données initiales
-├── public/
-│   ├── css/                 # Styles CSS personnalisés
-│   ├── js/                  # Scripts JavaScript
-│   └── images/              # Images et assets
+│   ├── migrations/          # Migrations
+│   ├── seeders/            # Seeders
+│   └── ...
 ├── resources/
-│   └── views/               # Templates Blade
-│       ├── admin/           # Vues d'administration
-│       ├── bulletin/        # Vues des bulletins
-│       ├── classes/         # Vues des classes
-│       ├── grades/          # Vues des notes
-│       └── ...
-└── routes/                  # Définition des routes
+│   ├── views/              # Vues Blade
+│   ├── css/                # Styles CSS
+│   └── js/                 # Scripts JavaScript
+├── routes/
+│   ├── web.php             # Routes web
+│   └── api.php             # Routes API
+└── ...
 ```
 
-## 👤 Rôles et Permissions
+## API Documentation
 
-### 🎓 Enseignant
-- Gestion des notes de ses classes
-- Saisie des présences
-- Consultation des emplois du temps
-- Accès aux informations des élèves
+Le système expose une API RESTful pour :
+- Gestion des paiements
+- Récupération des emplois du temps
+- Statistiques et rapports
 
-### 📝 Secrétaire
-- Gestion des inscriptions
-- Suivi des paiements
-- Génération des reçus
-- Consultation des rapports
+### Endpoints principaux
+- `GET /api/v1/payments` - Liste des paiements
+- `POST /api/v1/payments` - Créer un paiement
+- `GET /api/schedules/classes/by-cycle` - Classes par cycle
 
-### ⚙️ Administrateur
-- Toutes les fonctionnalités des autres rôles
-- Gestion des utilisateurs
-- Configuration de l'établissement
-- Accès aux statistiques complètes
+## Contribution
 
-### 🔧 Super Admin
-- Toutes les fonctionnalités
-- Accès aux paramètres système
-- Gestion de la sécurité
-- Maintenance du système
+1. Fork le projet
+2. Créer une branche feature (`git checkout -b feature/AmazingFeature`)
+3. Commit les changements (`git commit -m 'Add some AmazingFeature'`)
+4. Push vers la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrir une Pull Request
 
-## 📄 Génération de Documents
-
-### Bulletins
-- **Format A4** optimisé pour l'impression
-- **Logo de l'établissement** intégré
-- **Code-barres** pour identification
-- **Calculs automatiques** des moyennes
-- **Export PDF** avec DomPDF
-
-### Reçus d'Inscription
-- **Design professionnel** avec logo
-- **Informations complètes** de l'élève
-- **Détails des paiements**
-- **Génération PDF** automatique
-
-### Fiches Élèves
-- **Informations détaillées** de l'élève
-- **Photo** de l'élève
-- **Historique académique**
-- **Export PDF** avec jsPDF
-
-## 🎨 Interface Utilisateur
-
-### Design Moderne
-- **Interface responsive** pour tous les appareils
-- **Couleurs primaires** (bleu) professionnelles
-- **Animations fluides** et transitions
-- **Navigation intuitive** avec sidebar
-
-### Personnalisation
-- **Logo de l'établissement** intégré partout
-- **Nom de l'établissement** personnalisable
-- **Thème cohérent** dans toute l'application
-
-## 🔒 Sécurité
-
-- **Authentification sécurisée** avec Laravel
-- **Protection CSRF** sur tous les formulaires
-- **Validation des données** côté serveur
-- **Gestion des permissions** par rôle
-- **Sessions sécurisées**
-
-## 📊 Base de Données
-
-### Tables Principales
-- `users` : Utilisateurs du système
-- `students` : Informations des élèves
-- `teachers` : Informations des enseignants
-- `classes` : Classes et niveaux
-- `subjects` : Matières enseignées
-- `grades` : Notes des élèves
-- `enrollments` : Inscriptions
-- `payments` : Paiements
-- `school_settings` : Paramètres de l'établissement
-
-## 🚀 Déploiement
-
-### Production
-1. **Configuration de l'environnement**
-```bash
-APP_ENV=production
-APP_DEBUG=false
-```
-
-2. **Optimisation**
-```bash
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
-```
-
-3. **Base de données**
-```bash
-php artisan migrate --force
-```
-
-### Serveur Web
-- **Apache** ou **Nginx** recommandé
-- **SSL** pour la sécurité
-- **PHP-FPM** pour les performances
-
-## 🤝 Contribution
-
-Ce projet est maintenu et développé pour répondre aux besoins spécifiques de gestion scolaire. Pour toute contribution ou suggestion d'amélioration, veuillez créer une issue sur GitHub.
-
-## 📞 Support
+## Support
 
 Pour toute question ou problème :
-- **Issues GitHub** : [https://github.com/bakii-hanma/ecolegestion/issues](https://github.com/bakii-hanma/ecolegestion/issues)
-- **Documentation** : Consultez les guides dans le dossier racine
+- Créer une issue sur GitHub
+- Contacter l'équipe de développement
 
-## 📄 Licence
+## Licence
 
-Ce projet est développé pour un usage éducatif et institutionnel.
+Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
+
+## Changelog
+
+### Version 1.0.0
+- Système de gestion scolaire complet
+- Interface moderne et responsive
+- API RESTful
+- Système de paiements intégré
+- Statistiques avancées
+- Gestion des présences par créneaux
 
 ---
 
-**Version** : 1.0.0  
-**Dernière mise à jour** : Septembre 2025  
-**Développé avec** ❤️ pour l'éducation
+**Egesco** - Simplifiant la gestion scolaire moderne 🎓

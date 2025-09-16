@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\OnlinePayment;
+use App\Models\Payment;
 use App\Models\PaymentGateway;
 use App\Models\Enrollment;
 use App\Models\ParentModel;
@@ -84,8 +84,8 @@ class OnlinePaymentController extends Controller
         }
 
         // Créer le paiement
-        $payment = OnlinePayment::create([
-            'transaction_id' => OnlinePayment::generateTransactionId(),
+        $payment = Payment::create([
+            'transaction_id' => Payment::generateTransactionId(),
             'enrollment_id' => $request->enrollment_id,
             'parent_id' => $parentId,
             'student_id' => $request->student_id,
@@ -127,7 +127,7 @@ class OnlinePaymentController extends Controller
      */
     public function showPayment($transactionId)
     {
-        $payment = OnlinePayment::where('transaction_id', $transactionId)->firstOrFail();
+        $payment = Payment::where('transaction_id', $transactionId)->firstOrFail();
         $gateway = PaymentGateway::byCode($payment->payment_method)->first();
 
         if (!$gateway) {
@@ -145,7 +145,7 @@ class OnlinePaymentController extends Controller
      */
     public function processGatewayPayment(Request $request, $transactionId)
     {
-        $payment = OnlinePayment::where('transaction_id', $transactionId)->firstOrFail();
+        $payment = Payment::where('transaction_id', $transactionId)->firstOrFail();
         
         if ($payment->status !== 'pending') {
             return response()->json([
@@ -211,7 +211,7 @@ class OnlinePaymentController extends Controller
         $status = $request->get('status');
         $gatewayTransactionId = $request->get('gateway_transaction_id');
 
-        $payment = OnlinePayment::where('transaction_id', $transactionId)->first();
+        $payment = Payment::where('transaction_id', $transactionId)->first();
         
         if (!$payment) {
             Log::error("Paiement non trouvé pour le callback", ['transaction_id' => $transactionId]);
@@ -245,7 +245,7 @@ class OnlinePaymentController extends Controller
      */
     public function checkPaymentStatus($transactionId)
     {
-        $payment = OnlinePayment::where('transaction_id', $transactionId)->firstOrFail();
+        $payment = Payment::where('transaction_id', $transactionId)->firstOrFail();
         
         return response()->json([
             'success' => true,
@@ -267,7 +267,7 @@ class OnlinePaymentController extends Controller
      */
     public function paymentSuccess($transactionId)
     {
-        $payment = OnlinePayment::where('transaction_id', $transactionId)->firstOrFail();
+        $payment = Payment::where('transaction_id', $transactionId)->firstOrFail();
         
         if (!$payment->isCompleted()) {
             return redirect()->route('online-payment.failed', $transactionId);
@@ -281,7 +281,7 @@ class OnlinePaymentController extends Controller
      */
     public function paymentFailed($transactionId)
     {
-        $payment = OnlinePayment::where('transaction_id', $transactionId)->firstOrFail();
+        $payment = Payment::where('transaction_id', $transactionId)->firstOrFail();
         
         return view('online-payment.failed', compact('payment'));
     }
