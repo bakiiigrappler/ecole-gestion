@@ -466,7 +466,6 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
         Route::get('/mon-espace/notes', 'notes')->name('mon-espace.notes');
         Route::get('/mon-espace/emploi-du-temps', 'emploiDuTemps')->name('mon-espace.emploi-du-temps');
         Route::get('/mon-espace/absences', 'absences')->name('mon-espace.absences');
-        Route::get('/mon-espace/paiements', 'paiements')->name('mon-espace.paiements');
         Route::get('/mon-espace/fiche', 'fiche')->name('mon-espace.fiche');
     });
 

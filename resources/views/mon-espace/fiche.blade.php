@@ -18,7 +18,6 @@
 
 @php
     $etablissement = \App\Models\SchoolSettings::getSettings();
-    $montant = fn ($v) => number_format((float) $v, 0, ',', ' ').' FCFA';
 
     $sexe = match (mb_strtolower((string) $eleve->gender)) {
         'm', 'male', 'masculin', 'garcon', 'garçon' => 'Masculin',
@@ -187,18 +186,6 @@
             <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
                 <dt class="text-gris-500">Retards</dt>
                 <dd class="font-medium tabular-nums">{{ $assiduite['late'] }}</dd>
-            </div>
-            <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
-                <dt class="text-gris-500">Frais dus</dt>
-                <dd class="font-medium tabular-nums">{{ $montant($scolarite['du']) }}</dd>
-            </div>
-            <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
-                <dt class="text-gris-500">Réglé</dt>
-                <dd class="font-medium tabular-nums">{{ $montant($scolarite['paye']) }}</dd>
-            </div>
-            <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
-                <dt class="text-gris-500">Reste à payer</dt>
-                <dd class="font-medium tabular-nums">{{ $montant($scolarite['reste']) }}</dd>
             </div>
         </dl>
 

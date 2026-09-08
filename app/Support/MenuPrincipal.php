@@ -56,7 +56,6 @@ class MenuPrincipal
                     ['libelle' => 'Mes notes', 'route' => 'mon-espace.notes', 'motif' => 'mon-espace.notes'],
                     ['libelle' => 'Mon emploi du temps', 'route' => 'mon-espace.emploi-du-temps', 'motif' => 'mon-espace.emploi-du-temps'],
                     ['libelle' => 'Mes absences', 'route' => 'mon-espace.absences', 'motif' => 'mon-espace.absences'],
-                    ['libelle' => 'Mes reçus', 'route' => 'mon-espace.paiements', 'motif' => 'mon-espace.paiements'],
                     ['libelle' => 'Ma fiche élève', 'route' => 'mon-espace.fiche', 'motif' => 'mon-espace.fiche'],
                 ],
             ],

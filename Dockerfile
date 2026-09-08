@@ -30,10 +30,14 @@ RUN apt-get update && apt-get install -y \
 # Nettoyer le cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Installer les extensions PHP
+# Installer les extensions PHP.
+# `pdo_pgsql`, et non `pdo_mysql` : l'application tourne sur PostgreSQL.
+# La bibliotheque cliente (libpq-dev) etait bien installee, mais l'extension
+# PHP ne l'etait pas : l'image se construisait et se refusait a la base des
+# le premier acces.
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) gd \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath zip
+    && docker-php-ext-install pdo_pgsql pgsql mbstring exif pcntl bcmath zip
 
 # Installer Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer

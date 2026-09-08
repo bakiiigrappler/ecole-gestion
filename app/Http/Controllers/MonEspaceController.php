@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\AcademicYear;
 use App\Models\Attendance;
-use App\Models\Payment;
 use App\Models\Schedule;
 use App\Models\Student;
 use App\Models\StudentGrade;
@@ -13,8 +12,12 @@ use App\Models\StudentGrade;
  * L'espace d'un élève : ce qui le concerne, et rien d'autre.
  *
  * Un compte élève n'administre rien. Il a son tableau de bord, ses notes, son
- * emploi du temps, ses absences, ses reçus et sa fiche — toujours filtrés sur
- * lui-même, jamais sur sa classe ni sur l'établissement.
+ * emploi du temps, ses absences et sa fiche — toujours filtrés sur lui-même,
+ * jamais sur sa classe ni sur l'établissement.
+ *
+ * La scolarité ne figure nulle part : ce qui est dû, ce qui est réglé et les
+ * reçus regardent le parent, qui les a sur son portail. Un élève n'a pas à
+ * savoir si ses frais sont à jour.
  *
  * Ces rubriques étaient d'abord empilées sur une seule page : on ne trouvait
  * rien, et il n'y avait ni tableau de bord ni espace de notes à proprement
@@ -42,7 +45,7 @@ class MonEspaceController extends Controller
     }
 
     /**
-     * Son inscription de l'année : sa classe, son niveau, ses frais.
+     * Son inscription de l'année : sa classe et son niveau.
      */
     private function inscription(Student $eleve)
     {
@@ -98,14 +101,6 @@ class MonEspaceController extends Controller
         return [$chiffres, $pointages];
     }
 
-    private function scolarite($inscription): array
-    {
-        $du = (float) ($inscription->total_fees ?? 0);
-        $paye = (float) ($inscription->amount_paid ?? 0);
-
-        return ['du' => $du, 'paye' => $paye, 'reste' => max(0, $du - $paye)];
-    }
-
     /* ------------------------------------------------------------------
        Le tableau de bord : ce qu'il faut savoir en un coup d'œil.
        ------------------------------------------------------------------ */
@@ -154,7 +149,6 @@ class MonEspaceController extends Controller
                 ->whereIn('status', ['absent', 'late', 'excused'])->take(5)->values(),
             'duJour' => $duJour,
             'aujourdHui' => $aujourdHui,
-            'scolarite' => $this->scolarite($inscription),
         ]);
     }
 
@@ -262,28 +256,6 @@ class MonEspaceController extends Controller
     }
 
     /* ------------------------------------------------------------------
-       Mes reçus
-       ------------------------------------------------------------------ */
-    public function paiements()
-    {
-        $eleve = $this->eleve();
-        $annee = $this->annee();
-        $inscription = $this->inscription($eleve);
-
-        $paiements = Payment::where('student_id', $eleve->id)
-            ->orderByDesc('created_at')
-            ->get(['id', 'transaction_id', 'amount', 'payment_method', 'status', 'paid_at', 'created_at']);
-
-        return view('mon-espace.paiements', [
-            'eleve' => $eleve,
-            'inscription' => $inscription,
-            'annee' => $annee,
-            'paiements' => $paiements,
-            'scolarite' => $this->scolarite($inscription),
-        ]);
-    }
-
-    /* ------------------------------------------------------------------
        Ma fiche élève : le document officiel, à télécharger.
        ------------------------------------------------------------------ */
     public function fiche()
@@ -304,7 +276,6 @@ class MonEspaceController extends Controller
             'moyenneGenerale' => $notes->isNotEmpty()
                 ? round($notes->avg(fn ($n) => $this->sur20($n)), 2)
                 : null,
-            'scolarite' => $this->scolarite($inscription),
         ]);
     }
 }

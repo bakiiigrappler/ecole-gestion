@@ -13,9 +13,10 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * Les routes de gestion — liste des élèves, paiements, notes de toute une
  * classe — ne portent qu'un garde `auth` : sans ce filtre, un compte élève
- * y accédait comme un administrateur. La liste blanche est volontairement
- * courte : tant que le portail élève n'existe pas, il n'a accès qu'à son
- * tableau de bord.
+ * y accédait comme un administrateur.
+ *
+ * La scolarité ne figure pas dans sa liste blanche : ce qui est dû, ce qui est
+ * réglé et les reçus regardent le parent, qui les a sur son portail.
  */
 class RestreindreLesEleves
 {
@@ -27,11 +28,10 @@ class RestreindreLesEleves
         'logout',
         'login',
         'profile.*',
-        // Son bulletin et ses reçus : le contrôleur vérifie qu'il s'agit
-        // bien de lui avant de rendre quoi que ce soit.
+        // Son bulletin : le contrôleur vérifie qu'il s'agit bien de lui avant
+        // de rendre quoi que ce soit.
         'grades.bulletin',
         'grades.bulletin.pdf',
-        'payments.receipt',
     ];
 
     /**

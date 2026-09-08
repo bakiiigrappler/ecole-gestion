@@ -11,7 +11,6 @@
 @section('contenu')
 
 @php
-    $montant = fn ($v) => number_format((float) $v, 0, ',', ' ').' FCFA';
     $heure = fn ($v) => substr((string) $v, 0, 5);
 
     $encre = fn ($m) => $m === null
@@ -25,9 +24,9 @@
 @endphp
 
     {{-- ----------------------------------------------------------------
-         Les quatre chiffres qui résument mon année
+         Les trois chiffres qui résument mon année
          ---------------------------------------------------------------- --}}
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid gap-4 sm:grid-cols-3">
         <x-statistique libelle="Ma moyenne générale"
                        :valeur="$moyenneGenerale !== null ? number_format($moyenneGenerale, 2, ',', ' ') : '—'"
                        :detail="$nombreDeNotes.' note(s) sur l’année'" couleur="ogar"/>
@@ -37,9 +36,6 @@
         <x-statistique libelle="Mes absences" :valeur="$assiduite['absent']"
                        :detail="$assiduite['late'].' retard(s)'"
                        :couleur="$assiduite['absent'] > 0 ? 'corail' : 'emerald'"/>
-        <x-statistique libelle="Reste à payer" :valeur="$montant($scolarite['reste'])"
-                       :detail="$montant($scolarite['paye']).' réglés'"
-                       :couleur="$scolarite['reste'] > 0 ? 'soleil' : 'emerald'"/>
     </div>
 
     <div class="mt-6 grid items-start gap-4 lg:grid-cols-3">
