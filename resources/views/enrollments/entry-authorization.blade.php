@@ -1,325 +1,255 @@
 @extends('layouts.app')
 
-@section('title', 'Autorisation d\'Entrée')
+@section('titre', 'Autorisation d’entrée')
+@section('sous-titre', $enrollment->enrollment_code.' · '.trim(($eleve['prenom'] ?? '').' '.($eleve['nom'] ?? '')))
 
-@section('content')
-<div class="container-fluid">
-    <div class="row justify-content-center">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">
-                        <i class="bi bi-qr-code me-2"></i>
-                        Génération de l'Autorisation d'Entrée
-                    </h5>
+@section('actions-entete')
+    <button type="button"
+            class="bouton-primaire"
+            data-export-pdf="autorisation-entree"
+            data-page-unique
+            data-nom-fichier="Autorisation_{{ $enrollment->enrollment_code }}.pdf">
+        Télécharger l’autorisation
+    </button>
+    <a href="{{ route('enrollments.receipt', $enrollment->id) }}" class="bouton-secondaire">Le reçu</a>
+@endsection
+
+@section('contenu')
+
+@php
+    $date = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d/m/Y') : '—';
+
+    $sexe = match (mb_strtolower((string) ($eleve['sexe'] ?? ''))) {
+        'm', 'male', 'masculin' => 'Masculin',
+        'f', 'female', 'feminin', 'féminin' => 'Féminin',
+        default => '—',
+    };
+
+    $annee = $enrollment->academicYear;
+
+    /*
+     * Le code de l'inscription en QR : c'est lui que le surveillant scanne à
+     * la grille. Le code est déjà lisible en clair juste dessous — le QR n'est
+     * qu'un raccourci, jamais la seule source.
+     */
+    $qr = null;
+
+    /*
+     * L'API d'Endroid a change en version 6 : `Builder::create()` n'existe
+     * plus. On passe par le writer, qui est stable d'une version a l'autre.
+     */
+    if (class_exists(\Endroid\QrCode\QrCode::class)) {
+        try {
+            $qr = (new \Endroid\QrCode\Writer\PngWriter())
+                ->write(new \Endroid\QrCode\QrCode(
+                    data: $enrollment->enrollment_code,
+                    size: 220,
+                    margin: 0,
+                ))
+                ->getDataUri();
+        } catch (\Throwable $e) {
+            // Un document sans QR reste valable : le code écrit fait foi.
+            $qr = null;
+        }
+    }
+@endphp
+
+    {{-- ------------------------------------------------------------------
+         Le document. Ce bloc est celui que html2canvas photographie :
+         le PDF est exactement ce qui s'affiche ici.
+         ------------------------------------------------------------------ --}}
+    <div id="autorisation-entree" class="mx-auto max-w-3xl bg-white p-8 text-gris-900 ring-1 ring-gris-200">
+
+        {{-- En-tête officiel --}}
+        <div class="flex items-start justify-between gap-4 border-b-2 border-gris-800 pb-3">
+            <div class="flex items-start gap-3">
+                @if ($schoolSettings->logo_url ?? null)
+                    <img src="{{ $schoolSettings->logo_url }}" alt="Logo de l’établissement"
+                         class="h-14 w-14 shrink-0 object-contain">
+                @else
+                    <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded border border-dashed border-gris-400 text-center text-[7px] leading-tight text-gris-500">
+                        Logo<br>établissement
+                    </span>
+                @endif
+                <div class="leading-tight">
+                    <p class="text-[10px] text-gris-600">Ministère de l’Éducation Nationale</p>
+                    <p class="text-sm font-bold uppercase">{{ $schoolName }}</p>
+                    <p class="text-[9px] text-gris-500">
+                        @if ($schoolSettings->school_bp ?? null) {{ $schoolSettings->school_bp }} @endif
+                        @if ($schoolSettings->school_phone ?? null) &middot; Tél : {{ $schoolSettings->school_phone }} @endif
+                    </p>
                 </div>
-                <div class="card-body text-center py-5">
-                    <div class="spinner-border text-primary mb-3" role="status">
-                        <span class="visually-hidden">Chargement...</span>
+            </div>
+
+            <div class="flex items-start gap-3">
+                <div class="text-right leading-tight">
+                    <p class="text-[10px] uppercase tracking-wide text-gris-500">Année scolaire</p>
+                    <p class="text-sm font-semibold">{{ $annee->name ?? '—' }}</p>
+                </div>
+
+                @if ($schoolSettings->seal_url ?? null)
+                    <img src="{{ $schoolSettings->seal_url }}" alt="Sceau de la République"
+                         class="h-14 w-16 shrink-0 object-contain">
+                @else
+                    <span class="flex h-14 w-16 shrink-0 items-center justify-center rounded border border-dashed border-gris-400 text-center text-[7px] leading-tight text-gris-500">
+                        Sceau de la<br>République
+                    </span>
+                @endif
+            </div>
+        </div>
+
+        <div class="mt-5 text-center">
+            <h1 class="text-lg font-bold uppercase tracking-wide">Autorisation d’entrée</h1>
+            <p class="mt-0.5 text-[11px] text-gris-600">
+                Titre d’accès à l’établissement pour l’année scolaire {{ $annee->name ?? '—' }}
+            </p>
+        </div>
+
+        {{-- Le porteur, sa photo, et le code de contrôle --}}
+        <div class="mt-5 flex items-start gap-6 border-y-2 border-gris-800 py-5">
+
+            {{-- Photographie --}}
+            <div class="shrink-0">
+                @if ($eleve['photo'])
+                    <img src="{{ asset('storage/'.$eleve['photo']) }}" alt="Photographie de l’élève"
+                         class="h-32 w-26 border border-gris-400 object-cover" style="width: 6.5rem;">
+                @else
+                    <span class="flex h-32 items-center justify-center border border-dashed border-gris-400 text-center text-[8px] leading-tight text-gris-400"
+                          style="width: 6.5rem;">
+                        Photographie
+                    </span>
+                @endif
+            </div>
+
+            {{-- Identité --}}
+            <div class="min-w-0 flex-1">
+                <p class="text-[10px] uppercase tracking-wide text-gris-500">Titulaire</p>
+                <p class="text-xl font-bold uppercase leading-tight">
+                    {{ $eleve['nom'] }} <span class="font-semibold normal-case">{{ $eleve['prenom'] }}</span>
+                </p>
+
+                <dl class="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-[11px]">
+                    @if ($eleve['matricule'])
+                        <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
+                            <dt class="text-gris-500">Matricule</dt>
+                            <dd class="font-mono font-semibold">{{ $eleve['matricule'] }}</dd>
+                        </div>
+                    @endif
+                    <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
+                        <dt class="text-gris-500">Classe</dt>
+                        <dd class="font-semibold">{{ $enrollment->schoolClass->name ?? '—' }}</dd>
                     </div>
-                    <p class="text-muted">Génération de l'autorisation d'entrée en cours...</p>
-                    <p class="text-muted small">Le téléchargement va démarrer automatiquement.</p>
-                </div>
+                    <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
+                        <dt class="text-gris-500">Né(e) le</dt>
+                        <dd class="font-medium tabular-nums">{{ $date($eleve['naissance']) }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
+                        <dt class="text-gris-500">Sexe</dt>
+                        <dd class="font-medium">{{ $sexe }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
+                        <dt class="text-gris-500">Niveau</dt>
+                        <dd class="font-medium">{{ $enrollment->schoolClass->level->name ?? '—' }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
+                        <dt class="text-gris-500">Inscrit le</dt>
+                        <dd class="font-medium tabular-nums">{{ $date($enrollment->enrollment_date) }}</dd>
+                    </div>
+                </dl>
+            </div>
+
+            {{-- Code de contrôle --}}
+            <div class="shrink-0 text-center">
+                @if ($qr)
+                    <img src="{{ $qr }}" alt="Code de vérification"
+                         class="h-28 w-28 border border-gris-300 p-1">
+                @else
+                    <span class="flex h-28 w-28 items-center justify-center border border-dashed border-gris-400 text-center text-[8px] leading-tight text-gris-400">
+                        Code de<br>vérification
+                    </span>
+                @endif
+
+                <p class="mt-1.5 text-[9px] uppercase tracking-wide text-gris-500">Code d’inscription</p>
+                <p class="font-mono text-sm font-bold tracking-wider">{{ $enrollment->enrollment_code }}</p>
+            </div>
+        </div>
+
+        {{-- Le responsable, qui vient chercher l'enfant --}}
+        <div class="mt-5 grid grid-cols-2 gap-6">
+            <div>
+                <h2 class="mb-2 border-b border-gris-300 pb-1 text-[11px] font-bold uppercase tracking-wide text-gris-600">
+                    Personne à prévenir
+                </h2>
+
+                @if ($responsable)
+                    <dl class="space-y-1.5 text-[11px]">
+                        <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
+                            <dt class="text-gris-500">Nom et prénoms</dt>
+                            <dd class="text-right font-semibold">{{ $responsable['nom'] }}</dd>
+                        </div>
+                        <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
+                            <dt class="text-gris-500">Lien de parenté</dt>
+                            <dd class="font-medium">{{ $responsable['lien'] }}</dd>
+                        </div>
+                        <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
+                            <dt class="text-gris-500">Téléphone</dt>
+                            <dd class="font-semibold tabular-nums">{{ $responsable['telephone'] ?: '—' }}</dd>
+                        </div>
+                    </dl>
+                @else
+                    <p class="text-[11px] italic text-gris-400">
+                        Aucun parent ni tuteur n’est rattaché à ce dossier.
+                    </p>
+                @endif
+            </div>
+
+            <div>
+                <h2 class="mb-2 border-b border-gris-300 pb-1 text-[11px] font-bold uppercase tracking-wide text-gris-600">
+                    Validité
+                </h2>
+
+                <dl class="space-y-1.5 text-[11px]">
+                    <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
+                        <dt class="text-gris-500">Du</dt>
+                        <dd class="font-medium tabular-nums">{{ $date($annee->start_date ?? null) }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
+                        <dt class="text-gris-500">Au</dt>
+                        <dd class="font-medium tabular-nums">{{ $date($annee->end_date ?? null) }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-1">
+                        <dt class="text-gris-500">Statut de l’inscription</dt>
+                        <dd class="font-semibold">
+                            {{ $enrollment->status === 'active' ? 'Active' : ucfirst((string) $enrollment->status) }}
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+
+        {{-- Ce que le porteur s'engage à respecter --}}
+        <div class="mt-5 border border-gris-300 bg-gris-50 px-4 py-3 text-[10px] leading-relaxed text-gris-700">
+            <p class="mb-1 font-bold uppercase tracking-wide text-gris-600">Conditions</p>
+            <p>
+                Cette autorisation est strictement personnelle et doit être présentée à toute réquisition
+                du personnel de l’établissement. Elle est valable pour la seule année scolaire mentionnée.
+                Toute perte ou détérioration est à signaler sans délai au secrétariat, qui en délivrera un
+                duplicata. L’usage par un tiers entraîne son retrait immédiat.
+            </p>
+        </div>
+
+        {{-- Signature --}}
+        <div class="mt-8 flex items-end justify-between text-[10px]">
+            <p class="text-gris-500">
+                Délivrée à {{ $schoolSettings->city ?? 'Libreville' }},
+                le {{ now()->locale('fr')->isoFormat('D MMMM YYYY') }}
+            </p>
+
+            <div class="text-center">
+                <p class="text-gris-600">{{ $schoolSettings->principal_title ?? 'Le Chef d’établissement' }}</p>
+                <p class="mt-12 border-t border-gris-400 px-10 pt-1 text-gris-400">Signature et cachet</p>
             </div>
         </div>
     </div>
 
-    <!-- Conteneur caché pour la génération -->
-    <div id="authorizationContent" style="position: absolute; left: -9999px; width: 210mm; height: 148mm;">
-        <!-- Le contenu sera généré ici -->
-    </div>
-</div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
-<script>
-// Données de l'inscription
-const enrollmentData = {
-    id: {{ $enrollment->id }},
-    enrollment_code: '{{ $enrollment->enrollment_code }}',
-    student_name: '{{ $enrollment->applicant_first_name }} {{ $enrollment->applicant_last_name }}',
-    student_id: '{{ $enrollment->student ? $enrollment->student->student_id : 'N/A' }}',
-    date_of_birth: '{{ $enrollment->identite_naissance?->format('d/m/Y') ?? 'N/A' }}',
-    gender: '{{ $enrollment->applicant_gender === 'male' ? 'Masculin' : 'Féminin' }}',
-    class_name: '{{ $enrollment->schoolClass->name ?? 'N/A' }}',
-    cycle: '{{ ucfirst($enrollment->schoolClass->getSafeCycle() ?? 'N/A') }}',
-    student_status: '{{ $enrollment->student_status }}',
-    is_reinscription: {{ $enrollment->is_reinscription ? 'true' : 'false' }},
-    enrollment_date: '{{ $enrollment->enrollment_date?->format('d/m/Y') ?? '—' }}',
-    receipt_number: '{{ $enrollment->receipt_number }}',
-    academic_year: '{{ $enrollment->academicYear->name ?? 'N/A' }}',
-    payment_status: '{{ $enrollment->payment_status }}'
-};
-
-const schoolSettings = {
-    name: '{{ $schoolName ?? 'Établissement Scolaire' }}',
-    type: 'Établissement Scolaire',
-    city: '{{ $schoolSettings->city ?? 'Libreville' }}',
-    country: '{{ $schoolSettings->country ?? 'Gabon' }}',
-    phone: '{{ $schoolSettings->school_phone ?? '+241 XX XX XX XX' }}',
-    email: '{{ $schoolSettings->school_email ?? 'contact@ecole.ga' }}',
-    logo: '{{ $schoolSettings && $schoolSettings->school_logo ? asset('storage/' . $schoolSettings->school_logo) : '' }}'
-};
-
-// Fonction pour charger une image et la convertir en data URL
-function loadImageAsDataURL(url) {
-    return new Promise((resolve, reject) => {
-        if (!url) {
-            resolve(null);
-            return;
-        }
-        
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        
-        img.onload = function() {
-            try {
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                const dataURL = canvas.toDataURL('image/png');
-                resolve(dataURL);
-            } catch (e) {
-                console.error('Erreur lors de la conversion de l\'image:', e);
-                resolve(null);
-            }
-        };
-        
-        img.onerror = function() {
-            console.error('Erreur lors du chargement de l\'image:', url);
-            resolve(null);
-        };
-        
-        img.src = url;
-    });
-}
-
-// Fonction pour générer le PDF
-async function generateAuthorizationPDF() {
-    try {
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('l', 'mm', 'a5'); // A5 paysage (210 x 148 mm)
-        
-        const pageWidth = pdf.internal.pageSize.getWidth();
-        const pageHeight = pdf.internal.pageSize.getHeight();
-        const margin = 10;
-        
-        // Charger le logo de l'école
-        let logoData = null;
-        if (schoolSettings.logo) {
-            logoData = await loadImageAsDataURL(schoolSettings.logo);
-        }
-        
-        // Charger le QR code depuis l'API
-        const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(enrollmentData.enrollment_code)}`;
-        const qrCodeData = await loadImageAsDataURL(qrCodeUrl);
-        
-        // En-tête compact avec logo et informations sur une ligne
-        let yPos = margin;
-        
-        // Logo à gauche (plus petit)
-        if (logoData) {
-            pdf.addImage(logoData, 'PNG', margin, yPos, 12, 12);
-        }
-        
-        // Nom de l'école et informations à droite du logo
-        const textStartX = margin + 15;
-        
-        pdf.setFontSize(11);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(0, 123, 255);
-        pdf.text(schoolSettings.name, textStartX, yPos + 4);
-        
-        // Informations école sur la même ligne (plus petit)
-        pdf.setFontSize(6);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(100, 100, 100);
-        pdf.text(`${schoolSettings.type} - ${schoolSettings.city}, ${schoolSettings.country} | Tél: ${schoolSettings.phone}`, textStartX, yPos + 9);
-        
-        yPos += 15;
-        
-        // Ligne de séparation
-        pdf.setDrawColor(0, 123, 255);
-        pdf.setLineWidth(0.5);
-        pdf.line(margin, yPos, pageWidth - margin, yPos);
-        yPos += 5;
-        
-        // Titre
-        pdf.setFillColor(0, 123, 255);
-        pdf.rect(margin, yPos, pageWidth - 2 * margin, 10, 'F');
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(255, 255, 255);
-        pdf.text(`AUTORISATION D'ENTRÉE`, pageWidth / 2, yPos + 7, { align: 'center' });
-        yPos += 15;
-        
-        // Début du contenu en 2 colonnes
-        const leftColX = margin;
-        const leftColWidth = (pageWidth - 2 * margin) * 0.5;
-        const rightColX = leftColX + leftColWidth + 10;
-        const rightColWidth = (pageWidth - 2 * margin) * 0.4;
-        
-        const boxHeight = 50; // Hauteur des cadres
-        
-        // COLONNE GAUCHE - Informations essentielles de l'élève
-        let leftY = yPos;
-        
-        // Cadre pour les informations
-        pdf.setDrawColor(0, 123, 255);
-        pdf.setLineWidth(0.3);
-        pdf.rect(leftColX, leftY, leftColWidth, boxHeight);
-        
-        // Titre section
-        pdf.setFillColor(248, 249, 250);
-        pdf.rect(leftColX, leftY, leftColWidth, 8, 'F');
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(0, 123, 255);
-        pdf.text('INFORMATIONS DE L\'ÉLÈVE', leftColX + 3, leftY + 5.5);
-        leftY += 10;
-        
-        // Informations essentielles uniquement
-        pdf.setFontSize(8);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(0, 0, 0);
-        
-        const infoLeftX = leftColX + 3;
-        const infoRightX = leftColX + leftColWidth - 3;
-        
-        // Nom complet
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Nom :', infoLeftX, leftY);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(enrollmentData.student_name, infoRightX, leftY, { align: 'right' });
-        leftY += 6;
-        
-        // Matricule
-        if (enrollmentData.student_id !== 'N/A') {
-            pdf.setFont('helvetica', 'bold');
-            pdf.text('Matricule :', infoLeftX, leftY);
-            pdf.setFont('helvetica', 'normal');
-            pdf.text(enrollmentData.student_id, infoRightX, leftY, { align: 'right' });
-            leftY += 6;
-        }
-        
-        // Classe
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Classe :', infoLeftX, leftY);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(`${enrollmentData.class_name} (${enrollmentData.cycle})`, infoRightX, leftY, { align: 'right' });
-        leftY += 6;
-        
-        // Date d'inscription
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Date inscription :', infoLeftX, leftY);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(enrollmentData.enrollment_date, infoRightX, leftY, { align: 'right' });
-        leftY += 6;
-        
-        // Code d'inscription
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Code :', infoLeftX, leftY);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(enrollmentData.enrollment_code, infoRightX, leftY, { align: 'right' });
-        
-        // COLONNE DROITE - QR Code uniquement
-        let rightY = yPos;
-        
-        // Cadre pour le QR code
-        pdf.setDrawColor(0, 123, 255);
-        pdf.setLineWidth(0.3);
-        pdf.rect(rightColX, rightY, rightColWidth, boxHeight);
-        
-        // Titre section
-        pdf.setFillColor(248, 249, 250);
-        pdf.rect(rightColX, rightY, rightColWidth, 8, 'F');
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(0, 123, 255);
-        pdf.text('CODE QR', rightColX + rightColWidth / 2, rightY + 5.5, { align: 'center' });
-        rightY += 11; // Réduit de 10 à 11 (ajout de 1mm seulement)
-        
-        // QR Code centré
-        if (qrCodeData) {
-            const qrSize = 35; // 35mm
-            const qrX = rightColX + (rightColWidth - qrSize) / 2;
-            pdf.addImage(qrCodeData, 'PNG', qrX, rightY, qrSize, qrSize);
-            rightY += qrSize + 4; // Augmenté de 2 à 4 pour plus d'espace
-            
-            // Code d'inscription sous le QR
-            pdf.setFontSize(9);
-            pdf.setFont('helvetica', 'bold');
-            pdf.setTextColor(0, 123, 255);
-            pdf.text(enrollmentData.enrollment_code, rightColX + rightColWidth / 2, rightY, { align: 'center' });
-        }
-        
-        // TEXTE D'AUTORISATION - En dessous des 2 colonnes (pleine largeur)
-        yPos += boxHeight + 8;
-        
-        const authBoxHeight = 18;
-        pdf.setDrawColor(15, 81, 50);
-        pdf.setFillColor(209, 231, 221);
-        pdf.setLineWidth(0.5);
-        pdf.roundedRect(margin, yPos, pageWidth - 2 * margin, authBoxHeight, 2, 2, 'FD');
-        
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(15, 81, 50);
-        
-        const authText1 = 'L\'ÉLÈVE EST AUTORISÉ(E) À COMMENCER LES COURS';
-        const authText2 = `POUR L'ANNÉE SCOLAIRE ${enrollmentData.academic_year}`;
-        
-        // Centrer verticalement dans le cadre
-        const textStartY = yPos + (authBoxHeight / 2) - 2;
-        pdf.text(authText1, pageWidth / 2, textStartY, { align: 'center' });
-        pdf.text(authText2, pageWidth / 2, textStartY + 5, { align: 'center' });
-        yPos += authBoxHeight + 5;
-        
-        // Signature en bas à droite
-        pdf.setFontSize(7);
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(100, 100, 100);
-        pdf.text('Cachet et Signature', pageWidth - margin - 30, yPos);
-        yPos += 8;
-        pdf.setDrawColor(0, 0, 0);
-        pdf.setLineWidth(0.3);
-        pdf.line(pageWidth - margin - 40, yPos, pageWidth - margin - 10, yPos);
-        yPos += 3;
-        pdf.text('Direction', pageWidth - margin - 25, yPos, { align: 'center' });
-        
-        // Pied de page
-        pdf.setFontSize(6);
-        pdf.setTextColor(100, 100, 100);
-        pdf.setDrawColor(200, 200, 200);
-        pdf.line(margin, pageHeight - 8, pageWidth - margin, pageHeight - 8);
-        
-        const footerY = pageHeight - 5;
-        pdf.text('Ce document est obligatoire pour accéder à l\'établissement - À conserver précieusement', pageWidth / 2, footerY, { align: 'center' });
-        pdf.text(`${schoolSettings.name} - Généré le ${new Date().toLocaleDateString('fr-FR')}`, pageWidth / 2, footerY + 3, { align: 'center' });
-        
-        // Télécharger le PDF
-        const filename = `autorisation_entree_${enrollmentData.enrollment_code}.pdf`;
-        pdf.save(filename);
-        
-        // Rediriger après téléchargement
-        setTimeout(() => {
-            window.location.href = '{{ route("enrollments.index") }}';
-        }, 1000);
-        
-    } catch (error) {
-        console.error('Erreur lors de la génération du PDF:', error);
-        alert('Erreur lors de la génération de l\'autorisation d\'entrée. Veuillez réessayer.');
-        window.location.href = '{{ route("enrollments.index") }}';
-    }
-}
-
-// Générer le PDF au chargement de la page
-window.addEventListener('load', function() {
-    setTimeout(generateAuthorizationPDF, 500);
-});
-</script>
 @endsection
-

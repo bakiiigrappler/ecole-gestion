@@ -1094,98 +1094,122 @@ class EnrollmentController extends Controller
     }
 
     /**
-     * Générer et télécharger le reçu d'inscription
+     * L'eleve d'une inscription, quel que soit son etat d'avancement.
+     *
+     * Une inscription porte les coordonnees saisies au guichet (`applicant_*`)
+     * avant meme qu'une fiche eleve existe ; une fois l'eleve cree, c'est sa
+     * fiche qui fait foi. Les documents doivent lire les deux.
+     */
+    private function eleveDeLInscription(Enrollment $enrollment): array
+    {
+        $eleve = $enrollment->student;
+
+        return [
+            'nom' => $eleve->last_name ?? $enrollment->applicant_last_name,
+            'prenom' => $eleve->first_name ?? $enrollment->applicant_first_name,
+            'matricule' => $eleve->student_id ?? null,
+            'naissance' => $eleve->date_of_birth ?? $enrollment->applicant_date_of_birth,
+            'lieu' => $eleve->place_of_birth ?? null,
+            'sexe' => $eleve->gender ?? $enrollment->applicant_gender,
+            'adresse' => $eleve->address ?? $enrollment->applicant_address,
+            'telephone' => $eleve->phone ?? $enrollment->applicant_phone,
+            'photo' => $eleve->photo ?? null,
+        ];
+    }
+
+    /**
+     * Le responsable a porter sur les documents.
+     *
+     * Celui saisi sur l'inscription d'abord ; a defaut le parent rattache a
+     * l'eleve, en preferant le contact principal. Le recu affichait un bloc
+     * vide des que l'inscription ne portait pas elle-meme ces champs, alors
+     * que l'eleve avait bien deux parents a son dossier.
+     */
+    private function responsableDeLInscription(Enrollment $enrollment): ?array
+    {
+        $liens = [
+            'father' => 'Père', 'mother' => 'Mère', 'guardian' => 'Tuteur',
+            'tutor' => 'Tuteur', 'brother' => 'Frère', 'sister' => 'Sœur',
+            'uncle' => 'Oncle', 'aunt' => 'Tante', 'other' => 'Autre',
+        ];
+
+        $traduire = fn ($v) => $liens[mb_strtolower((string) $v)] ?? (trim((string) $v) ?: 'Non précisé');
+
+        if ($enrollment->parent_last_name || $enrollment->parent_first_name) {
+            return [
+                'nom' => trim($enrollment->parent_last_name.' '.$enrollment->parent_first_name),
+                'lien' => $traduire($enrollment->parent_relationship),
+                'telephone' => $enrollment->parent_phone,
+                'email' => $enrollment->parent_email,
+            ];
+        }
+
+        $parent = $enrollment->student?->parents
+            ?->sortByDesc(fn ($p) => (int) ($p->pivot->is_primary_contact ?? 0))
+            ->first();
+
+        if (! $parent) {
+            return null;
+        }
+
+        return [
+            'nom' => trim($parent->last_name.' '.$parent->first_name),
+            'lien' => $traduire($parent->pivot->relationship_type ?? null),
+            'telephone' => $parent->phone,
+            'email' => $parent->email,
+        ];
+    }
+
+    /** Ce que les deux documents ont en commun. */
+    private function pieceDInscription(Enrollment $enrollment): array
+    {
+        $enrollment->load(['schoolClass.level', 'academicYear', 'student.parents']);
+
+        return [
+            'enrollment' => $enrollment,
+            'schoolSettings' => \App\Models\SchoolSettings::getSettings(),
+            'schoolName' => \App\Helpers\SchoolHelper::getSchoolNameByLevel($enrollment->schoolClass->level),
+            'eleve' => $this->eleveDeLInscription($enrollment),
+            'responsable' => $this->responsableDeLInscription($enrollment),
+        ];
+    }
+
+    /**
+     * Le recu d'inscription, tel qu'il s'imprime.
      */
     public function generateReceipt(Enrollment $enrollment)
     {
-        // S'assurer qu'un numéro de reçu existe
-        if (!$enrollment->receipt_number) {
+        if (! $enrollment->receipt_number) {
             $enrollment->generateReceiptNumber();
         }
 
-        // Charger les relations nécessaires
-        $enrollment->load(['schoolClass.level']);
-
-        // Charger les paramètres de l'établissement
-        $schoolSettings = \App\Models\SchoolSettings::getSettings();
-        
-        // Obtenir le nom de l'établissement selon le niveau de l'élève
-        $schoolName = \App\Helpers\SchoolHelper::getSchoolNameByLevel($enrollment->schoolClass->level);
-
-        return view('enrollments.receipt', compact('enrollment', 'schoolSettings', 'schoolName'));
+        return view('enrollments.receipt', $this->pieceDInscription($enrollment));
     }
 
     /**
-     * Télécharger le reçu en PDF
+     * Le telechargement mene au meme document.
+     *
+     * Le PDF etait rendu par dompdf a partir d'un second gabarit : deux
+     * documents a tenir a jour, et une mise en page qui divergeait de celle
+     * affichee. Le document se photographie desormais tel qu'il est vu.
      */
     public function downloadReceipt(Enrollment $enrollment)
     {
-        // S'assurer qu'un numéro de reçu existe
-        if (!$enrollment->receipt_number) {
-            $enrollment->generateReceiptNumber();
-        }
-
-        // Charger les relations nécessaires
-        $enrollment->load(['schoolClass.level', 'academicYear', 'student', 'enrollmentFees.fee']);
-
-        // Charger les paramètres de l'établissement
-        $schoolSettings = \App\Models\SchoolSettings::getSettings();
-        
-        // Obtenir le nom de l'établissement selon le niveau de l'élève
-        $schoolName = \App\Helpers\SchoolHelper::getSchoolNameByLevel($enrollment->schoolClass->level);
-        
-        // Ajouter le chemin local du logo pour DomPDF
-        if ($schoolSettings && $schoolSettings->school_logo) {
-            $logoPath = storage_path('app/public/' . $schoolSettings->school_logo);
-            
-            // Pour DomPDF, utiliser un chemin relatif simple
-            $schoolSettings->logo_local_path = public_path('storage/' . $schoolSettings->school_logo);
-            
-            // Alternative: encoder en base64 pour DomPDF
-            if (file_exists($logoPath)) {
-                $logoContent = file_get_contents($logoPath);
-                $logoInfo = pathinfo($logoPath);
-                $extension = strtolower($logoInfo['extension']);
-                $mimeType = 'image/' . ($extension === 'jpg' ? 'jpeg' : $extension);
-                $schoolSettings->logo_base64 = 'data:' . $mimeType . ';base64,' . base64_encode($logoContent);
-            }
-        }
-
-        // Générer le PDF avec DomPDF
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('enrollments.receipt-pdf', compact('enrollment', 'schoolSettings', 'schoolName'));
-        
-        // Configuration pour format A5
-        $pdf->setPaper('A5', 'portrait');
-        
-        // Nom du fichier
-        $filename = 'recu_inscription_' . $enrollment->receipt_number . '.pdf';
-        
-        // Télécharger le PDF
-        return $pdf->download($filename);
+        return redirect()->route('enrollments.receipt', $enrollment->id);
     }
 
     /**
-     * Générer et télécharger l'autorisation d'entrée avec QR code (utilise jsPDF côté client)
+     * L'autorisation d'entree, avec son code de verification.
      */
     public function downloadEntryAuthorization(Enrollment $enrollment)
     {
-        // S'assurer qu'un code d'inscription existe
-        if (!$enrollment->enrollment_code) {
+        if (! $enrollment->enrollment_code) {
             $enrollment->generateEnrollmentCode();
         }
 
-        // Charger les relations nécessaires
-        $enrollment->load(['schoolClass.level', 'academicYear', 'student']);
-
-        // Charger les paramètres de l'établissement
-        $schoolSettings = \App\Models\SchoolSettings::getSettings();
-        
-        // Obtenir le nom de l'établissement selon le niveau de l'élève
-        $schoolName = \App\Helpers\SchoolHelper::getSchoolNameByLevel($enrollment->schoolClass->level);
-
-        // Retourner la vue qui génère le PDF côté client avec jsPDF
-        return view('enrollments.entry-authorization', compact('enrollment', 'schoolSettings', 'schoolName'));
+        return view('enrollments.entry-authorization', $this->pieceDInscription($enrollment));
     }
+
 
     /**
      * Exporter les inscriptions
