@@ -37,10 +37,24 @@ class AppServiceProvider extends ServiceProvider
         \Illuminate\Support\Facades\View::share('marqueLogo', \App\Support\Marque::logoUrl());
         \Illuminate\Support\Facades\View::share('plateforme', \App\Support\ParametresPlateforme::tous());
 
-        // Partager les paramètres de l'établissement avec toutes les vues
+        /*
+         * Les paramètres de l'établissement, partagés avec toutes les vues.
+         *
+         * Le `try` n'est pas de la prudence de principe : ce composeur tourne
+         * sur *toutes* les vues, y compris celle qui affiche les erreurs. Base
+         * injoignable, et le rendu de l'erreur échouait à son tour — on
+         * n'obtenait plus qu'un 500 muet, au moment précis où l'on avait le
+         * plus besoin de lire ce qui n'allait pas.
+         *
+         * Les gabarits savent se passer de ces paramètres : ils retombent sur
+         * le nom de la plateforme.
+         */
         View::composer('*', function ($view) {
-            $schoolSettings = SchoolSettings::getSettings();
-            $view->with('schoolSettings', $schoolSettings);
+            try {
+                $view->with('schoolSettings', SchoolSettings::getSettings());
+            } catch (\Throwable $e) {
+                $view->with('schoolSettings', null);
+            }
         });
     }
 }
