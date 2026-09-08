@@ -1,0 +1,90 @@
+# Plan de deploiement Render.
+#
+# Deux services : l'application, servie par l'image Docker du depot, et une
+# base PostgreSQL geree. Render lit ce fichier a la creation du « Blueprint »
+# et cable les deux — l'application recoit l'adresse et les identifiants de la
+# base sans qu'on les recopie a la main.
+#
+# Ce qui n'est PAS ici : APP_KEY, qui est un secret. Render la demande a la
+# creation. Elle s'obtient en local par `php artisan key:generate --show`.
+
+databases:
+  - name: egesco-db
+    databaseName: egesco
+    user: egesco
+    plan: free
+
+services:
+  - type: web
+    name: egesco
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    region: frankfurt
+
+    # `/login` plutot que `/` : la racine redirige vers la connexion, et une
+    # sonde qui suit mal les redirections declarerait le service en panne.
+    healthCheckPath: /login
+
+    envVars:
+      # --- Identite de l'application ---------------------------------------
+      - key: APP_NAME
+        value: Egesco
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+
+      # Secret : demande a la creation, jamais ecrit dans le depot.
+      - key: APP_KEY
+        sync: false
+
+      # Renseignee apres le premier deploiement, avec l'adresse attribuee.
+      - key: APP_URL
+        sync: false
+
+      - key: APP_LOCALE
+        value: fr
+      - key: APP_TIMEZONE
+        value: Africa/Libreville
+
+      # --- Base de donnees : cablee sur le service ci-dessus ---------------
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_HOST
+        fromDatabase:
+          name: egesco-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: egesco-db
+          property: port
+      - key: DB_DATABASE
+        fromDatabase:
+          name: egesco-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: egesco-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: egesco-db
+          property: password
+
+      # --- Sessions, cache, files ------------------------------------------
+      # En base plutot qu'en fichiers : le disque d'un conteneur Render est
+      # ephemere, une session ecrite dessus disparait au redeploiement.
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: database
+
+      # --- Journaux ---------------------------------------------------------
+      # Sur la sortie d'erreur : c'est la que Render les lit.
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: warning

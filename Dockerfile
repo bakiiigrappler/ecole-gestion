@@ -1,87 +1,113 @@
-FROM php:8.2-fpm
+# Image applicative d'Egesco : nginx + PHP-FPM dans un seul conteneur.
+#
+# Le docker-compose local separe le serveur web de l'applicatif ; un hebergeur
+# comme Render n'expose qu'un port par service et ne lance qu'un conteneur.
+# L'image doit donc se suffire a elle-meme.
+#
+# Deux etapes : Node construit les feuilles de style et les scripts, PHP recoit
+# le resultat. Le dossier `public/build` n'est pas versionne — sans cette
+# premiere etape, l'application se servirait sans aucun style.
 
-# Arguments
-ARG user=www-data
-ARG uid=1000
+# ---------------------------------------------------------------- 1. Les assets
+FROM node:22-alpine AS assets
 
-# Installer les dépendances système
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    zip \
-    unzip \
-    libzip-dev \
-    libfreetype6-dev \
-    libjpeg62-turbo-dev \
-    libmcrypt-dev \
-    libgd-dev \
-    jpegoptim optipng pngquant gifsicle \
-    vim \
-    unzip \
-    git \
-    curl \
-    libpq-dev \
-    libonig-dev \
-    libxml2-dev
+WORKDIR /app
 
-# Nettoyer le cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+# Les dependances d'abord : cette couche ne se reconstruit que si package.json
+# bouge, ce qui epargne une minute a chaque deploiement.
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# Installer les extensions PHP.
+COPY vite.config.js ./
+COPY resources ./resources
+COPY public ./public
+
+RUN npm run build
+
+# ---------------------------------------------------------------- 2. L'application
+FROM php:8.2-fpm-alpine
+
+# nginx et supervisor servent l'application ; postgresql-dev et les
+# bibliotheques d'images servent a compiler les extensions PHP ; gettext donne
+# `envsubst`, qui injecte le port dans la configuration nginx au demarrage.
+RUN apk add --no-cache \
+        nginx \
+        supervisor \
+        gettext \
+        postgresql-dev \
+        libpng-dev \
+        libjpeg-turbo-dev \
+        freetype-dev \
+        libzip-dev \
+        oniguruma-dev \
+        icu-dev \
+        git \
+        unzip
+
 # `pdo_pgsql`, et non `pdo_mysql` : l'application tourne sur PostgreSQL.
-# La bibliotheque cliente (libpq-dev) etait bien installee, mais l'extension
-# PHP ne l'etait pas : l'image se construisait et se refusait a la base des
-# le premier acces.
+# L'image installait la bibliotheque cliente sans l'extension PHP — elle se
+# construisait, et se refusait a la base des le premier acces.
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) gd \
-    && docker-php-ext-install pdo_pgsql pgsql mbstring exif pcntl bcmath zip
+    && docker-php-ext-install -j"$(nproc)" \
+        pdo_pgsql \
+        pgsql \
+        gd \
+        mbstring \
+        exif \
+        pcntl \
+        bcmath \
+        zip \
+        intl
 
-# Installer Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Créer un utilisateur système pour exécuter Composer et Artisan Commands
-RUN useradd -G www-data,root -u $uid -d /home/$user $user
-RUN mkdir -p /home/$user/.composer && \
-    chown -R $user:$user /home/$user
-
-# Définir le répertoire de travail
 WORKDIR /var/www
 
-# Copier les fichiers de configuration
+# Les dependances PHP avant le code, pour la meme raison que ci-dessus.
+# `--no-scripts` : les scripts de Laravel touchent a l'application, qui n'est
+# pas encore copiee.
+COPY composer.json composer.lock ./
+RUN composer install \
+        --no-dev \
+        --no-scripts \
+        --no-autoloader \
+        --prefer-dist \
+        --no-interaction
+
+COPY . /var/www
+COPY --from=assets /app/public/build /var/www/public/build
+
+# Les dossiers de travail avant l'autoloader : `dump-autoload` declenche
+# `package:discover`, qui refuse de s'executer sans `bootstrap/cache`. Ces
+# dossiers ne viennent pas du depot, le .dockerignore les ecarte.
+RUN mkdir -p \
+        storage/framework/cache/data \
+        storage/framework/sessions \
+        storage/framework/views \
+        storage/logs \
+        storage/app/public \
+        bootstrap/cache
+
+RUN composer dump-autoload --optimize --no-dev --classmap-authoritative
+
+# Configuration du conteneur
 COPY docker/php/local.ini /usr/local/etc/php/conf.d/local.ini
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-# Changer les permissions
-RUN chown -R www-data:www-data /var/www
-RUN chmod -R 755 /var/www
+# La configuration nginx est un gabarit : le port n'est connu qu'a l'execution.
+#
+# Alpine inclut `conf.d/*.conf` au premier niveau — c'est la place des modules —
+# et `http.d/*.conf` a l'interieur du bloc `http`. Un bloc `server` depose dans
+# conf.d est donc refuse net ; c'est http.d que l'entrypoint vise.
+RUN mkdir -p /etc/nginx/templates /run/nginx \
+    && rm -f /etc/nginx/http.d/default.conf
+COPY docker/nginx/default.conf /etc/nginx/templates/default.conf.template
 
-# Copier les fichiers du projet
-COPY --chown=www-data:www-data . /var/www
+RUN chmod +x /usr/local/bin/entrypoint.sh \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
-# Installer les dépendances
-USER $user
-RUN composer install --optimize-autoloader --no-dev --no-interaction
+EXPOSE 10000
 
-# Revenir à l'utilisateur root pour les permissions
-USER root
-
-# Créer les répertoires nécessaires
-RUN mkdir -p /var/www/storage/logs \
-    && mkdir -p /var/www/storage/framework/cache \
-    && mkdir -p /var/www/storage/framework/sessions \
-    && mkdir -p /var/www/storage/framework/views \
-    && mkdir -p /var/www/bootstrap/cache
-
-# Définir les permissions
-RUN chown -R www-data:www-data /var/www/storage \
-    && chown -R www-data:www-data /var/www/bootstrap/cache \
-    && chmod -R 775 /var/www/storage \
-    && chmod -R 775 /var/www/bootstrap/cache
-
-# Exposer le port 9000
-EXPOSE 9000
-
-# Commande par défaut
-CMD ["php-fpm"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
