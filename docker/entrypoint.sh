@@ -21,9 +21,14 @@ php artisan view:clear
 php artisan config:cache
 php artisan view:cache
 
-# Les migrations, seulement si une base est configuree. `--force` parce qu'en
-# production Laravel demande confirmation, et personne n'est la pour la donner.
-if [ -n "${DB_HOST}" ]; then
+# Les migrations, seulement si une base est configuree — par ses cinq variables
+# ou par une URL unique, les deux formes sont acceptees. Tester DB_HOST seul
+# laissait passer les deploiements qui n'ont que DB_URL, et la base restait
+# vide sans que rien ne le signale.
+#
+# `--force` parce qu'en production Laravel demande confirmation, et personne
+# n'est la pour la donner.
+if [ -n "${DB_HOST}" ] || [ -n "${DB_URL}" ]; then
     echo "→ Migrations"
     php artisan migrate --force --no-interaction || echo "⚠ Migrations en echec — voir les journaux"
 fi

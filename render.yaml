@@ -51,28 +51,18 @@ services:
         value: Africa/Libreville
 
       # --- Base de donnees : cablee sur le service ci-dessus ---------------
+      #
+      # Une seule variable plutot que cinq : Laravel sait lire une URL de
+      # connexion complete, et Render la fournit deja toute faite. Recopier
+      # l'hote, le port, la base, l'utilisateur et le mot de passe un par un,
+      # c'est cinq occasions de se tromper — dont celle, classique, de laisser
+      # les valeurs de son poste.
       - key: DB_CONNECTION
         value: pgsql
-      - key: DB_HOST
+      - key: DB_URL
         fromDatabase:
           name: egesco-db
-          property: host
-      - key: DB_PORT
-        fromDatabase:
-          name: egesco-db
-          property: port
-      - key: DB_DATABASE
-        fromDatabase:
-          name: egesco-db
-          property: database
-      - key: DB_USERNAME
-        fromDatabase:
-          name: egesco-db
-          property: user
-      - key: DB_PASSWORD
-        fromDatabase:
-          name: egesco-db
-          property: password
+          property: connectionString
 
       # --- Sessions, cache, files ------------------------------------------
       # En base plutot qu'en fichiers : le disque d'un conteneur Render est
