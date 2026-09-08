@@ -43,6 +43,17 @@
          navigation elle-meme si elle depasse. --}}
     {{-- Colonne : l'identité et l'année scolaire restent en place, seule la
          navigation défile entre les deux. --}}
+    @php
+        /*
+         * Disposition de la navigation, choisie dans la personnalisation :
+         * barre laterale ou barre d'en-tete. En mode « header » la colonne
+         * laterale n'est pas rendue du tout — le menu vient de MenuPrincipal,
+         * les deux dispositions n'ont rien a se passer.
+         */
+        $disposition = \App\Support\MenuPrincipal::disposition();
+    @endphp
+
+    @if ($disposition === 'sidebar')
     <aside class="sans-impression fixed inset-y-0 left-0 z-40 flex w-72 -translate-x-full flex-col bg-ardoise-900 transition-transform lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:translate-x-0"
            :class="menuOuvert && 'translate-x-0'">
 
@@ -100,10 +111,14 @@
 
     <div x-show="menuOuvert" x-cloak @click="menuOuvert = false"
          class="fixed inset-0 z-30 bg-gris-900/50 lg:hidden"></div>
+    @endif
 
     {{-- Colonne principale --}}
     <div class="flex min-w-0 flex-1 flex-col">
 
+        @if ($disposition === 'header')
+            @include('partials.navigation-entete')
+        @else
         <header class="sans-impression sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-gris-200 bg-white px-4 lg:px-6">
             <button @click="menuOuvert = !menuOuvert" class="cursor-pointer rounded-lg p-2 text-gris-500 hover:bg-gris-100 lg:hidden" aria-label="Ouvrir le menu">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -120,51 +135,22 @@
 
             @yield('actions-entete')
 
-            @auth
-                <div x-data="{ ouvert: false }" class="relative">
-                    <button @click="ouvert = !ouvert" class="flex cursor-pointer items-center gap-2 rounded-lg p-1.5 hover:bg-gris-100">
-                        <x-avatar :nom="auth()->user()->name" taille="h-8 w-8"/>
-                        <span class="hidden text-sm font-medium text-gris-700 sm:block">{{ auth()->user()->name }}</span>
-                        <svg class="h-4 w-4 text-gris-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" d="m19 9-7 7-7-7"/>
-                        </svg>
-                    </button>
-
-                    <div x-show="ouvert" x-cloak @click.outside="ouvert = false"
-                         class="absolute right-0 mt-2 w-64 overflow-hidden rounded-xl border border-gris-200 bg-white pb-2 shadow-lg">
-                        {{-- Emblème de l'application : le menu du compte ne dépend
-                             pas de l'établissement où l'on se trouve. --}}
-                        <div class="flex items-center justify-center border-b border-gris-100 bg-gris-50 py-3">
-                            <x-logo taille="sm" :application="true"/>
-                        </div>
-                        <div class="border-b border-gris-100 px-4 py-2">
-                            <div class="text-sm font-semibold text-gris-900">{{ auth()->user()->name }}</div>
-                            <div class="text-xs text-gris-500">{{ auth()->user()->email }}</div>
-                            <div class="mt-1 inline-flex rounded-full bg-gris-100 px-2 py-0.5 text-[11px] font-semibold text-gris-600">
-                                @switch(auth()->user()->role)
-                                    @case('superadmin') Super administrateur @break
-                                    @case('admin')      Administrateur @break
-                                    @case('secretary')  Secrétariat @break
-                                    @case('teacher')    Enseignant @break
-                                    @case('parent')     Parent @break
-                                    @default {{ ucfirst(auth()->user()->role ?? 'Utilisateur') }}
-                                @endswitch
-                            </div>
-                        </div>
-
-                        <x-confirmation :action="route('logout')"
-                                        titre="Se déconnecter ?"
-                                        message="Votre session sera fermée et vous reviendrez à la page de connexion."
-                                        confirmer="Se déconnecter"
-                                        bouton="block w-full px-4 py-2 text-left text-sm text-corail-600 hover:bg-corail-50">
-                            Se déconnecter
-                        </x-confirmation>
-                    </div>
-                </div>
-            @endauth
+            @include('partials.compte')
         </header>
+        @endif
 
-        <main class="flex-1 p-4 lg:p-6">
+        <main class="flex-1 p-4 lg:p-6 {{ $disposition === 'header' ? 'mx-auto w-full max-w-[1400px] lg:px-8' : '' }}">
+            @if ($disposition === 'header')
+                {{-- En barre d'en-tete, le titre de page n'a plus d'en-tete ou
+                     se poser : il ouvre le contenu. --}}
+                <div class="mb-5">
+                    <h1 class="text-xl font-semibold text-gris-900">@yield('titre', 'Tableau de bord')</h1>
+                    @hasSection('sous-titre')
+                        <p class="mt-0.5 text-sm text-gris-500">@yield('sous-titre')</p>
+                    @endif
+                </div>
+            @endif
+
             <x-alertes/>
             {{-- 'contenu' est la section des vues converties, 'content' celle des vues d'origine --}}
             @yield('contenu')
@@ -181,6 +167,31 @@
         </footer>
     </div>
 </div>
+
+{{-- ------------------------------------------------------------------
+     Apercu de disposition : la page s'affiche dans la disposition demandee,
+     mais le reglage n'est pas enregistre tant qu'on ne l'a pas choisi.
+     ------------------------------------------------------------------ --}}
+@if (\App\Support\MenuPrincipal::estUnApercu())
+    <div class="sans-impression fixed inset-x-0 bottom-4 z-[95] flex justify-center px-4">
+        <div class="flex items-center gap-3 rounded-full border border-ogar-200 bg-white/95 py-2 pl-4 pr-2 text-sm shadow-lg backdrop-blur">
+            <span class="inline-flex items-center gap-1.5 font-medium text-ogar-800">
+                <svg class="h-4 w-4 text-ogar-600" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                Aperçu : {{ $disposition === 'header' ? 'barre d’en-tête' : 'barre latérale' }}
+            </span>
+
+            <span class="hidden text-xs text-gris-400 sm:inline">non enregistré</span>
+
+            <a href="{{ route('admin.plateforme.personnalisation', ['nav' => $disposition]) }}"
+               class="rounded-full bg-ogar-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-ogar-700">
+                Choisir cette disposition
+            </a>
+        </div>
+    </div>
+@endif
 
 <style>[x-cloak]{display:none !important}</style>
 

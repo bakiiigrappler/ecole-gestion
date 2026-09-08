@@ -54,6 +54,7 @@ class PlateformeController extends Controller implements HasMiddleware
         $donnees = $request->validate([
             'app_nom' => 'required|string|max:60',
             'app_slogan' => 'nullable|string|max:120',
+            'nav_layout' => 'required|in:sidebar,header',
             'login_titre' => 'nullable|string|max:120',
             'login_sous_titre' => 'nullable|string|max:400',
             'login_acces_rapide' => 'nullable|boolean',
@@ -67,6 +68,7 @@ class PlateformeController extends Controller implements HasMiddleware
         $reglages = [
             'app_nom' => $donnees['app_nom'],
             'app_slogan' => $donnees['app_slogan'] ?? '',
+            'nav_layout' => $donnees['nav_layout'],
             'login_titre' => $donnees['login_titre'] ?? '',
             'login_sous_titre' => $donnees['login_sous_titre'] ?? '',
             'login_acces_rapide' => $request->boolean('login_acces_rapide'),

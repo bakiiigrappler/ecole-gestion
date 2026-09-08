@@ -26,6 +26,9 @@ class Marque extends ReglagesJson
             'app_nom' => 'Egesco',
             'app_slogan' => 'Gestion scolaire',
 
+            // Disposition de la navigation : 'sidebar' ou 'header'.
+            'nav_layout' => 'sidebar',
+
             // Chemin relatif dans `public`, ex. « marque/logo.png ».
             'logo' => null,
 
