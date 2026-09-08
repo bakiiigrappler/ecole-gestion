@@ -20,15 +20,17 @@
 /*
  * Marge de la feuille, en millimètres.
  *
- * Volontairement mince : ces documents portent déjà leur propre marge
- * intérieure — c'est elle qui fait la page. Une bordure de 8 mm par-dessus
- * ajoutait un second cadre et rétrécissait le document d'autant : à l'écran il
- * remplissait la largeur, sur le PDF il flottait au milieu.
+ * Nulle : ces documents portent déjà leur propre marge intérieure — c'est elle
+ * qui fait la page, et c'est elle qu'on voit à l'aperçu. Toute bordure ajoutée
+ * ici forme un second cadre et rétrécit le document d'autant : à l'écran il
+ * remplissait la largeur, sur le PDF il flottait au milieu. Le PDF doit être
+ * l'aperçu, à l'identique.
  *
- * 3 mm reste au-delà de la zone non imprimable des imprimantes courantes.
- * `data-marge` permet d'en demander une autre au cas par cas.
+ * Rien n'est perdu au tirage : le contenu ne touche jamais le bord, la marge
+ * intérieure du document le tient à distance. `data-marge` permet d'en demander
+ * une au cas par cas.
  */
-const MARGE_DEFAUT_MM = 3;
+const MARGE_DEFAUT_MM = 0;
 
 /* Formats de papier admis, en millimètres, orientation portrait. */
 const FORMATS = {

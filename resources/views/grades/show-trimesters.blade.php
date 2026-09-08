@@ -85,9 +85,6 @@
                     <button type="button" x-show="trimestre === '{{ $t }}'" x-cloak
                             class="bouton-primaire text-xs"
                             data-export-pdf="bulletin-{{ $loop->index }}"
-                            {{-- Le bulletin est plus large que haut : en portrait il
-                                 n'occupait que le tiers superieur de la feuille. --}}
-                            data-orientation="paysage"
                             data-page-unique
                             data-nom-fichier="Bulletin_{{ \Illuminate\Support\Str::slug($student->full_name) }}_T{{ $loop->index + 1 }}.pdf">
                         Télécharger en PDF
