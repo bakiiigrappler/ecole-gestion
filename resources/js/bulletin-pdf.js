@@ -17,13 +17,26 @@
  */
 
 const MARGE_MM = 8;
-const A4 = { largeur: 210, hauteur: 297 };
 
-/* Dimensions utiles de la feuille, selon l'orientation demandée. */
-function feuille(orientation) {
+/* Formats de papier admis, en millimètres, orientation portrait. */
+const FORMATS = {
+    a4: { largeur: 210, hauteur: 297 },
+    a5: { largeur: 148, hauteur: 210 },
+};
+
+/*
+ * Dimensions utiles de la feuille, selon le format et l'orientation demandés.
+ *
+ * Un reçu ou une autorisation d'entrée tient sur une demi-feuille : les tirer
+ * en A4 gaspille le papier et donne un document mou. `data-format` choisit le
+ * grain, `data-orientation` le sens.
+ */
+function feuille(format, orientation) {
+    const papier = FORMATS[format] ?? FORMATS.a4;
+
     return orientation === 'paysage'
-        ? { largeur: A4.hauteur, hauteur: A4.largeur }
-        : { largeur: A4.largeur, hauteur: A4.hauteur };
+        ? { largeur: papier.hauteur, hauteur: papier.largeur }
+        : { largeur: papier.largeur, hauteur: papier.hauteur };
 }
 
 /*
@@ -93,12 +106,13 @@ async function exporter(bouton) {
 
 
         const orientation = bouton.dataset.orientation === 'paysage' ? 'paysage' : 'portrait';
-        const page = feuille(orientation);
+        const format = FORMATS[bouton.dataset.format] ? bouton.dataset.format : 'a4';
+        const page = feuille(format, orientation);
 
         const pdf = new jsPDF({
             orientation: orientation === 'paysage' ? 'landscape' : 'portrait',
             unit: 'mm',
-            format: 'a4',
+            format,
         });
 
         // Document en plusieurs feuillets : une feuille par bloc marqué.
