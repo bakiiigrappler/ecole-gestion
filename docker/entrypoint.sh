@@ -8,6 +8,20 @@ set -e
 
 echo "→ Preparation de l'application"
 
+# Dire, des la premiere ligne, sur quoi ce conteneur-ci travaille.
+#
+# Sans cela, une variable modifiee dans le tableau de bord et un conteneur qui
+# n'a pas redemarre donnent exactement la meme trace qu'une variable mal
+# renseignee : on cherche l'erreur dans la configuration alors qu'elle est dans
+# le cycle de vie du service. La ligne ci-dessous tranche.
+if [ "${DB_CONNECTION}" = "sqlite" ]; then
+    echo "   base : sqlite → ${DB_DATABASE:-<non renseignee>}"
+else
+    echo "   base : ${DB_CONNECTION:-<non renseignee>} → ${DB_HOST:-<hote absent>}:${DB_PORT:-<port absent>}${DB_URL:+ (via DB_URL)}"
+fi
+
+echo "   environnement : ${APP_ENV:-<non renseigne>} · debug ${APP_DEBUG:-<non renseigne>}"
+
 # Le lien public/storage n'existe pas dans l'image : le dossier est monte ou
 # recree a chaque demarrage.
 php artisan storage:link --force 2>/dev/null || true
