@@ -7,7 +7,8 @@
     <button type="button"
             class="bouton-secondaire"
             data-export-pdf="bulletin-preprimaire"
-            data-orientation="paysage"
+            {{-- Portrait : le bulletin du preprimaire se lit en hauteur, une
+                 ligne par competence, comme le document officiel. --}}
             data-page-unique
             data-nom-fichier="Bulletin_{{ \Illuminate\Support\Str::slug($student->first_name.' '.$student->last_name) }}.pdf">
         Télécharger le bulletin
@@ -45,7 +46,14 @@
          Le document. Ce bloc est celui que html2canvas photographie :
          le PDF est exactement ce qui s'affiche ici.
          ------------------------------------------------------------------ --}}
-    <div id="bulletin-preprimaire" class="mx-auto max-w-6xl bg-white p-6 text-gris-900 ring-1 ring-gris-200">
+    {{-- Le document a le grain de la feuille : A4 portrait, 1240 x 1754 px a
+         150 ppp. Sans cela la photographie ne remplissait pas la page.
+
+         Cette largeur depasse la colonne de lecture sur un ecran ordinaire :
+         l'enveloppe defile lateralement plutot que de rogner le document. --}}
+    <div class="overflow-x-auto">
+    <div id="bulletin-preprimaire" class="mx-auto flex flex-col bg-white p-7 text-gris-900 ring-1 ring-gris-200"
+         style="width: 1240px; min-height: 1754px;">
 
         {{-- En-tête : logo de l'établissement à gauche, sceau à droite --}}
         <div class="flex items-start justify-between gap-4 border-b-2 border-gris-800 pb-3">
@@ -156,8 +164,9 @@
             </tbody>
         </table>
 
-        {{-- Légende et signature --}}
-        <div class="mt-3 flex items-start justify-between gap-6">
+        {{-- Légende et signature, au bas de la feuille : `mt-auto` les y pousse
+             quel que soit le nombre de compétences évaluées. --}}
+        <div class="mt-auto flex items-start justify-between gap-6 pt-6">
             <div>
                 <p class="mb-1 text-[9px] font-bold uppercase tracking-wide text-gris-600">Légende</p>
                 <div class="flex flex-wrap gap-3 text-[9px] text-gris-600">
@@ -178,6 +187,8 @@
         </div>
 
         <p class="mt-4 text-[9px] text-gris-500">Édité le {{ now()->format('d/m/Y à H:i') }}</p>
+    </div>
+
     </div>
 
     @endif

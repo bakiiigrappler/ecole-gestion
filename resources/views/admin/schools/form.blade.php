@@ -15,6 +15,9 @@
     $cyclesChoisis = old('cycles', $school->exists ? $school->cyclesOuverts() : []);
 @endphp
 
+{{-- Le mot de passe qui vient d'être engendré : lisible ici, une seule fois. --}}
+<x-compte-ouvert/>
+
 <form method="POST"
       action="{{ $school->exists ? route('admin.schools.update', $school) : route('admin.schools.store') }}"
       class="grid gap-6 lg:grid-cols-3">
@@ -213,5 +216,66 @@
         @endunless
     </div>
 </form>
+
+@if ($school->exists)
+    {{-- ----------------------------------------------------------------
+         Les comptes de direction, hors du formulaire
+
+         Hors du formulaire au sens propre : ces boutons postent ailleurs, et
+         un formulaire ne s'imbrique pas dans un autre. C'est ici que se remet
+         un accès perdu — le mot de passe n'est conservé nulle part en clair,
+         il n'y a rien à relire, seulement à en engendrer un nouveau.
+         ---------------------------------------------------------------- --}}
+    <div class="carte mt-6 overflow-hidden">
+        <div class="carte-entete">
+            <div>
+                <h2 class="text-sm font-semibold text-gris-900">Comptes de direction</h2>
+                <p class="mt-0.5 text-xs text-gris-400">
+                    Ceux qui commandent cet établissement.
+                </p>
+            </div>
+            <span class="text-xs text-gris-400">{{ $comptes->count() }} compte(s)</span>
+        </div>
+
+        <ul class="divide-y divide-gris-100">
+            @forelse ($comptes as $compte)
+                <li class="flex flex-wrap items-center gap-3 px-5 py-3">
+                    <x-avatar :nom="$compte->name" class="h-9 w-9 shrink-0 text-[11px]"/>
+
+                    <div class="min-w-0 flex-1">
+                        <a href="{{ route('admin.users.show', $compte) }}"
+                           class="block truncate text-sm font-medium text-gris-800 hover:text-ogar-700 hover:underline">
+                            {{ $compte->name }}
+                        </a>
+                        <div class="truncate text-[11px] text-gris-400">
+                            <span class="font-mono">{{ $compte->matricule ?: '—' }}</span>
+                            @if ($compte->email) · {{ $compte->email }} @endif
+                        </div>
+                    </div>
+
+                    <x-puce :couleur="$compte->is_active ? 'emerald' : 'slate'">
+                        {{ $compte->is_active ? 'Actif' : 'Désactivé' }}
+                    </x-puce>
+
+                    <x-puce couleur="violet">{{ \App\Support\Roles::libelle($compte->role) }}</x-puce>
+
+                    <x-confirmation :action="route('admin.users.mot-de-passe', $compte)"
+                                    methode="POST"
+                                    titre="Engendrer un nouveau mot de passe ?"
+                                    :message="$compte->name.' ne pourra plus entrer avec son mot de passe actuel. Le nouveau s’affichera une seule fois, à vous de le lui remettre.'"
+                                    confirmer="Engendrer"
+                                    ton="primaire"
+                                    bouton="bouton-mini">
+                        Réinitialiser le mot de passe
+                    </x-confirmation>
+                </li>
+            @empty
+                <li class="px-5 py-6 text-center text-sm text-gris-500">
+                    Cet établissement n’a aucun compte de direction : personne ne peut y entrer.
+                </li>
+            @endforelse
+        </ul>
+    </div>
+@endif
 
 @endsection

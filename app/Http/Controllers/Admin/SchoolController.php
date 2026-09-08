@@ -201,6 +201,17 @@ class SchoolController extends Controller implements HasMiddleware
         return view('admin.schools.form', [
             'school' => $school,
             'codePropose' => $school->code,
+            /*
+             * Les comptes de direction de l'etablissement. C'est d'ici que le
+             * super administrateur remet un acces a un chef d'etablissement
+             * qui a perdu le sien : le mot de passe n'est conserve nulle part
+             * en clair, il n'y a rien a relire, seulement a engendrer.
+             */
+            'comptes' => User::where('school_id', $school->id)
+                ->whereIn('role', \App\Support\Roles::direction())
+                ->orderBy('role')
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 

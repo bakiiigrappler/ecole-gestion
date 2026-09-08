@@ -107,9 +107,13 @@
          officiel — nomenclature des compétences à gauche, identification
          de l'apprenant à droite.
          ================================================================== --}}
-    <div data-page-pdf class="bg-white p-6 text-gris-900 ring-1 ring-gris-200">
+    {{-- Le feuillet a le grain de la feuille : A4 paysage, 1123 x 794 px a
+         96 ppp. Sans cela la photographie etait plus large que haute et se
+         posait en haut du PDF, laissant le tiers inferieur vide. --}}
+    <div data-page-pdf class="mx-auto flex flex-col bg-white p-6 text-gris-900 ring-1 ring-gris-200"
+         style="width: 1123px; min-height: 794px;">
 
-        <div class="grid grid-cols-2 gap-5">
+        <div class="grid flex-1 grid-cols-2 gap-5">
 
             {{-- Panneau de gauche : la nomenclature --}}
             <div class="border border-gris-400 p-4 text-[9px] leading-relaxed">
@@ -231,7 +235,8 @@
     {{-- ==================================================================
          Feuillet 2 : la grille d'évaluation
          ================================================================== --}}
-    <div data-page-pdf class="bg-white p-6 text-gris-900 ring-1 ring-gris-200">
+    <div data-page-pdf class="mx-auto flex flex-col bg-white p-6 text-gris-900 ring-1 ring-gris-200"
+         style="width: 1123px; min-height: 794px;">
 
         {{-- En-tête : logo à gauche, sceau de la République à droite --}}
         <div class="flex items-start justify-between gap-4 border-b-2 border-gris-800 pb-3">
@@ -390,8 +395,10 @@
             @endif
         </div>
 
-        {{-- Légende et visas --}}
-        <div class="mt-3 flex items-start justify-between gap-6">
+        {{-- Légende et visas : au bas de la feuille, comme sur le document
+             officiel — `mt-auto` pousse le bloc sous le tableau quel que soit
+             le nombre de compétences. --}}
+        <div class="mt-auto flex items-start justify-between gap-6 pt-6">
             <div>
                 <p class="mb-1 text-[9px] font-bold uppercase tracking-wide text-gris-600">Légende</p>
                 <div class="flex flex-wrap gap-3 text-[9px] text-gris-600">

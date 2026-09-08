@@ -202,7 +202,12 @@ class UserController extends Controller
 
         $user->update(['password' => Hash::make($motDePasse)]);
 
-        return redirect()->route('admin.users.show', $user)
+        /*
+         * Retour a l'ecran d'ou le bouton a ete presse — la fiche du compte,
+         * mais aussi celle de l'etablissement, d'ou le superadmin remet un
+         * acces a un chef d'etablissement.
+         */
+        return back()
             ->with('success', 'Un nouveau mot de passe a été engendré. L’ancien ne fonctionne plus.')
             ->with('compte_ouvert', [
                 'titre' => 'Nouveau mot de passe — '.$user->name,
