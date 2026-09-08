@@ -274,11 +274,35 @@ class PaymentController extends Controller
     /**
      * Afficher le reçu de paiement
      */
+    /**
+     * Le recu d'un versement — le meme pour l'administration et pour le parent.
+     *
+     * Il en existait deux lectures : celle du secretariat, et rien du tout
+     * pour le parent, dont le lien menait a un vieux gabarit autonome. C'est
+     * un seul document, avec une seule verification d'acces : l'administration
+     * voit les versements de son etablissement, le parent ceux de ses enfants.
+     */
     public function receipt(Payment $payment)
     {
-        $payment->load(['enrollment.student', 'enrollment.schoolClass', 'enrollment.academicYear', 'parent', 'student', 'paymentGateway', 'refunds']);
-        
-        return view('payments.receipt', compact('payment'));
+        $payment->load([
+            'enrollment.schoolClass.level', 'enrollment.academicYear',
+            'parent', 'student', 'refunds',
+        ]);
+
+        // Le recu porte le nom d'un eleve : c'est lui qui commande l'acces.
+        if ($payment->student) {
+            \App\Support\AccesEleve::verifier($payment->student);
+        } elseif (auth()->user()?->role === 'parent') {
+            abort(403, 'Ce reçu ne relève pas de votre compte.');
+        }
+
+        $reglages = \App\Models\SchoolSettings::getSettings();
+
+        return view('payments.receipt', [
+            'payment' => $payment,
+            'schoolSettings' => $reglages,
+            'schoolName' => $reglages->school_name ?? config('app.name'),
+        ]);
     }
 
     /**

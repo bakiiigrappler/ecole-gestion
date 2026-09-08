@@ -5,6 +5,7 @@
 
 @section('actions-entete')
     <a href="{{ route('parent-portal.dashboard') }}" class="bouton-secondaire">Mes enfants</a>
+    <a href="{{ route('parent-portal.paiement') }}" class="bouton-primaire">Régler la scolarité</a>
 @endsection
 
 @section('contenu')
@@ -88,7 +89,9 @@
                                 {{ optional($paiement->paid_at ?? $paiement->created_at)->format('d/m/Y') ?? '—' }}
                             </td>
                             <td class="text-right">
-                                <a href="{{ route('payments.receipt', $paiement->id) }}" class="bouton-mini">Reçu</a>
+                                <a href="{{ route('payments.receipt', $paiement->id) }}" class="bouton-mini">
+                                    {{ $paiement->status === 'completed' ? 'Reçu' : 'Voir' }}
+                                </a>
                             </td>
                         </tr>
                     @empty

@@ -67,6 +67,7 @@ class MenuPrincipal
                     ['libelle' => 'Tableau de bord', 'route' => 'parent-portal.dashboard', 'motif' => 'parent-portal.dashboard'],
                     ['libelle' => 'Mes enfants', 'route' => 'parent-portal.children', 'motif' => 'parent-portal.children'],
                     ['libelle' => 'Mes paiements', 'route' => 'parent-portal.payment-history', 'motif' => 'parent-portal.payment-history'],
+                    ['libelle' => 'Régler la scolarité', 'route' => 'parent-portal.paiement', 'motif' => 'parent-portal.paiement'],
                     ['libelle' => 'Mon profil', 'route' => 'parent-portal.profile', 'motif' => 'parent-portal.profile'],
                 ],
             ],

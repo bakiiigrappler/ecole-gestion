@@ -1,498 +1,298 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reçu de Paiement - {{ $payment->transaction_id }}</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+@extends('layouts.app')
 
-        body {
-            font-family: 'Arial', sans-serif;
-            font-size: 12px;
-            line-height: 1.4;
-            color: #333;
-            background: white;
-        }
+@section('titre', 'Reçu de paiement')
+@section('sous-titre', ($payment->receipt_number ?: $payment->transaction_id).' · '
+    .trim(($payment->student->first_name ?? '').' '.($payment->student->last_name ?? '')))
 
-        .receipt-container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: white;
-        }
-
-        /* En-tête de l'école */
-        .school-header {
-            text-align: center;
-            border-bottom: 3px solid #2c3e50;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-        }
-
-        .school-logo {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto 15px;
-            background: #2c3e50;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 24px;
-            font-weight: bold;
-        }
-
-        .school-name {
-            font-size: 24px;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 5px;
-        }
-
-        .school-motto {
-            font-size: 14px;
-            color: #7f8c8d;
-            font-style: italic;
-        }
-
-        .school-info {
-            margin-top: 15px;
-            font-size: 11px;
-            color: #666;
-        }
-
-        /* Titre du reçu */
-        .receipt-title {
-            text-align: center;
-            font-size: 20px;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 30px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        /* Informations du reçu */
-        .receipt-info {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-        }
-
-        .info-section {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            border-left: 4px solid #3498db;
-        }
-
-        .info-section h3 {
-            font-size: 14px;
-            color: #2c3e50;
-            margin-bottom: 15px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .info-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            padding: 5px 0;
-            border-bottom: 1px solid #ecf0f1;
-        }
-
-        .info-item:last-child {
-            border-bottom: none;
-        }
-
-        .info-label {
-            font-weight: bold;
-            color: #34495e;
-        }
-
-        .info-value {
-            color: #2c3e50;
-        }
-
-        /* Détails du paiement */
-        .payment-details {
-            background: #fff;
-            border: 2px solid #3498db;
-            border-radius: 8px;
-            padding: 25px;
-            margin-bottom: 30px;
-        }
-
-        .payment-details h3 {
-            text-align: center;
-            font-size: 16px;
-            color: #2c3e50;
-            margin-bottom: 20px;
-            text-transform: uppercase;
-        }
-
-        .payment-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        .payment-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px solid #ecf0f1;
-        }
-
-        .payment-item:last-child {
-            border-bottom: none;
-            font-weight: bold;
-            font-size: 14px;
-            color: #27ae60;
-        }
-
-        .amount-highlight {
-            background: #e8f5e8;
-            padding: 15px;
-            border-radius: 5px;
-            text-align: center;
-            margin: 20px 0;
-        }
-
-        .amount-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #27ae60;
-        }
-
-        /* Informations de l'étudiant */
-        .student-info {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-        }
-
-        .student-info h3 {
-            font-size: 14px;
-            color: #2c3e50;
-            margin-bottom: 15px;
-            text-transform: uppercase;
-        }
-
-        .student-details {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-
-        /* Signature et validation */
-        .signature-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 40px;
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 2px solid #bdc3c7;
-        }
-
-        .signature-box {
-            text-align: center;
-        }
-
-        .signature-line {
-            border-bottom: 1px solid #333;
-            margin-bottom: 5px;
-            height: 40px;
-        }
-
-        .signature-label {
-            font-size: 11px;
-            color: #666;
-            text-transform: uppercase;
-        }
-
-        /* Footer */
-        .receipt-footer {
-            text-align: center;
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #bdc3c7;
-            font-size: 10px;
-            color: #7f8c8d;
-        }
-
-        /* Badges de statut */
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 10px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .status-completed {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .status-pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .status-failed {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        /* Styles d'impression */
-        @media print {
-            body {
-                font-size: 11px;
-            }
-            
-            .receipt-container {
-                max-width: none;
-                margin: 0;
-                padding: 15px;
-            }
-            
-            .no-print {
-                display: none !important;
-            }
-            
-            .receipt-container {
-                box-shadow: none;
-            }
-        }
-
-        /* Bouton d'impression */
-        .print-button {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            z-index: 1000;
-        }
-
-        .print-button:hover {
-            background: #2980b9;
-        }
-
-        /* QR Code placeholder */
-        .qr-code {
-            width: 80px;
-            height: 80px;
-            background: #f8f9fa;
-            border: 2px solid #dee2e6;
-            border-radius: 5px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 10px;
-            color: #6c757d;
-            text-align: center;
-        }
-    </style>
-</head>
-<body>
-    <button class="print-button no-print" onclick="window.print()">
-        <i class="bi bi-printer"></i> Imprimer
+@section('actions-entete')
+    <button type="button"
+            class="bouton-primaire"
+            data-export-pdf="recu-paiement"
+            data-format="a5"
+            data-orientation="paysage"
+            data-page-unique
+            data-nom-fichier="Recu_{{ $payment->receipt_number ?: $payment->transaction_id }}.pdf">
+        Télécharger le reçu
     </button>
 
-    <div class="receipt-container">
-        <!-- En-tête de l'école -->
-        <div class="school-header">
-            <div class="school-logo">
-                SG
-            </div>
-            <div class="school-name">Lycée StudiaGabon</div>
-            <div class="school-motto">Excellence • Discipline • Réussite</div>
-            <div class="school-info">
-                <div>BP 1234 Libreville, Gabon</div>
-                <div>Tél: +241 01 23 45 67 | Email: contact@studiagabon.ga</div>
-                <div>Site web: www.studiagabon.ga</div>
-            </div>
-        </div>
+    @if (auth()->user()?->role === 'parent')
+        <a href="{{ route('parent-portal.payment-history') }}" class="bouton-secondaire">Mes paiements</a>
+    @else
+        <a href="{{ route('payments.show', $payment) }}" class="bouton-secondaire">Le versement</a>
+    @endif
+@endsection
 
-        <!-- Titre du reçu -->
-        <div class="receipt-title">Reçu de Paiement</div>
+@section('contenu')
 
-        <!-- Informations du reçu -->
-        <div class="receipt-info">
-            <div class="info-section">
-                <h3>Informations du Reçu</h3>
-                <div class="info-item">
-                    <span class="info-label">N° de Reçu:</span>
-                    <span class="info-value">{{ $payment->receipt_number ?: 'RCP' . date('Ymd') . strtoupper(substr($payment->transaction_id, -6)) }}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">N° de Transaction:</span>
-                    <span class="info-value">{{ $payment->transaction_id }}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Date d'émission:</span>
-                    <span class="info-value">{{ $payment->created_at ? $payment->created_at->format('d/m/Y à H:i') : 'N/A' }}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Date de paiement:</span>
-                    <span class="info-value">{{ $payment->paid_at ? $payment->paid_at->format('d/m/Y à H:i') : 'En attente' }}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Statut:</span>
-                    <span class="info-value">
-                        <span class="status-badge status-{{ $payment->status }}">
-                            {{ $payment->status_label }}
-                        </span>
-                    </span>
-                </div>
-            </div>
+@php
+    $franc = fn ($v) => number_format((float) $v, 0, ',', ' ').' FCFA';
+    $date = fn ($v) => $v ? \Carbon\Carbon::parse($v)->format('d/m/Y') : '—';
 
-            <div class="info-section">
-                <h3>Informations du Payeur</h3>
-                <div class="info-item">
-                    <span class="info-label">Nom complet:</span>
-                    <span class="info-value">{{ $payment->payer_name }}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Téléphone:</span>
-                    <span class="info-value">{{ $payment->payer_phone }}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Email:</span>
-                    <span class="info-value">{{ $payment->payer_email ?: 'Non renseigné' }}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Méthode de paiement:</span>
-                    <span class="info-value">{{ $payment->payment_method_label }}</span>
-                </div>
-            </div>
-        </div>
+    $regle = $payment->status === 'completed';
+    $enAttente = in_array($payment->status, ['pending', 'processing'], true);
 
-        <!-- Détails du paiement -->
-        <div class="payment-details">
-            <h3>Détails du Paiement</h3>
-            <div class="payment-grid">
-                <div>
-                    <div class="payment-item">
-                        <span class="info-label">Type de paiement:</span>
-                        <span class="info-value">{{ $payment->payment_type_label }}</span>
-                    </div>
-                    <div class="payment-item">
-                        <span class="info-label">Devise:</span>
-                        <span class="info-value">{{ $payment->currency ?: 'FCFA' }}</span>
-                    </div>
-                    @if($payment->gateway_transaction_id)
-                    <div class="payment-item">
-                        <span class="info-label">Référence passerelle:</span>
-                        <span class="info-value">{{ $payment->gateway_transaction_id }}</span>
-                    </div>
-                    @endif
-                </div>
-                <div>
-                    <div class="payment-item">
-                        <span class="info-label">Montant:</span>
-                        <span class="info-value">{{ number_format($payment->amount, 0, ',', ' ') }} FCFA</span>
-                    </div>
-                    <div class="payment-item">
-                        <span class="info-label">Frais de transaction:</span>
-                        <span class="info-value">0 FCFA</span>
-                    </div>
-                    <div class="payment-item">
-                        <span class="info-label">Total payé:</span>
-                        <span class="info-value">{{ $payment->formatted_amount }}</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="amount-highlight">
-                <div>Montant Total</div>
-                <div class="amount-value">{{ $payment->formatted_amount }}</div>
-            </div>
-        </div>
+    $statuts = [
+        'completed' => 'Réglé',
+        'pending' => 'En attente de vérification',
+        'processing' => 'En cours de vérification',
+        'failed' => 'Échoué',
+        'cancelled' => 'Annulé',
+        'refunded' => 'Remboursé',
+        'partially_refunded' => 'Partiellement remboursé',
+    ];
 
-        <!-- Informations de l'étudiant -->
-        @if($payment->student)
-        <div class="student-info">
-            <h3>Informations de l'Étudiant</h3>
-            <div class="student-details">
-                <div>
-                    <div class="info-item">
-                        <span class="info-label">Nom complet:</span>
-                        <span class="info-value">{{ $payment->student->first_name }} {{ $payment->student->last_name }}</span>
-                    </div>
-                    @if($payment->enrollment && $payment->enrollment->schoolClass)
-                    <div class="info-item">
-                        <span class="info-label">Classe:</span>
-                        <span class="info-value">{{ $payment->enrollment->schoolClass->name }}</span>
-                    </div>
-                    @endif
-                </div>
-                <div>
-                    @if($payment->enrollment && $payment->enrollment->academicYear)
-                    <div class="info-item">
-                        <span class="info-label">Année académique:</span>
-                        <span class="info-value">{{ $payment->enrollment->academicYear->name }}</span>
-                    </div>
-                    @endif
-                    <div class="info-item">
-                        <span class="info-label">Statut inscription:</span>
-                        <span class="info-value">{{ $payment->enrollment->status ?? 'Active' }}</span>
-                    </div>
-                </div>
+    $moyens = [
+        'cash' => 'espèces', 'bank_transfer' => 'virement bancaire', 'check' => 'chèque',
+        'card' => 'carte bancaire', 'airtel_money' => 'Airtel Money', 'moov_money' => 'Moov Money',
+    ];
+
+    $types = [
+        'enrollment' => 'Frais d’inscription', 're_enrollment' => 'Frais de réinscription',
+        'tuition' => 'Frais de scolarité', 'transport' => 'Transport',
+        'canteen' => 'Cantine', 'uniform' => 'Tenue scolaire', 'other' => 'Autre versement',
+    ];
+
+    $inscription = $payment->enrollment;
+    $du = (float) ($inscription->total_fees ?? 0);
+    $verse = (float) ($inscription->amount_paid ?? 0);
+    $reste = max(0, $du - $verse);
+@endphp
+
+{{-- Ce que le document ne dit pas de lui-même, dit à l'écran --}}
+@if ($enAttente)
+    <div class="carte mb-6 border-soleil-300 bg-soleil-50 p-5 sans-impression">
+        <h2 class="text-sm font-semibold text-soleil-900">Versement déclaré, pas encore vérifié</h2>
+        <p class="mt-1.5 text-sm leading-relaxed text-gris-700">
+            Ce reçu existe déjà, mais il ne vaut pas quittance : le secrétariat doit d’abord retrouver
+            l’opération {{ $payment->gateway_transaction_id ? 'n° '.$payment->gateway_transaction_id : '' }}
+            chez {{ $moyens[$payment->payment_method] ?? 'l’opérateur' }}. Le document portera « réglé »
+            dès cette vérification faite.
+        </p>
+
+        @if (auth()->user() && auth()->user()->role !== 'parent')
+            <div class="mt-4 flex flex-wrap gap-2">
+                <form method="POST" action="{{ route('payments.complete', $payment) }}">
+                    @csrf
+                    <button type="submit" class="bouton-primaire">Valider ce versement</button>
+                </form>
+
+                <x-confirmation :action="route('payments.cancel', $payment)"
+                                methode="POST"
+                                titre="Rejeter ce versement ?"
+                                message="Le versement sera marqué comme annulé. À faire lorsque l’opération est introuvable chez l’opérateur."
+                                confirmer="Rejeter"
+                                bouton="bouton-secondaire text-corail-600">
+                    Rejeter
+                </x-confirmation>
             </div>
-        </div>
         @endif
+    </div>
+@endif
 
-        <!-- Notes -->
-        @if($payment->notes)
-        <div class="info-section">
-            <h3>Notes</h3>
-            <p>{{ $payment->notes }}</p>
-        </div>
-        @endif
+{{-- ----------------------------------------------------------------------
+     Le document, taillé pour une demi-feuille en paysage : 210 × 148 mm.
+     C'est ce bloc que html2canvas photographie — le PDF est exactement ce qui
+     s'affiche ici.
+     ---------------------------------------------------------------------- --}}
+<div class="overflow-x-auto">
+<div id="recu-paiement"
+     class="mx-auto flex flex-col bg-white px-7 py-5 text-gris-900 ring-1 ring-gris-200"
+     style="width: 794px; min-height: 559px;">
 
-        <!-- Signature et validation -->
-        <div class="signature-section">
-            <div class="signature-box">
-                <div class="signature-line"></div>
-                <div class="signature-label">Signature du Caissier</div>
+    {{-- En-tête officiel --}}
+    <div class="flex items-start justify-between gap-4 border-b-2 border-gris-800 pb-2">
+        <div class="flex items-start gap-2.5">
+            @if ($schoolSettings->logo_url ?? null)
+                <img src="{{ $schoolSettings->logo_url }}" alt="" class="h-11 w-11 shrink-0 object-contain">
+            @else
+                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-dashed border-gris-400 text-center text-[6px] leading-tight text-gris-500">
+                    Logo
+                </span>
+            @endif
+            <div class="leading-tight">
+                <p class="text-[8px] text-gris-600">Ministère de l’Éducation Nationale</p>
+                <p class="text-[13px] font-bold uppercase leading-tight">{{ $schoolName }}</p>
+                <p class="text-[8px] text-gris-500">
+                    @if ($schoolSettings->school_bp ?? null) {{ $schoolSettings->school_bp }} @endif
+                    @if ($schoolSettings->school_phone ?? null) &middot; Tél : {{ $schoolSettings->school_phone }} @endif
+                </p>
             </div>
-            <div class="signature-box">
-                <div class="signature-line"></div>
-                <div class="signature-label">Signature du Payeur</div>
-            </div>
         </div>
 
-        <!-- Footer -->
-        <div class="receipt-footer">
-            <p><strong>Lycée StudiaGabon</strong> - Reçu généré le {{ now()->format('d/m/Y à H:i') }}</p>
-            <p>Ce reçu est valide et constitue une preuve de paiement officielle.</p>
-            <p>En cas de problème, contactez l'administration au +241 01 23 45 67</p>
+        <div class="flex items-start gap-2.5">
+            <div class="text-right leading-tight">
+                <p class="text-[8px] uppercase tracking-wide text-gris-500">Année scolaire</p>
+                <p class="text-[13px] font-semibold">
+                    {{ $inscription->academicYear->name ?? ($schoolSettings->academic_year ?? '—') }}
+                </p>
+            </div>
+            @if ($schoolSettings->seal_url ?? null)
+                <img src="{{ $schoolSettings->seal_url }}" alt="" class="h-11 w-14 shrink-0 object-contain">
+            @else
+                <span class="flex h-11 w-14 shrink-0 items-center justify-center rounded border border-dashed border-gris-400 text-center text-[6px] leading-tight text-gris-500">
+                    Sceau
+                </span>
+            @endif
         </div>
     </div>
 
-    <script>
-        // Auto-print when page loads (optional)
-        // window.onload = function() { window.print(); }
-    </script>
-</body>
-</html>
+    {{-- Titre et référence --}}
+    <div class="mt-2.5 flex items-baseline justify-between gap-4">
+        <h1 class="text-base font-bold uppercase tracking-wide">Reçu de paiement</h1>
+        <p class="text-[10px] text-gris-600">
+            @if ($payment->receipt_number)
+                N° <span class="font-mono font-semibold text-gris-900">{{ $payment->receipt_number }}</span>
+            @else
+                Réf. <span class="font-mono font-semibold text-gris-900">{{ $payment->transaction_id }}</span>
+            @endif
+            &middot; {{ $regle ? 'encaissé le' : 'déclaré le' }}
+            <span class="font-semibold tabular-nums text-gris-900">
+                {{ $date($payment->paid_at ?? $payment->created_at) }}
+            </span>
+        </p>
+    </div>
+
+    {{-- Le corps : le versement à gauche, les personnes à droite --}}
+    <div class="mt-2.5 grid grid-cols-[1.15fr_1fr] gap-6">
+
+        <div>
+            <div class="border-y-2 border-gris-800 py-2.5">
+                <p class="text-[8px] uppercase tracking-wide text-gris-500">
+                    {{ $regle ? 'Montant reçu' : 'Montant déclaré' }}
+                </p>
+                <div class="flex items-baseline justify-between gap-3">
+                    <p class="text-2xl font-bold tabular-nums leading-none">{{ $franc($payment->amount) }}</p>
+                    <span class="shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide
+                                 {{ $regle ? 'border-emerald-600 text-emerald-700'
+                                    : ($enAttente ? 'border-soleil-600 text-soleil-700' : 'border-corail-600 text-corail-700') }}">
+                        {{ $statuts[$payment->status] ?? $payment->status }}
+                    </span>
+                </div>
+                <p class="mt-1 text-[9px] italic leading-snug text-gris-600">
+                    {{ \App\Support\SommeEnLettres::francs((float) $payment->amount) }}
+                </p>
+                <p class="mt-0.5 text-[9px] text-gris-500">
+                    {{ $types[$payment->payment_type] ?? 'Versement' }}
+                    &middot; réglé par {{ $moyens[$payment->payment_method] ?? ($payment->payment_method ?: 'moyen non précisé') }}
+                    @if ($payment->gateway_transaction_id)
+                        &middot; transaction <span class="font-mono">{{ $payment->gateway_transaction_id }}</span>
+                    @endif
+                </p>
+            </div>
+
+            @if ($inscription)
+                <table class="mt-2.5 w-full border-collapse text-[9px]">
+                    <tbody>
+                        <tr>
+                            <td class="border border-gris-400 px-2 py-1">Frais de scolarité de l’année</td>
+                            <td class="w-28 border border-gris-400 px-2 py-1 text-right tabular-nums">{{ $franc($du) }}</td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gris-400 px-2 py-1 font-semibold">Versé à ce jour</td>
+                            <td class="border border-gris-400 px-2 py-1 text-right font-semibold tabular-nums">{{ $franc($verse) }}</td>
+                        </tr>
+                        <tr>
+                            <td class="border border-gris-400 bg-gris-100 px-2 py-1 font-bold uppercase tracking-wide">Reste à percevoir</td>
+                            <td class="border border-gris-400 bg-gris-100 px-2 py-1 text-right text-[11px] font-bold tabular-nums">{{ $franc($reste) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                @if ($enAttente)
+                    <p class="mt-1 text-[8px] leading-snug text-gris-600">
+                        Le solde ci-dessus ne tient pas encore compte de ce versement : il y sera porté
+                        à sa vérification.
+                    </p>
+                @endif
+            @else
+                <p class="mt-2.5 text-[9px] italic text-gris-500">
+                    Versement non rattaché à une inscription.
+                </p>
+            @endif
+        </div>
+
+        <div>
+            <h2 class="mb-1 border-b border-gris-300 pb-0.5 text-[8px] font-bold uppercase tracking-wide text-gris-600">
+                Élève concerné
+            </h2>
+
+            @if ($payment->student)
+                <dl class="space-y-0.5 text-[9px]">
+                    <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-0.5">
+                        <dt class="text-gris-500">Nom et prénoms</dt>
+                        <dd class="text-right font-semibold">
+                            {{ $payment->student->last_name }} {{ $payment->student->first_name }}
+                        </dd>
+                    </div>
+                    <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-0.5">
+                        <dt class="text-gris-500">Matricule</dt>
+                        <dd class="font-mono font-medium">{{ $payment->student->student_id ?: '—' }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-0.5">
+                        <dt class="text-gris-500">Classe</dt>
+                        <dd class="font-semibold">{{ $inscription->schoolClass->name ?? '—' }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-0.5">
+                        <dt class="text-gris-500">Niveau</dt>
+                        <dd class="font-medium">{{ $inscription->schoolClass->level->name ?? '—' }}</dd>
+                    </div>
+                </dl>
+            @else
+                <p class="text-[9px] italic text-gris-400">Aucun élève rattaché à ce versement.</p>
+            @endif
+
+            <h2 class="mb-1 mt-2.5 border-b border-gris-300 pb-0.5 text-[8px] font-bold uppercase tracking-wide text-gris-600">
+                Payeur
+            </h2>
+
+            <dl class="space-y-0.5 text-[9px]">
+                <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-0.5">
+                    <dt class="text-gris-500">Nom et prénoms</dt>
+                    <dd class="text-right font-semibold">
+                        {{ $payment->payer_name
+                            ?: trim(($payment->parent->first_name ?? '').' '.($payment->parent->last_name ?? '')) ?: '—' }}
+                    </dd>
+                </div>
+                <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-0.5">
+                    <dt class="text-gris-500">Téléphone</dt>
+                    <dd class="font-medium tabular-nums">
+                        {{ $payment->payer_phone ?: ($payment->parent->phone ?? '—') }}
+                    </dd>
+                </div>
+                <div class="flex justify-between gap-2 border-b border-dotted border-gris-200 pb-0.5">
+                    <dt class="text-gris-500">Canal</dt>
+                    <dd class="font-medium">
+                        {{ ($payment->metadata['canal'] ?? null) === 'portail_parent' ? 'Portail parent' : 'Guichet' }}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+
+    {{-- Signatures --}}
+    <div class="mt-auto grid grid-cols-2 gap-10 pt-6 text-[8px]">
+        <div class="text-center">
+            <p class="text-gris-600">Le parent ou tuteur</p>
+            <p class="mt-7 border-t border-gris-400 pt-0.5 text-gris-400">Signature</p>
+        </div>
+        <div class="text-center">
+            <p class="text-gris-600">{{ $schoolSettings->principal_title ?? 'Le Chef d’établissement' }}</p>
+            <p class="mt-7 border-t border-gris-400 pt-0.5 text-gris-400">Signature et cachet</p>
+        </div>
+    </div>
+
+    <p class="mt-2.5 border-t border-gris-200 pt-1.5 text-[7px] leading-snug text-gris-500">
+        @if ($regle)
+            Ce reçu atteste du versement porté ci-dessus. Il est à conserver : sa présentation peut être
+            exigée à tout moment de la scolarité.
+        @else
+            Ce document constate une déclaration de versement et
+            <strong class="text-gris-700">ne vaut pas quittance</strong> tant que l’établissement n’a pas
+            vérifié l’opération auprès de l’opérateur.
+        @endif
+        Édité le {{ now()->locale('fr')->isoFormat('D MMMM YYYY à HH:mm') }}.
+    </p>
+</div>
+</div>
+
+@endsection

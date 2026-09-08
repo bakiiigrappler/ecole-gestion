@@ -72,14 +72,32 @@ async function outils() {
 
 /* Photographie un element, deplie meme s'il est dans un onglet masque. */
 async function photographier(html2canvas, element) {
+    /*
+     * Un bloc range dans un onglet ferme n'a aucune dimension : il faut le
+     * deplier pour le photographier.
+     *
+     * Mais un bloc deja visible, lui, garde sa mise en page. Le `display:
+     * block` etait pose sur tous : un feuillet en `flex` perdait l'etirement
+     * de ses panneaux, et le PDF cessait de ressembler a l'apercu — les deux
+     * cadres de la page de garde s'y arretaient au tiers de la feuille alors
+     * qu'a l'ecran ils descendaient jusqu'en bas.
+     */
+    const deplie = element.offsetWidth > 0;
+    const largeur = element.offsetWidth;
+
     return html2canvas(element, {
         scale: 2,                 // net à l'impression
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
         onclone: (copie, clone) => {
-            clone.style.display = 'block';
-            clone.style.width = `${element.offsetWidth}px`;
+            if (! deplie) {
+                clone.style.display = 'block';
+
+                return;
+            }
+
+            clone.style.width = `${largeur}px`;
         },
     });
 }

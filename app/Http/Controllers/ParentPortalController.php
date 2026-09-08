@@ -613,6 +613,147 @@ class ParentPortalController extends Controller
     /**
      * Obtenir le parent actuel
      */
+    /* ==================================================================
+       Régler la scolarité par téléphone
+       ================================================================== */
+
+    /**
+     * Où payer, comment, et ce qui reste dû.
+     *
+     * La plateforme n'encaisse rien : elle affiche le code marchand de
+     * l'établissement, la marche à suivre, puis recueille la déclaration du
+     * parent. Le secrétariat vérifie le SMS de l'opérateur avant de valider —
+     * porter « réglé » sur un reçu sans que personne ait constaté le versement
+     * reviendrait à écrire un faux.
+     */
+    public function paiement(Request $request)
+    {
+        $parent = $this->getCurrentParent();
+
+        $reglages = \App\Models\SchoolSettings::getSettings();
+        $operateurs = \App\Support\MobileMoney::disponibles($reglages);
+
+        // Ce que chaque enfant doit encore, inscription en cours.
+        $dossiers = $parent->students->map(function ($enfant) {
+            $inscription = $enfant->enrollments()
+                ->with(['schoolClass:id,name', 'academicYear:id,name'])
+                ->where('status', 'active')
+                ->latest('id')
+                ->first();
+
+            if (! $inscription) {
+                return null;
+            }
+
+            $du = (float) $inscription->total_fees;
+            $verse = (float) $inscription->amount_paid;
+
+            return [
+                'eleve' => $enfant,
+                'inscription' => $inscription,
+                'du' => $du,
+                'verse' => $verse,
+                'reste' => max(0, $du - $verse),
+                // Ce qui a été déclaré et attend encore la vérification : le
+                // parent doit le voir, sinon il paie deux fois.
+                'en_attente' => (float) \App\Models\Payment::where('student_id', $enfant->id)
+                    ->whereIn('status', ['pending', 'processing'])
+                    ->sum('amount'),
+            ];
+        })->filter()
+            // Ceux qui doivent encore d'abord : c'est pour eux qu'on vient ici.
+            ->sortByDesc('reste')
+            ->values();
+
+        return view('parent-portal.paiement', [
+            'parent' => $parent,
+            'reglages' => $reglages,
+            'operateurs' => $operateurs,
+            'dossiers' => $dossiers,
+            'choisi' => $request->integer('enfant') ?: ($dossiers->first()['eleve']->id ?? null),
+        ]);
+    }
+
+    /**
+     * Enregistrer la déclaration de versement.
+     *
+     * Le paiement naît « en attente » : c'est une déclaration, pas un
+     * encaissement. Il porte l'identifiant de transaction du SMS, seul élément
+     * que le secrétariat puisse confronter au relevé de l'opérateur.
+     */
+    public function declarerLePaiement(Request $request)
+    {
+        $parent = $this->getCurrentParent();
+
+        $reglages = \App\Models\SchoolSettings::getSettings();
+        $operateurs = \App\Support\MobileMoney::disponibles($reglages);
+
+        if ($operateurs === []) {
+            return back()->with('error', 'Le paiement par téléphone n’est pas ouvert dans cet établissement.');
+        }
+
+        $donnees = $request->validate([
+            'student_id' => 'required|integer',
+            'operateur' => 'required|in:'.implode(',', array_keys($operateurs)),
+            'montant' => 'required|numeric|min:100',
+            'reference' => 'required|string|max:100',
+            'telephone' => 'nullable|string|max:30',
+        ], [], [
+            'student_id' => 'enfant',
+            'operateur' => 'opérateur',
+            'reference' => 'identifiant de la transaction',
+        ]);
+
+        // L'enfant est-il bien le sien ? L'identifiant vient d'un formulaire,
+        // et un formulaire se modifie.
+        $enfant = $parent->students()->where('students.id', $donnees['student_id'])->first();
+
+        if (! $enfant) {
+            abort(403, 'Cet élève ne fait pas partie de vos enfants.');
+        }
+
+        // Deux fois le même identifiant de transaction, c'est la même
+        // opération déclarée deux fois.
+        $dejaDeclare = \App\Models\Payment::where('gateway_transaction_id', $donnees['reference'])->first();
+
+        if ($dejaDeclare) {
+            return back()->withInput()->withErrors([
+                'reference' => 'Cette transaction a déjà été déclarée le '
+                    .$dejaDeclare->created_at->format('d/m/Y à H:i').'.',
+            ]);
+        }
+
+        $inscription = $enfant->enrollments()->where('status', 'active')->latest('id')->first();
+
+        $paiement = \App\Models\Payment::create([
+            'transaction_id' => \App\Models\Payment::generateTransactionId(),
+            'enrollment_id' => $inscription?->id,
+            'parent_id' => $parent->id,
+            'student_id' => $enfant->id,
+            'amount' => $donnees['montant'],
+            'currency' => 'XAF',
+            'payment_type' => 'tuition',
+            'payment_method' => $donnees['operateur'],
+            'status' => 'pending',
+            'payer_name' => trim($parent->first_name.' '.$parent->last_name),
+            'payer_phone' => $donnees['telephone'] ?: $parent->phone,
+            'payer_email' => $parent->email,
+            'gateway_transaction_id' => $donnees['reference'],
+            'notes' => 'Versement déclaré depuis le portail parent, à vérifier auprès de '
+                .\App\Support\MobileMoney::libelle($donnees['operateur']).'.',
+            'metadata' => [
+                'canal' => 'portail_parent',
+                'declare_le' => now()->toDateTimeString(),
+                'code_marchand' => $operateurs[$donnees['operateur']]['code'],
+            ],
+            'ip_address' => $request->ip(),
+            'school_id' => $enfant->school_id,
+        ]);
+
+        return redirect()->route('payments.receipt', $paiement)
+            ->with('success', 'Votre versement a été déclaré. Le secrétariat le validera après vérification auprès de l’opérateur.');
+    }
+
     private function getCurrentParent()
     {
         $user = Auth::user();

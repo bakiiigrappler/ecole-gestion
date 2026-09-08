@@ -581,6 +581,13 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
         
         // Paiements et profil
         Route::get('/payments', [ParentPortalController::class, 'paymentHistory'])->name('payment-history');
+
+        /*
+         * Regler la scolarite par telephone : l'ecran qui montre ou payer, et
+         * la declaration que le secretariat viendra verifier.
+         */
+        Route::get('/paiement', [ParentPortalController::class, 'paiement'])->name('paiement');
+        Route::post('/paiement', [ParentPortalController::class, 'declarerLePaiement'])->name('declarer-paiement');
         Route::get('/profile', [ParentPortalController::class, 'profile'])->name('profile');
         Route::post('/profile', [ParentPortalController::class, 'updateProfile'])->name('update-profile');
         Route::post('/change-password', [ParentPortalController::class, 'changePassword'])->name('change-password');

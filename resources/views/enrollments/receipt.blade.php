@@ -46,7 +46,7 @@
          qui s'affiche ici, d'où une hauteur tenue au plus juste.
          ------------------------------------------------------------------ --}}
     <div id="recu-inscription"
-         class="mx-auto bg-white px-7 py-5 text-gris-900 ring-1 ring-gris-200"
+         class="mx-auto flex flex-col bg-white px-7 py-5 text-gris-900 ring-1 ring-gris-200"
          style="width: 794px; min-height: 559px;">
 
         {{-- En-tête officiel --}}
@@ -208,7 +208,7 @@
         </div>
 
         {{-- Signatures et mention légale --}}
-        <div class="mt-4 grid grid-cols-2 gap-10 text-[8px]">
+        <div class="mt-auto grid grid-cols-2 gap-10 pt-6 text-[8px]">
             <div class="text-center">
                 <p class="text-gris-600">Le parent ou tuteur</p>
                 <p class="mt-7 border-t border-gris-400 pt-0.5 text-gris-400">Signature</p>

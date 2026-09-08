@@ -141,6 +141,17 @@ class SchoolSettingsController extends Controller
             'timezone' => 'required|string|max:100',
             'currency' => 'required|string|max:10',
             'language' => 'required|string|max:10',
+            /*
+             * Paiement par telephone. Le code marchand n'est pas le meme d'un
+             * etablissement a l'autre : sans lui, le portail parent ne peut
+             * rien afficher.
+             */
+            'mobile_money_actif' => 'nullable|boolean',
+            'airtel_money_code' => 'nullable|string|max:60',
+            'airtel_money_nom' => 'nullable|string|max:120',
+            'moov_money_code' => 'nullable|string|max:60',
+            'moov_money_nom' => 'nullable|string|max:120',
+            'mobile_money_consignes' => 'nullable|string|max:2000',
         ]);
 
         if ($validator->fails()) {
@@ -150,6 +161,10 @@ class SchoolSettingsController extends Controller
         }
 
         $data = $request->except(['school_logo', 'school_seal']);
+
+        // Une case decochee n'est pas postee : sans cela, le paiement par
+        // telephone ne pourrait plus etre referme une fois ouvert.
+        $data['mobile_money_actif'] = $request->boolean('mobile_money_actif');
 
         // Gérer le logo
         if ($request->hasFile('school_logo')) {

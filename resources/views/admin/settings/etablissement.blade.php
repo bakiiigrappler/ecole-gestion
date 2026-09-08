@@ -234,6 +234,95 @@
                 </div>
             </div>
         </div>
+
+        {{-- ------------------------------------------------------------
+             Paiement par téléphone
+             ------------------------------------------------------------ --}}
+        <div class="carte overflow-hidden" x-data="{ ouvert: {{ old('mobile_money_actif', $settings->mobile_money_actif) ? 'true' : 'false' }} }">
+            <div class="carte-entete">
+                <div>
+                    <h2 class="text-sm font-semibold text-gris-900">Paiement par téléphone</h2>
+                    <p class="mt-0.5 text-xs text-gris-400">
+                        Ce que le parent voit sur son portail quand il vient régler la scolarité.
+                    </p>
+                </div>
+            </div>
+
+            <div class="space-y-4 p-5">
+                <label class="flex cursor-pointer items-start gap-3">
+                    <span class="relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full transition"
+                          :class="ouvert ? 'bg-ogar-600' : 'bg-gris-300'">
+                        <input type="checkbox" name="mobile_money_actif" value="1" x-model="ouvert" class="sr-only">
+                        <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition"
+                              :class="ouvert ? 'translate-x-[18px]' : 'translate-x-1'"></span>
+                    </span>
+                    <span>
+                        <span class="block text-sm font-medium text-gris-800">Ouvrir le paiement mobile money</span>
+                        <span class="block text-[11px] text-gris-500">
+                            Le parent voit alors le code marchand et la marche à suivre, puis déclare
+                            son versement. Rien n’est encaissé ici : le secrétariat vérifie le SMS de
+                            l’opérateur avant de valider.
+                        </span>
+                    </span>
+                </label>
+
+                <div x-show="ouvert" x-cloak class="space-y-4 border-t border-gris-100 pt-4">
+                    @foreach (\App\Support\MobileMoney::OPERATEURS as $cle => $operateur)
+                        <div class="rounded-xl border border-gris-200 p-4">
+                            <div class="mb-3 flex items-center justify-between gap-3">
+                                <h3 class="text-sm font-semibold text-gris-800">{{ $operateur['libelle'] }}</h3>
+                                <span class="font-mono text-[11px] text-gris-400">{{ $operateur['ussd'] }}</span>
+                            </div>
+
+                            <div class="grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label for="{{ $operateur['champ_code'] }}"
+                                           class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                                        Code marchand
+                                    </label>
+                                    <input type="text" name="{{ $operateur['champ_code'] }}" id="{{ $operateur['champ_code'] }}"
+                                           value="{{ old($operateur['champ_code'], $settings->{$operateur['champ_code']}) }}"
+                                           class="champ w-full text-sm" placeholder="Ex. 123456">
+                                    <p class="mt-1 text-[11px] text-gris-400">
+                                        Laissé vide, cet opérateur n’est pas proposé aux parents.
+                                    </p>
+                                    @error($operateur['champ_code'])<p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>@enderror
+                                </div>
+
+                                <div>
+                                    <label for="{{ $operateur['champ_nom'] }}"
+                                           class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                                        Nom affiché au téléphone
+                                    </label>
+                                    <input type="text" name="{{ $operateur['champ_nom'] }}" id="{{ $operateur['champ_nom'] }}"
+                                           value="{{ old($operateur['champ_nom'], $settings->{$operateur['champ_nom']}) }}"
+                                           class="champ w-full text-sm" placeholder="{{ $settings->school_name }}">
+                                    <p class="mt-1 text-[11px] text-gris-400">
+                                        Le parent doit pouvoir vérifier qu’il paie bien l’école.
+                                    </p>
+                                    @error($operateur['champ_nom'])<p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>@enderror
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+
+                    <div>
+                        <label for="mobile_money_consignes"
+                               class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                            Vos propres consignes
+                        </label>
+                        <textarea name="mobile_money_consignes" id="mobile_money_consignes" rows="4"
+                                  class="champ w-full text-sm"
+                                  placeholder="Une étape par ligne. Laissez vide pour la marche à suivre habituelle.">{{ old('mobile_money_consignes', $settings->mobile_money_consignes) }}</textarea>
+                        <p class="mt-1 text-[11px] text-gris-400">
+                            Une ligne par étape. Renseignées, elles remplacent la marche à suivre
+                            proposée par défaut.
+                        </p>
+                        @error('mobile_money_consignes')<p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>@enderror
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- ----------------------------------------------------------------

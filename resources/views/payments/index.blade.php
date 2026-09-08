@@ -94,6 +94,71 @@
     </div>
 
     {{-- ----------------------------------------------------------------
+         Les versements déclarés par les parents et non encore vérifiés
+
+         Ils arrivent du portail : le parent a payé au téléphone et rapporte
+         l'identifiant de la transaction. Tant que personne ne l'a confronté au
+         relevé de l'opérateur, l'argent n'est pas compté comme encaissé — il
+         ne faut donc pas qu'ils dorment au fond du journal.
+         ---------------------------------------------------------------- --}}
+    @php
+        $aVerifier = \App\Models\Payment::with('student:id,first_name,last_name,student_id')
+            ->whereIn('status', ['pending', 'processing'])
+            ->whereIn('payment_method', array_keys(\App\Support\MobileMoney::OPERATEURS))
+            ->orderBy('created_at')
+            ->limit(6)
+            ->get();
+    @endphp
+
+    @if ($aVerifier->isNotEmpty())
+        <div class="carte mt-4 overflow-hidden border-soleil-300">
+            <div class="flex items-center justify-between gap-3 border-b border-soleil-200 bg-soleil-50 px-5 py-3">
+                <div>
+                    <h2 class="text-sm font-semibold text-soleil-900">Versements déclarés à vérifier</h2>
+                    <p class="mt-0.5 text-xs text-gris-500">
+                        Payés au téléphone par les parents. À confronter au relevé de l’opérateur avant validation.
+                    </p>
+                </div>
+                <a href="{{ route('payments.index', ['status' => 'pending']) }}" class="bouton-secondaire shrink-0">
+                    Tous les versements en attente
+                </a>
+            </div>
+
+            <ul class="divide-y divide-gris-100">
+                @foreach ($aVerifier as $declaration)
+                    <li class="flex flex-wrap items-center gap-4 px-5 py-3">
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-medium text-gris-800">
+                                {{ $declaration->student->first_name ?? '—' }} {{ $declaration->student->last_name ?? '' }}
+                                <span class="font-mono text-[11px] text-gris-400">
+                                    {{ $declaration->student->student_id ?? '' }}
+                                </span>
+                            </p>
+                            <p class="truncate text-[11px] text-gris-500">
+                                {{ \App\Support\MobileMoney::libelle($declaration->payment_method) }}
+                                · transaction <span class="font-mono">{{ $declaration->gateway_transaction_id ?: '—' }}</span>
+                                · déclaré le {{ optional($declaration->created_at)->format('d/m/Y à H:i') }}
+                            </p>
+                        </div>
+
+                        <span class="shrink-0 text-sm font-bold tabular-nums text-gris-900">
+                            {{ $montant($declaration->amount) }}
+                        </span>
+
+                        <div class="flex shrink-0 items-center gap-1">
+                            <a href="{{ route('payments.receipt', $declaration) }}" class="bouton-mini">Le reçu</a>
+                            <form method="POST" action="{{ route('payments.complete', $declaration) }}">
+                                @csrf
+                                <button type="submit" class="bouton-mini text-emerald-700">Valider</button>
+                            </form>
+                        </div>
+                    </li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    {{-- ----------------------------------------------------------------
          Filtres
          ---------------------------------------------------------------- --}}
     <form method="GET" action="{{ route('payments.index') }}"
