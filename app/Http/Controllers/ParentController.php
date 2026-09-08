@@ -149,28 +149,30 @@ class ParentController extends Controller
 
         $parent = ParentModel::create(Arr::except($validated, 'liens'));
         
-        $successMessage = 'Parent ajouté avec succès!';
-        
-        // Créer un compte utilisateur pour le parent seulement si un email est fourni
-        if (!empty($validated['email'])) {
-            $generatedPassword = $validated['phone'] . '1234';
-            $user = User::create([
-                'name' => $validated['first_name'] . ' ' . $validated['last_name'],
-                'email' => $validated['email'],
-                'password' => Hash::make($generatedPassword),
-                'role' => 'parent',
-                'matricule' => 'PAR' . str_pad($parent->id, 6, '0', STR_PAD_LEFT)
-            ]);
-            
-            // Lier le parent à l'utilisateur
-            $parent->update(['user_id' => $user->id]);
-            
-            $successMessage = 'Parent ajouté avec succès! Mot de passe généré: ' . $generatedPassword;
-        }
-        
+        /*
+         * Un compte s'ouvre pour tout parent, avec ou sans courriel : il se
+         * connectera par son matricule ou par son numero. Le mot de passe est
+         * engendre, jamais devinable — l'ancien schema `telephone + 1234` se
+         * lisait sur la fiche meme du parent.
+         */
+        $motDePasse = \App\Support\ComptesUtilisateurs::ouvrirPourParent($parent);
+
         $parent->students()->sync($this->liensParEleve($validated['liens']));
 
-        return redirect()->route('parents.show', $parent)->with('success', $successMessage);
+        /*
+         * Le mot de passe ne se retrouvera nulle part : il n'est pas conserve
+         * en clair. La fiche du parent l'affiche une fois, pour qu'on le lui
+         * remette.
+         */
+        return redirect()->route('parents.show', $parent)
+            ->with('success', 'Parent ajouté avec succès.')
+            ->with('compte_ouvert', $motDePasse ? [
+                'titre' => 'Compte parent ouvert',
+                'identifiant' => $parent->fresh()->user?->matricule,
+                'courriel' => $parent->email,
+                'telephone' => $parent->phone,
+                'mot_de_passe' => $motDePasse,
+            ] : null);
     }
 
     /**

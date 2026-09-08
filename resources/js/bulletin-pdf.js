@@ -6,8 +6,9 @@
  * Ici la page elle-même est photographiée puis posée sur une feuille A4, ce qui
  * garantit que le PDF est exactement ce que l'utilisateur voit.
  *
- * Accroche : un bouton `data-export-pdf="<id du bloc>"`, avec trois options
- * facultatives — `data-nom-fichier`, `data-orientation="paysage"` (une grille
+ * Accroche : un bouton `data-export-pdf="<id du bloc>"`, avec cinq options
+ * facultatives — `data-nom-fichier`, `data-format="a5"` (un reçu tient sur une
+ * demi-feuille), `data-marge` (en millimètres), `data-orientation="paysage"` (une grille
  * hebdomadaire ne tient pas en portrait) et `data-page-unique` (le document est
  * réduit pour tenir sur une seule feuille au lieu d'être déroulé).
  *
@@ -16,7 +17,18 @@
  * alors une feuille chacun, dans l'ordre du balisage.
  */
 
-const MARGE_MM = 8;
+/*
+ * Marge de la feuille, en millimètres.
+ *
+ * Volontairement mince : ces documents portent déjà leur propre marge
+ * intérieure — c'est elle qui fait la page. Une bordure de 8 mm par-dessus
+ * ajoutait un second cadre et rétrécissait le document d'autant : à l'écran il
+ * remplissait la largeur, sur le PDF il flottait au milieu.
+ *
+ * 3 mm reste au-delà de la zone non imprimable des imprimantes courantes.
+ * `data-marge` permet d'en demander une autre au cas par cas.
+ */
+const MARGE_DEFAUT_MM = 3;
 
 /* Formats de papier admis, en millimètres, orientation portrait. */
 const FORMATS = {
@@ -109,6 +121,10 @@ async function exporter(bouton) {
         const format = FORMATS[bouton.dataset.format] ? bouton.dataset.format : 'a4';
         const page = feuille(format, orientation);
 
+        const marge = Number.isFinite(parseFloat(bouton.dataset.marge))
+            ? Math.max(0, parseFloat(bouton.dataset.marge))
+            : MARGE_DEFAUT_MM;
+
         const pdf = new jsPDF({
             orientation: orientation === 'paysage' ? 'landscape' : 'portrait',
             unit: 'mm',
@@ -125,7 +141,7 @@ async function exporter(bouton) {
                     pdf.addPage();
                 }
 
-                poser(pdf, await photographier(html2canvas, feuillet), page, MARGE_MM);
+                poser(pdf, await photographier(html2canvas, feuillet), page, marge);
             }
 
             pdf.save(bouton.dataset.nomFichier || 'document.pdf');
@@ -135,13 +151,13 @@ async function exporter(bouton) {
 
         const capture = await photographier(html2canvas, bloc);
 
-        const largeur = page.largeur - MARGE_MM * 2;
+        const largeur = page.largeur - marge * 2;
         const hauteur = (capture.height * largeur) / capture.width;
-        const hauteurUtile = page.hauteur - MARGE_MM * 2;
+        const hauteurUtile = page.hauteur - marge * 2;
         const image = capture.toDataURL('image/jpeg', 0.95);
 
         if (hauteur <= hauteurUtile) {
-            pdf.addImage(image, 'JPEG', MARGE_MM, MARGE_MM, largeur, hauteur);
+            pdf.addImage(image, 'JPEG', marge, marge, largeur, hauteur);
         } else if ('pageUnique' in bouton.dataset) {
             /* Un document qui se lit d'un seul tenant — une grille horaire,
                une fiche — perd tout sens coupé en deux : on le réduit pour
@@ -152,18 +168,18 @@ async function exporter(bouton) {
             pdf.addImage(
                 image,
                 'JPEG',
-                MARGE_MM + (largeur - largeurReduite) / 2,
-                MARGE_MM,
+                marge + (largeur - largeurReduite) / 2,
+                marge,
                 largeurReduite,
                 hauteurUtile,
             );
         } else {
             // Document plus haut qu'une page : on le déroule page par page.
             let reste = hauteur;
-            let position = MARGE_MM;
+            let position = marge;
 
             while (reste > 0) {
-                pdf.addImage(image, 'JPEG', MARGE_MM, position, largeur, hauteur);
+                pdf.addImage(image, 'JPEG', marge, position, largeur, hauteur);
                 reste -= hauteurUtile;
                 position -= hauteurUtile;
 

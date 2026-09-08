@@ -24,15 +24,39 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
-        // Les élèves du lycée se connectent avec leur matricule : le champ
-        // accepte donc les deux formes d'identifiant.
+        /*
+         * Trois formes d'identifiant, pour un seul champ.
+         *
+         * Une adresse électronique, un matricule — les élèves du lycée n'ont
+         * que celui-là — ou un numéro de téléphone : un parent n'a pas
+         * toujours de courriel, et un enseignant retient plus sûrement son
+         * numéro que l'adresse ouverte pour l'occasion.
+         *
+         * Le numéro est ramené à ses chiffres avant d'être cherché : « 06 12
+         * 34 56 78 » et « +241 06123456 78 » sont le même abonné.
+         */
         $request->validate([
             'email' => 'required|string',
             'password' => 'required',
         ]);
 
         $identifiant = trim($request->input('email'));
-        $champ = filter_var($identifiant, FILTER_VALIDATE_EMAIL) ? 'email' : 'matricule';
+
+        $sansLettre = ! preg_match('/\p{L}/u', $identifiant);
+
+        if (filter_var($identifiant, FILTER_VALIDATE_EMAIL)) {
+            $champ = 'email';
+        } elseif ($sansLettre && $numero = \App\Support\ComptesUtilisateurs::normaliserLeNumero($identifiant)) {
+            /*
+             * L'absence de lettre départage : un matricule de parent tel que
+             * « PAR000123 » porte six chiffres et passerait sans cela pour un
+             * numéro de téléphone, que l'on chercherait en vain.
+             */
+            $champ = 'telephone';
+            $identifiant = $numero;
+        } else {
+            $champ = 'matricule';
+        }
 
         if (Auth::attempt([$champ => $identifiant, 'password' => $request->input('password')], $request->boolean('remember'))) {
             $utilisateur = Auth::user();

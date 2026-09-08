@@ -36,9 +36,13 @@ class User extends Authenticatable
         'email',
         'password',
         'matricule',
+        // Identifiant de connexion au même titre que les deux précédents : un
+        // parent n'a pas toujours d'adresse électronique.
+        'telephone',
         'role',
         'school_id',
         'is_active',
+        'email_verified_at',
         'last_login_at',
     ];
 
