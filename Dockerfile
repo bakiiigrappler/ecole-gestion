@@ -112,6 +112,12 @@ RUN chmod +x /usr/local/bin/entrypoint.sh \
     && chown -R www-data:www-data storage bootstrap/cache database \
     && chmod -R 775 storage bootstrap/cache database
 
+# Journaux sur la sortie d'erreur : c'est la convention des conteneurs, et
+# c'est la que l'hebergeur les lit. Sans cela, Laravel ecrit dans un fichier
+# que personne n'ira jamais consulter — et qui posait un probleme de droits.
+# Une variable definie par l'hebergeur reste prioritaire sur celle-ci.
+ENV LOG_CHANNEL=stderr
+
 EXPOSE 10000
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

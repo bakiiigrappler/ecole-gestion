@@ -87,6 +87,21 @@ if [ -n "${DB_HOST}" ] || [ -n "${DB_URL}" ] || [ "${DB_CONNECTION}" = "sqlite" 
     fi
 fi
 
+# Rendre a www-data ce que root vient d'ecrire.
+#
+# Tout ce qui precede tourne en root : `storage:link`, les mises en cache, les
+# migrations, le peuplement. Chaque commande qui journalise cree
+# `storage/logs/laravel.log` appartenant a root, et PHP-FPM — qui tourne en
+# www-data — ne peut plus y ajouter une ligne :
+#
+#   The stream or file "/var/www/storage/logs/laravel.log" could not be opened
+#   in append mode: Failed to open stream: Permission denied
+#
+# L'application se retrouvait alors incapable de journaliser sa propre panne,
+# et l'erreur de journalisation masquait la panne d'origine.
+chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
+chmod -R 775 storage bootstrap/cache 2>/dev/null || true
+
 # Nginx lit ${PORT} : Render le fixe a l'execution, 10000 par defaut.
 export PORT="${PORT:-10000}"
 envsubst '${PORT}' < /etc/nginx/templates/default.conf.template > /etc/nginx/http.d/default.conf
