@@ -59,13 +59,14 @@ return [
     | Application Timezone
     |--------------------------------------------------------------------------
     |
-    | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | Le fuseau de l'établissement, et non UTC : les heures d'appel, les dates
+    | d'édition des bulletins et les journaux se lisent à l'heure locale. Le
+    | Gabon est à UTC+1 — figé sur UTC, tout s'affichait avec une heure de
+    | retard. La valeur reste surchargeable pour un déploiement ailleurs.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'Africa/Libreville'),
 
     /*
     |--------------------------------------------------------------------------

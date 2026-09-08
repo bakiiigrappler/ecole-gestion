@@ -94,7 +94,11 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => 'public',
-            'sslmode' => 'prefer',
+            // « prefer » convient aux deux cas : en interne chez un
+            // hebergeur la liaison est deja privee, de l'exterieur le
+            // chiffrement est exige. Surchargeable si l'hote impose
+            // « require ».
+            'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
         'sqlsrv' => [
