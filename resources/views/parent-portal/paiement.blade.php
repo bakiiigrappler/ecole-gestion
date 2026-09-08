@@ -1,7 +1,11 @@
 @extends('layouts.app')
 
 @section('titre', 'Régler la scolarité')
-@section('sous-titre', 'Payer par Airtel Money ou Moov Money, puis déclarer le versement')
+{{-- Le sous-titre nomme les opérateurs réellement ouverts : annoncer Moov
+     Money à une école qui n'y a pas de compte enverrait le parent nulle part. --}}
+@section('sous-titre', $operateurs
+    ? 'Payer par '.collect($operateurs)->pluck('libelle')->join(' ou ').', puis déclarer le versement'
+    : 'Le paiement en ligne n’est pas ouvert dans cet établissement')
 
 @section('actions-entete')
     <a href="{{ route('parent-portal.payment-history') }}" class="bouton-secondaire">Mes paiements</a>
@@ -51,9 +55,9 @@
         enfant: {{ $dossierChoisi['eleve']->id }},
         operateur: '{{ array_key_first($operateurs) }}',
         montant: '{{ $dossierChoisi['reste'] > 0 ? (int) $dossierChoisi['reste'] : '' }}',
-        copie: false,
-        copier(valeur) {
-            const fini = () => { this.copie = true; setTimeout(() => (this.copie = false), 2000); };
+        copie: null,
+        copier(quoi, valeur) {
+            const fini = () => { this.copie = quoi; setTimeout(() => (this.copie = null), 2000); };
 
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(valeur).then(fini);
@@ -134,7 +138,9 @@
                 <div>
                     <h2 class="text-sm font-semibold text-gris-900">Où payer</h2>
                     <p class="mt-0.5 text-xs text-gris-400">
-                        Paiement marchand depuis votre téléphone. L’argent va directement à l’établissement.
+                        {{-- Marchand ou transfert selon ce que l'école a publié : la carte
+                             de chaque opérateur le précise juste en dessous. --}}
+                        Depuis votre téléphone. L’argent va directement à l’établissement.
                     </p>
                 </div>
             </div>
@@ -157,29 +163,56 @@
 
                 <div x-show="operateur === '{{ $cle }}'" x-cloak class="border-t border-gris-100 p-5">
 
-                    {{-- Le code marchand, en grand : c'est ce qu'on recopie sur le clavier --}}
-                    <div class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-ogar-300 bg-ogar-50 px-5 py-4">
-                        <div>
-                            <p class="text-[11px] font-semibold uppercase tracking-wide text-ogar-700">
-                                Code marchand {{ $operateur['libelle'] }}
-                            </p>
-                            <p class="mt-1 font-mono text-2xl font-bold tracking-[0.15em] text-ogar-900">
-                                {{ $operateur['code'] }}
-                            </p>
-                            @if ($operateur['nom'])
-                                <p class="mt-1 text-[11px] text-ogar-700">
-                                    Doit s’afficher au téléphone :
-                                    <span class="font-semibold">{{ $operateur['nom'] }}</span>
-                                </p>
-                            @endif
-                        </div>
+                    {{-- Où verser, en grand : c'est ce qu'on recopie sur le clavier du
+                         téléphone. Le code marchand quand l'école en a un, son numéro
+                         sinon — et les deux quand elle a les deux. --}}
+                    <div class="grid gap-3 {{ $operateur['code'] && $operateur['numero'] ? 'sm:grid-cols-2' : '' }}">
+                        @if ($operateur['code'])
+                            <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ogar-300 bg-ogar-50 px-5 py-4">
+                                <div>
+                                    <p class="text-[11px] font-semibold uppercase tracking-wide text-ogar-700">
+                                        Code marchand {{ $operateur['libelle'] }}
+                                    </p>
+                                    <p class="mt-1 font-mono text-2xl font-bold tracking-[0.15em] text-ogar-900">
+                                        {{ $operateur['code'] }}
+                                    </p>
+                                </div>
 
-                        <button type="button" @click="copier(@js($operateur['code']))"
-                                class="bouton-secondaire shrink-0">
-                            <span x-show="! copie">Copier le code</span>
-                            <span x-show="copie" x-cloak>Copié ✓</span>
-                        </button>
+                                <button type="button" @click="copier('code-{{ $cle }}', @js($operateur['code']))"
+                                        class="bouton-secondaire shrink-0">
+                                    <span x-show="copie !== 'code-{{ $cle }}'">Copier</span>
+                                    <span x-show="copie === 'code-{{ $cle }}'" x-cloak>Copié ✓</span>
+                                </button>
+                            </div>
+                        @endif
+
+                        @if ($operateur['numero'])
+                            <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gris-300 bg-gris-50 px-5 py-4">
+                                <div>
+                                    <p class="text-[11px] font-semibold uppercase tracking-wide text-gris-600">
+                                        Numéro {{ $operateur['libelle'] }}
+                                    </p>
+                                    <p class="mt-1 font-mono text-2xl font-bold tracking-[0.1em] tabular-nums text-gris-900">
+                                        {{ $operateur['numero'] }}
+                                    </p>
+                                </div>
+
+                                <button type="button" @click="copier('num-{{ $cle }}', @js($operateur['numero']))"
+                                        class="bouton-secondaire shrink-0">
+                                    <span x-show="copie !== 'num-{{ $cle }}'">Copier</span>
+                                    <span x-show="copie === 'num-{{ $cle }}'" x-cloak>Copié ✓</span>
+                                </button>
+                            </div>
+                        @endif
                     </div>
+
+                    @if ($operateur['nom'])
+                        <p class="mt-2 text-[11px] text-gris-600">
+                            Avant de valider, l’écran de votre téléphone doit afficher
+                            <span class="font-semibold text-gris-800">{{ $operateur['nom'] }}</span>.
+                            S’il affiche autre chose, interrompez l’opération.
+                        </p>
+                    @endif
 
                     {{-- La marche à suivre --}}
                     <p class="mb-2 mt-5 text-[11px] font-semibold uppercase tracking-wide text-gris-500">

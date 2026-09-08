@@ -147,9 +147,13 @@ class SchoolSettingsController extends Controller
              * rien afficher.
              */
             'mobile_money_actif' => 'nullable|boolean',
+            'airtel_money_actif' => 'nullable|boolean',
             'airtel_money_code' => 'nullable|string|max:60',
+            'airtel_money_numero' => 'nullable|string|max:40',
             'airtel_money_nom' => 'nullable|string|max:120',
+            'moov_money_actif' => 'nullable|boolean',
             'moov_money_code' => 'nullable|string|max:60',
+            'moov_money_numero' => 'nullable|string|max:40',
             'moov_money_nom' => 'nullable|string|max:120',
             'mobile_money_consignes' => 'nullable|string|max:2000',
         ]);
@@ -162,9 +166,14 @@ class SchoolSettingsController extends Controller
 
         $data = $request->except(['school_logo', 'school_seal']);
 
-        // Une case decochee n'est pas postee : sans cela, le paiement par
-        // telephone ne pourrait plus etre referme une fois ouvert.
+        // Une case decochee n'est pas postee : sans cela, ni le paiement par
+        // telephone ni l'un de ses operateurs ne pourrait etre referme une fois
+        // ouvert.
         $data['mobile_money_actif'] = $request->boolean('mobile_money_actif');
+
+        foreach (\App\Support\MobileMoney::OPERATEURS as $operateur) {
+            $data[$operateur['champ_actif']] = $request->boolean($operateur['champ_actif']);
+        }
 
         // Gérer le logo
         if ($request->hasFile('school_logo')) {

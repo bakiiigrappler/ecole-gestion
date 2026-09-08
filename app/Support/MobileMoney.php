@@ -5,18 +5,21 @@ namespace App\Support;
 use App\Models\SchoolSettings;
 
 /**
- * Le paiement marchand par téléphone, tel qu'il se pratique au Gabon.
+ * Le paiement par téléphone, tel qu'il se pratique au Gabon.
  *
- * Deux opérateurs, un même geste : le parent compose un code USSD, choisit
- * « paiement marchand », entre le code de l'établissement, le montant, puis son
- * code secret. Il reçoit un SMS portant un identifiant de transaction — c'est
- * cet identifiant qu'il rapporte, et que le secrétariat vérifie avant de
- * valider le versement.
+ * Deux opérateurs, et deux façons de recevoir. L'école qui a un compte
+ * marchand publie son code : le parent choisit « paiement marchand », et le
+ * nom de l'établissement s'affiche avant qu'il valide. Celle qui n'en a pas
+ * encaisse sur un numéro ordinaire, par transfert. Beaucoup d'écoles sont dans
+ * le second cas — décrire uniquement le code marchand laissait le portail muet
+ * pour elles.
  *
- * La plateforme n'encaisse rien elle-même : elle affiche où payer, recueille la
- * déclaration du parent, et laisse l'établissement confirmer. Le reçu ne porte
- * la mention « réglé » qu'après cette vérification — annoncer un paiement que
- * personne n'a constaté reviendrait à écrire un reçu faux.
+ * Dans les deux cas, le parent reçoit un SMS portant un identifiant de
+ * transaction : c'est lui qu'il rapporte, et que le secrétariat confronte au
+ * relevé de l'opérateur. La plateforme n'encaisse rien elle-même — elle
+ * affiche où payer, recueille la déclaration, et laisse l'établissement
+ * confirmer. Le reçu ne porte « réglé » qu'après cette vérification ;
+ * l'annoncer plus tôt reviendrait à écrire un reçu faux.
  */
 class MobileMoney
 {
@@ -24,32 +27,37 @@ class MobileMoney
      * Les opérateurs, avec ce qu'il faut pour composer.
      *
      * `ussd` est celui du service au Gabon ; il ne dépend pas de
-     * l'établissement, contrairement au code marchand.
+     * l'établissement, contrairement au code marchand et au numéro.
      */
     public const OPERATEURS = [
         'airtel_money' => [
             'libelle' => 'Airtel Money',
             'ussd' => '*150#',
+            'champ_actif' => 'airtel_money_actif',
             'champ_code' => 'airtel_money_code',
+            'champ_numero' => 'airtel_money_numero',
             'champ_nom' => 'airtel_money_nom',
             'couleur' => 'corail',
         ],
         'moov_money' => [
             'libelle' => 'Moov Money',
             'ussd' => '*155#',
+            'champ_actif' => 'moov_money_actif',
             'champ_code' => 'moov_money_code',
+            'champ_numero' => 'moov_money_numero',
             'champ_nom' => 'moov_money_nom',
             'couleur' => 'ogar',
         ],
     ];
 
     /**
-     * Ceux que l'établissement a renseignés.
+     * Ceux que l'établissement a ouverts et renseignés.
      *
-     * Un opérateur sans code marchand n'est pas proposé : afficher « payez au
-     * … » sans numéro enverrait le parent nulle part.
+     * Un opérateur décoché, ou sans code marchand ni numéro, n'est pas
+     * proposé : afficher « payez au … » sans coordonnées enverrait le parent
+     * nulle part.
      *
-     * @return array<string, array{libelle: string, ussd: string, code: string, nom: ?string, couleur: string}>
+     * @return array<string, array<string, mixed>>
      */
     public static function disponibles(?SchoolSettings $reglages): array
     {
@@ -60,16 +68,22 @@ class MobileMoney
         $ouverts = [];
 
         foreach (self::OPERATEURS as $cle => $operateur) {
-            $code = trim((string) $reglages->{$operateur['champ_code']});
+            if (! $reglages->{$operateur['champ_actif']}) {
+                continue;
+            }
 
-            if ($code === '') {
+            $code = trim((string) $reglages->{$operateur['champ_code']});
+            $numero = trim((string) $reglages->{$operateur['champ_numero']});
+
+            if ($code === '' && $numero === '') {
                 continue;
             }
 
             $ouverts[$cle] = [
                 'libelle' => $operateur['libelle'],
                 'ussd' => $operateur['ussd'],
-                'code' => $code,
+                'code' => $code ?: null,
+                'numero' => $numero ?: null,
                 'nom' => $reglages->{$operateur['champ_nom']} ?: ($reglages->school_name ?? null),
                 'couleur' => $operateur['couleur'],
             ];
@@ -91,10 +105,9 @@ class MobileMoney
     /**
      * La marche à suivre, pas à pas.
      *
-     * Écrite ici parce qu'elle est la même partout : seuls le code USSD et le
-     * code marchand changent. L'établissement qui a ses propres consignes les
-     * saisit dans ses paramètres, et elles prennent alors la place de
-     * celles-ci.
+     * Elle diffère selon ce que l'école a publié : paiement marchand quand
+     * elle a un code, transfert vers un numéro sinon. Le reste est identique
+     * d'un opérateur à l'autre — seul le code USSD change.
      *
      * @return array<int, string>
      */
@@ -104,14 +117,26 @@ class MobileMoney
             ? number_format($montant, 0, ',', ' ').' FCFA'
             : 'le montant à régler';
 
-        return [
+        $etapes = [
             'Composez '.$operateur['ussd'].' depuis le téléphone dont le numéro est enregistré chez l’opérateur.',
-            'Choisissez « Paiement marchand » dans le menu.',
-            'Entrez le code marchand '.$operateur['code'].' — l’écran doit afficher '
-                .($operateur['nom'] ?: 'le nom de l’établissement').'. S’il affiche autre chose, n’allez pas plus loin.',
-            'Entrez '.$somme.', puis validez avec votre code secret.',
-            'Conservez le SMS de confirmation : son identifiant de transaction vous sera demandé ci-dessous.',
         ];
+
+        if ($operateur['code']) {
+            $etapes[] = 'Choisissez « Paiement marchand » dans le menu.';
+            $etapes[] = 'Entrez le code marchand '.$operateur['code'].' — l’écran doit afficher '
+                .($operateur['nom'] ?: 'le nom de l’établissement')
+                .'. S’il affiche autre chose, n’allez pas plus loin.';
+        } else {
+            $etapes[] = 'Choisissez « Transfert d’argent » dans le menu.';
+            $etapes[] = 'Entrez le numéro de l’établissement '.$operateur['numero']
+                .' — l’écran doit afficher '.($operateur['nom'] ?: 'le nom de l’établissement')
+                .'. S’il affiche autre chose, n’allez pas plus loin.';
+        }
+
+        $etapes[] = 'Entrez '.$somme.', puis validez avec votre code secret.';
+        $etapes[] = 'Conservez le SMS de confirmation : son identifiant de transaction vous sera demandé ci-dessous.';
+
+        return $etapes;
     }
 
     /**

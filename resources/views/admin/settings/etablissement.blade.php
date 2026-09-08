@@ -268,13 +268,41 @@
 
                 <div x-show="ouvert" x-cloak class="space-y-4 border-t border-gris-100 pt-4">
                     @foreach (\App\Support\MobileMoney::OPERATEURS as $cle => $operateur)
-                        <div class="rounded-xl border border-gris-200 p-4">
-                            <div class="mb-3 flex items-center justify-between gap-3">
-                                <h3 class="text-sm font-semibold text-gris-800">{{ $operateur['libelle'] }}</h3>
+                        {{-- Chaque opérateur a son propre interrupteur : une école peut
+                             n'avoir de compte que chez l'un des deux, ou fermer l'un
+                             d'eux sans effacer ses coordonnées. --}}
+                        <div class="rounded-xl border border-gris-200 p-4"
+                             x-data="{ ouvert: {{ old($operateur['champ_actif'], $settings->{$operateur['champ_actif']}) ? 'true' : 'false' }} }">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <label class="flex cursor-pointer items-center gap-3">
+                                    <span class="relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition"
+                                          :class="ouvert ? 'bg-ogar-600' : 'bg-gris-300'">
+                                        <input type="checkbox" name="{{ $operateur['champ_actif'] }}" value="1"
+                                               x-model="ouvert" class="sr-only">
+                                        <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition"
+                                              :class="ouvert ? 'translate-x-[18px]' : 'translate-x-1'"></span>
+                                    </span>
+                                    <span class="text-sm font-semibold text-gris-800">{{ $operateur['libelle'] }}</span>
+                                </label>
+
                                 <span class="font-mono text-[11px] text-gris-400">{{ $operateur['ussd'] }}</span>
                             </div>
 
-                            <div class="grid gap-4 md:grid-cols-2">
+                            <div x-show="ouvert" x-cloak class="mt-4 grid gap-4 md:grid-cols-2">
+                                <div>
+                                    <label for="{{ $operateur['champ_numero'] }}"
+                                           class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                                        Numéro {{ $operateur['libelle'] }}
+                                    </label>
+                                    <input type="text" name="{{ $operateur['champ_numero'] }}" id="{{ $operateur['champ_numero'] }}"
+                                           value="{{ old($operateur['champ_numero'], $settings->{$operateur['champ_numero']}) }}"
+                                           class="champ w-full text-sm tabular-nums" placeholder="Ex. 077 12 34 56">
+                                    <p class="mt-1 text-[11px] text-gris-400">
+                                        Le compte sur lequel les parents versent, par transfert.
+                                    </p>
+                                    @error($operateur['champ_numero'])<p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>@enderror
+                                </div>
+
                                 <div>
                                     <label for="{{ $operateur['champ_code'] }}"
                                            class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
@@ -284,12 +312,13 @@
                                            value="{{ old($operateur['champ_code'], $settings->{$operateur['champ_code']}) }}"
                                            class="champ w-full text-sm" placeholder="Ex. 123456">
                                     <p class="mt-1 text-[11px] text-gris-400">
-                                        Laissé vide, cet opérateur n’est pas proposé aux parents.
+                                        Si l’école a un compte marchand : le parent paie alors par
+                                        « paiement marchand » plutôt que par transfert.
                                     </p>
                                     @error($operateur['champ_code'])<p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>@enderror
                                 </div>
 
-                                <div>
+                                <div class="md:col-span-2">
                                     <label for="{{ $operateur['champ_nom'] }}"
                                            class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
                                         Nom affiché au téléphone
@@ -298,10 +327,15 @@
                                            value="{{ old($operateur['champ_nom'], $settings->{$operateur['champ_nom']}) }}"
                                            class="champ w-full text-sm" placeholder="{{ $settings->school_name }}">
                                     <p class="mt-1 text-[11px] text-gris-400">
-                                        Le parent doit pouvoir vérifier qu’il paie bien l’école.
+                                        Le parent doit pouvoir vérifier qu’il paie bien l’école avant de valider.
                                     </p>
                                     @error($operateur['champ_nom'])<p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>@enderror
                                 </div>
+
+                                <p class="text-[11px] text-gris-400 md:col-span-2">
+                                    Sans numéro ni code marchand, cet opérateur n’est pas proposé aux parents :
+                                    l’écran n’aurait rien à leur indiquer.
+                                </p>
                             </div>
                         </div>
                     @endforeach

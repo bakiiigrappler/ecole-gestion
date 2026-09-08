@@ -43,9 +43,13 @@ class SchoolSettings extends Model
         'is_active',
         // Les coordonnees de paiement par telephone, propres a l'etablissement.
         'mobile_money_actif',
+        'airtel_money_actif',
         'airtel_money_code',
+        'airtel_money_numero',
         'airtel_money_nom',
+        'moov_money_actif',
         'moov_money_code',
+        'moov_money_numero',
         'moov_money_nom',
         'mobile_money_consignes',
     ];
@@ -53,6 +57,8 @@ class SchoolSettings extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'mobile_money_actif' => 'boolean',
+        'airtel_money_actif' => 'boolean',
+        'moov_money_actif' => 'boolean',
         'has_preprimary' => 'boolean',
         'has_primary' => 'boolean',
         'has_secondary' => 'boolean',
