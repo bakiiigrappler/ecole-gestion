@@ -11,19 +11,20 @@
 @section('contenu')
 
 @php
-    $superadmin = auth()->user()->isSuperAdmin();
+    /*
+     * Le catalogue fait foi : la liste etait ecrite ici a la main, et elle
+     * avait deja diverge de ce que la validation acceptait. Le role superadmin
+     * ne s'y trouve que pour un superadmin — le proposer a un chef
+     * d'etablissement ne menerait qu'a un refus a l'enregistrement.
+     *
+     * Le role actuel du compte y est ajoute s'il n'y figure pas : un
+     * enseignant ou un parent ouvert depuis son module se modifie parfois
+     * ici, et la liste doit pouvoir le montrer sans le changer.
+     */
+    $roles = \App\Support\Roles::attribuablesPar(auth()->user()->role);
 
-    // Le rôle superadmin ne s'attribue que par un superadmin : le proposer à
-    // un admin ne mènerait qu'à un refus au moment d'enregistrer.
-    $roles = [
-        'admin' => 'Administrateur',
-        'secretary' => 'Secrétariat',
-        'teacher' => 'Enseignant',
-        'parent' => 'Parent',
-    ];
-
-    if ($superadmin) {
-        $roles = ['superadmin' => 'Super administrateur'] + $roles;
+    if (! in_array($user->role, $roles, true)) {
+        $roles[] = $user->role;
     }
 
     $soiMeme = $user->id === auth()->id();
@@ -55,12 +56,25 @@
 
                 <div>
                     <label for="email" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
-                        Courriel <span class="text-corail-600">*</span>
+                        Adresse e-mail
                     </label>
-                    <input type="email" name="email" id="email" required
+                    <input type="email" name="email" id="email"
                            value="{{ old('email', $user->email) }}" class="champ w-full text-sm">
-                    <p class="mt-1 text-[11px] text-gris-400">Sert d’identifiant de connexion.</p>
+                    <p class="mt-1 text-[11px] text-gris-400">
+                        Facultative : le matricule suffit pour entrer.
+                    </p>
                     @error('email')<p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>@enderror
+                </div>
+
+                <div>
+                    <label for="telephone" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                        Téléphone
+                    </label>
+                    <input type="text" name="telephone" id="telephone"
+                           value="{{ old('telephone', $user->telephone) }}" class="champ w-full text-sm"
+                           placeholder="077 12 34 56">
+                    <p class="mt-1 text-[11px] text-gris-400">Sert aussi d’identifiant de connexion.</p>
+                    @error('telephone')<p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>@enderror
                 </div>
 
                 <div>
@@ -125,15 +139,17 @@
                     Rôle <span class="text-corail-600">*</span>
                 </label>
                 <select name="role" id="role" required class="champ w-full text-sm">
-                    @foreach ($roles as $cle => $libelle)
-                        <option value="{{ $cle }}" @selected(old('role', $user->role) === $cle)>{{ $libelle }}</option>
+                    @foreach ($roles as $cle)
+                        <option value="{{ $cle }}" @selected(old('role', $user->role) === $cle)>
+                            {{ \App\Support\Roles::libelle($cle) }}
+                        </option>
                     @endforeach
                 </select>
                 @error('role')<p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>@enderror
 
-                @unless ($superadmin)
+                @unless (auth()->user()->isSuperAdmin())
                     <p class="mt-1 text-[11px] text-gris-400">
-                        Seul un super administrateur peut attribuer ce rôle.
+                        Le rôle de super administrateur ne s’attribue qu’entre super administrateurs.
                     </p>
                 @endunless
             </div>

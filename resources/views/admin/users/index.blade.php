@@ -16,35 +16,38 @@
 @section('contenu')
 
 @php
-    $libellesRole = [
-        'admin' => 'Administrateur',
-        'secretary' => 'Secrétariat',
-        'teacher' => 'Enseignant',
-        'parent' => 'Parent',
-    ];
+    /*
+     * Cet ecran ne tient que le personnel : direction et secretariat. Les
+     * enseignants, les parents et les eleves se gerent depuis leur module —
+     * les melanger ici noyait la dizaine de comptes qui se gere vraiment sous
+     * les neuf cents autres.
+     */
+    $roles = $roles ?? \App\Support\Roles::personnel();
+    $roles = array_values(array_diff($roles, ['superadmin']));
 
     // Classes écrites en entier : Tailwind ne compile pas une teinte interpolée.
     $puceRole = [
-        'admin' => 'violet', 'secretary' => 'sky',
-        'teacher' => 'emerald', 'parent' => 'amber',
+        'admin' => 'violet', 'directeur' => 'indigo', 'proviseur' => 'indigo',
+        'censeur' => 'sky', 'secretary' => 'sky',
     ];
 
     $filtres = request()->only(['search', 'role', 'status']);
     $filtreActif = collect($filtres)->filter(fn ($v) => $v !== null && $v !== '')->isNotEmpty();
 
     $parRole = $users->getCollection()->countBy('role');
+    $direction = collect(\App\Support\Roles::direction())->sum(fn ($r) => $parRole[$r] ?? 0);
 @endphp
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <x-statistique libelle="Comptes" :valeur="$users->total()"
                        :detail="$filtreActif ? 'après filtrage' : 'hors super administrateurs'"
                        couleur="ogar"/>
-        <x-statistique libelle="Administrateurs" :valeur="$parRole['admin'] ?? 0"
-                       detail="Sur cette page" couleur="violet"/>
-        <x-statistique libelle="Enseignants" :valeur="$parRole['teacher'] ?? 0"
-                       detail="Sur cette page" couleur="emerald"/>
-        <x-statistique libelle="Parents" :valeur="$parRole['parent'] ?? 0"
-                       detail="Sur cette page" couleur="amber"/>
+        <x-statistique libelle="Direction" :valeur="$direction"
+                       detail="Administration et chefs d’établissement" couleur="violet"/>
+        <x-statistique libelle="Secrétariat" :valeur="$parRole['secretary'] ?? 0"
+                       detail="Inscriptions et encaissements" couleur="sky"/>
+        <x-statistique libelle="Désactivés" :valeur="$users->getCollection()->where('is_active', false)->count()"
+                       detail="N’entrent plus dans l’application" couleur="slate"/>
     </div>
 
     {{-- ----------------------------------------------------------------
@@ -62,8 +65,10 @@
             <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">Rôle</label>
             <select name="role" class="champ w-44 text-sm">
                 <option value="">Tous</option>
-                @foreach ($libellesRole as $cle => $libelle)
-                    <option value="{{ $cle }}" @selected(request('role') === $cle)>{{ $libelle }}</option>
+                @foreach ($roles as $cle)
+                    <option value="{{ $cle }}" @selected(request('role') === $cle)>
+                        {{ \App\Support\Roles::libelle($cle) }}
+                    </option>
                 @endforeach
             </select>
         </div>
@@ -102,7 +107,7 @@
                     <tr>
                         <th>Utilisateur</th>
                         <th>Matricule</th>
-                        <th>Rôle</th>
+                        <th>Rôle et droits d’accès</th>
                         <th>Statut</th>
                         <th>Créé le</th>
                         <th class="text-right">Actions</th>
@@ -126,8 +131,13 @@
                             <td class="font-mono text-[11px] text-gris-500">{{ $utilisateur->matricule ?? '—' }}</td>
                             <td>
                                 <x-puce :couleur="$puceRole[$utilisateur->role] ?? 'slate'">
-                                    {{ $libellesRole[$utilisateur->role] ?? $utilisateur->role }}
+                                    {{ \App\Support\Roles::libelle($utilisateur->role) }}
                                 </x-puce>
+                                {{-- Nommer un rôle ne dit pas ce qu'il permet :
+                                     « censeur » ne se lit pas tout seul. --}}
+                                <div class="mt-1 text-[11px] leading-snug text-gris-500">
+                                    {{ \App\Support\Roles::detail($utilisateur->role) }}
+                                </div>
                             </td>
                             <td>
                                 <x-puce :couleur="$utilisateur->is_active ? 'emerald' : 'slate'">
@@ -139,6 +149,9 @@
                             </td>
                             <td class="text-right">
                                 <div class="flex items-center justify-end gap-1">
+                                    {{-- Le mot de passe se rejoue depuis le detail : il n'est
+                                         conserve nulle part en clair. --}}
+                                    <a href="{{ route('admin.users.show', $utilisateur) }}" class="bouton-mini">Détails</a>
                                     <a href="{{ route('admin.users.edit', $utilisateur) }}" class="bouton-mini">Modifier</a>
 
                                     {{-- Activer ou couper un accès mérite une confirmation

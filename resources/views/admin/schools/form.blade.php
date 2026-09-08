@@ -140,22 +140,20 @@
                         @error('admin_email')<p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>@enderror
                     </div>
 
-                    <div>
-                        <label for="admin_mot_de_passe" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
-                            Mot de passe <span class="text-corail-600">*</span>
-                        </label>
-                        <input type="password" name="admin_mot_de_passe" id="admin_mot_de_passe" required
-                               autocomplete="new-password" class="champ w-full text-sm">
-                        <p class="mt-1 text-[11px] text-gris-400">8 caractères au minimum.</p>
-                        @error('admin_mot_de_passe')<p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>@enderror
-                    </div>
-
-                    <div>
-                        <label for="admin_mot_de_passe_confirmation" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
-                            Confirmation <span class="text-corail-600">*</span>
-                        </label>
-                        <input type="password" name="admin_mot_de_passe_confirmation" id="admin_mot_de_passe_confirmation"
-                               required autocomplete="new-password" class="champ w-full text-sm">
+                    {{-- Le mot de passe ne se saisit pas : celui qu'on choisissait
+                         ici finissait le même d'un établissement à l'autre. --}}
+                    <div class="md:col-span-2">
+                        <div class="rounded-xl border border-ogar-200 bg-ogar-50 px-4 py-3">
+                            <p class="text-[11px] font-semibold uppercase tracking-wide text-ogar-700">
+                                Mot de passe
+                            </p>
+                            <p class="mt-1 text-sm leading-relaxed text-gris-700">
+                                Il est <strong class="text-gris-900">engendré à l’enregistrement</strong> et
+                                affiché une seule fois sur la fiche de l’établissement, prêt à être copié et
+                                remis au chef d’établissement. Il n’est pas conservé en clair : en cas de perte,
+                                il faudra en engendrer un nouveau depuis la fiche du compte.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>

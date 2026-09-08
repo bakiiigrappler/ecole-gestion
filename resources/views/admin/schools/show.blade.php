@@ -10,6 +10,9 @@
 
 @section('contenu')
 
+{{-- Le compte administrateur qui vient d'être ouvert : lisible ici, une fois. --}}
+<x-compte-ouvert/>
+
 @php
     $nombre = fn ($v) => number_format((float) $v, 0, ',', ' ');
     $courante = \App\Support\EcoleCourante::id();

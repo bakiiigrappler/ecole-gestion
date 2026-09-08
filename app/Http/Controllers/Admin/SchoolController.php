@@ -140,12 +140,15 @@ class SchoolController extends Controller implements HasMiddleware
                 'is_active' => true,
             ]);
 
+            $matricule = $school->code.'-ADM';
+            $motDePasse = \App\Support\ComptesUtilisateurs::motDePasseInitial();
+
             User::create([
                 'name' => $valide['compte']['nom'],
                 'email' => $valide['compte']['email'],
-                'password' => Hash::make($valide['compte']['mot_de_passe']),
+                'password' => Hash::make($motDePasse),
                 'role' => 'admin',
-                'matricule' => $school->code.'-ADM',
+                'matricule' => $matricule,
                 'school_id' => $school->id,
                 'is_active' => true,
                 'email_verified_at' => now(),
@@ -153,9 +156,20 @@ class SchoolController extends Controller implements HasMiddleware
 
             DB::commit();
 
+            /*
+             * La fiche de l'etablissement, et non la liste : c'est la que le
+             * mot de passe engendre s'affiche, une seule fois, pret a etre
+             * copie et remis au chef d'etablissement.
+             */
             return redirect()
-                ->route('admin.schools.index')
-                ->with('success', 'Établissement « '.$school->name.' » créé, avec son compte administrateur.');
+                ->route('admin.schools.show', $school)
+                ->with('success', 'Établissement « '.$school->name.' » créé, avec son compte administrateur.')
+                ->with('compte_ouvert', [
+                    'titre' => 'Compte administrateur de '.$school->name,
+                    'identifiant' => $matricule,
+                    'courriel' => $valide['compte']['email'],
+                    'mot_de_passe' => $motDePasse,
+                ]);
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -262,10 +276,15 @@ class SchoolController extends Controller implements HasMiddleware
 
         // Le compte administrateur n'est demandé qu'à la création.
         if (! $school) {
+            /*
+             * Pas de mot de passe saisi : il est engendre a l'enregistrement
+             * et affiche une seule fois. Celui que le superadmin choisissait
+             * ici finissait toujours le meme d'un etablissement a l'autre, et
+             * il fallait le transmettre de memoire.
+             */
             $regles += [
                 'admin_nom' => 'required|string|max:255',
                 'admin_email' => 'required|email|max:255|unique:users,email',
-                'admin_mot_de_passe' => 'required|string|min:8|confirmed',
             ];
         }
 
@@ -273,7 +292,6 @@ class SchoolController extends Controller implements HasMiddleware
             'cycles' => 'cycles ouverts',
             'admin_nom' => 'nom de l’administrateur',
             'admin_email' => 'courriel de l’administrateur',
-            'admin_mot_de_passe' => 'mot de passe',
         ]);
 
         $etablissement = collect($donnees)
@@ -299,7 +317,6 @@ class SchoolController extends Controller implements HasMiddleware
             'compte' => [
                 'nom' => $donnees['admin_nom'] ?? null,
                 'email' => $donnees['admin_email'] ?? null,
-                'mot_de_passe' => $donnees['admin_mot_de_passe'] ?? null,
             ],
         ];
     }

@@ -1,654 +1,263 @@
 @extends('layouts.app')
 
-@section('title', 'Détails Utilisateur - Egesco')
+@section('titre', $user->name)
+@section('sous-titre', \App\Support\Roles::libelle($user->role).' · compte ouvert le '.optional($user->created_at)->format('d/m/Y'))
 
-@section('breadcrumb')
-<li class="breadcrumb-item"><a href="{{ route('admin.settings.index') }}">Administration</a></li>
-<li class="breadcrumb-item"><a href="{{ route('admin.users.index') }}">Utilisateurs</a></li>
-<li class="breadcrumb-item active">{{ $user->name }}</li>
+@section('actions-entete')
+    <a href="{{ route('admin.users.index') }}" class="bouton-secondaire">Tous les comptes</a>
+    @if (! $user->isSuperAdmin() || auth()->user()->isSuperAdmin())
+        <a href="{{ route('admin.users.edit', $user) }}" class="bouton-primaire">Modifier</a>
+    @endif
 @endsection
 
-@push('styles')
-<style>
-:root {
-    --primary-blue: #2563eb;
-    --success-green: #059669;
-    --warning-orange: #d97706;
-    --danger-red: #dc2626;
-    --info-cyan: #0891b2;
-    --gray-neutral: #6b7280;
-}
+@section('contenu')
 
-.user-show-header {
-    background: linear-gradient(135deg, var(--info-cyan) 0%, var(--primary-blue) 100%);
-    color: white;
-    border-radius: 12px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-}
+@php
+    // Classes ecrites en entier : Tailwind ne compile pas une teinte interpolee.
+    $puceRole = [
+        'superadmin' => 'rose', 'admin' => 'violet', 'directeur' => 'indigo',
+        'proviseur' => 'indigo', 'censeur' => 'sky', 'secretary' => 'sky',
+        'teacher' => 'emerald', 'parent' => 'amber', 'student' => 'slate',
+    ];
 
-.info-card {
-    border-radius: 12px;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
+    $acces = \App\Support\Roles::acces($user->role);
+    $soiMeme = $user->id === auth()->id();
+    $modifiable = ! $user->isSuperAdmin() || auth()->user()->isSuperAdmin();
 
-.info-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-}
+    // Ces trois profils se gerent depuis leur propre module : la fiche y porte
+    // les classes, les enfants ou l'inscription que ce seul compte ignore.
+    $moduleDedie = match ($user->role) {
+        'teacher' => ['libelle' => 'Enseignants', 'url' => route('teachers.index')],
+        'parent' => ['libelle' => 'Parents', 'url' => route('parents.index')],
+        'student' => ['libelle' => 'Élèves', 'url' => route('students.index')],
+        default => null,
+    };
+@endphp
 
-.user-avatar-large {
-    width: 120px;
-    height: 120px;
-    border-radius: 20px;
-    background-color: var(--primary-blue);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 3rem;
-    font-weight: bold;
-    color: white;
-    margin: 0 auto 1rem;
-    box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
-}
+{{-- Le mot de passe qui vient d'etre engendre : lisible ici, et nulle part ailleurs. --}}
+<x-compte-ouvert/>
 
-.status-badge {
-    padding: 0.5rem 1rem;
-    border-radius: 50px;
-    font-weight: 600;
-    font-size: 0.875rem;
-}
+<div class="grid gap-6 lg:grid-cols-3">
 
-.status-active {
-    background-color: var(--success-green);
-    color: white;
-}
+    <div class="space-y-4 lg:col-span-2">
 
-.status-inactive {
-    background-color: var(--gray-neutral);
-    color: white;
-}
+        {{-- ------------------------------------------------------------
+             Identité
+             ------------------------------------------------------------ --}}
+        <div class="carte overflow-hidden">
+            <div class="flex flex-wrap items-center gap-4 p-5">
+                <x-avatar :nom="$user->name" class="h-16 w-16 shrink-0 text-lg"/>
 
-.role-badge {
-    padding: 0.5rem 1rem;
-    border-radius: 50px;
-    font-weight: 600;
-    font-size: 0.875rem;
-    color: white;
-}
-
-.role-superadmin { background-color: var(--danger-red); }
-.role-admin { background-color: var(--primary-blue); }
-.role-teacher { background-color: var(--success-green); }
-.role-secretary { background-color: var(--warning-orange); }
-.role-parent { background-color: var(--info-cyan); }
-
-.info-item {
-    padding: 1rem;
-    border-bottom: 1px solid #f3f4f6;
-    transition: background-color 0.2s ease;
-}
-
-.info-item:hover {
-    background-color: #f8fafc;
-}
-
-.info-item:last-child {
-    border-bottom: none;
-}
-
-.info-label {
-    font-weight: 600;
-    color: var(--gray-neutral);
-    font-size: 0.875rem;
-    margin-bottom: 0.25rem;
-}
-
-.info-value {
-    font-size: 1rem;
-    color: #1f2937;
-}
-
-.btn-action-large {
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    border: 2px solid;
-}
-
-.btn-edit {
-    background-color: white;
-    border-color: var(--warning-orange);
-    color: var(--warning-orange);
-}
-
-.btn-edit:hover {
-    background-color: var(--warning-orange);
-    color: white;
-    transform: translateY(-1px);
-}
-
-.btn-toggle {
-    background-color: white;
-    border-color: var(--gray-neutral);
-    color: var(--gray-neutral);
-}
-
-.btn-toggle:hover {
-    background-color: var(--gray-neutral);
-    color: white;
-    transform: translateY(-1px);
-}
-
-.btn-delete {
-    background-color: white;
-    border-color: var(--danger-red);
-    color: var(--danger-red);
-}
-
-.btn-delete:hover {
-    background-color: var(--danger-red);
-    color: white;
-    transform: translateY(-1px);
-}
-
-.btn-back {
-    background-color: white;
-    border-color: var(--gray-neutral);
-    color: var(--gray-neutral);
-}
-
-.btn-back:hover {
-    background-color: var(--gray-neutral);
-    color: white;
-}
-
-.activity-item {
-    padding: 1rem;
-    border-left: 3px solid var(--primary-blue);
-    background: #f8fafc;
-    border-radius: 0 8px 8px 0;
-    margin-bottom: 1rem;
-}
-
-.permissions-list {
-    background: #f8fafc;
-    border-radius: 8px;
-    padding: 1rem;
-}
-</style>
-@endpush
-
-@section('content')
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="user-show-header">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h1 class="h2 mb-2 fw-bold">
-                    <i class="bi bi-person-circle me-3"></i>
-                    Détails de l'Utilisateur
-                </h1>
-                <p class="mb-0 opacity-75">Consultez toutes les informations de "{{ $user->name }}"</p>
+                <div class="min-w-0 flex-1">
+                    <h2 class="truncate text-lg font-semibold text-gris-900">{{ $user->name }}</h2>
+                    <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                        <x-puce :couleur="$puceRole[$user->role] ?? 'slate'">
+                            {{ \App\Support\Roles::libelle($user->role) }}
+                        </x-puce>
+                        <x-puce :couleur="$user->is_active ? 'emerald' : 'slate'">
+                            {{ $user->is_active ? 'Actif' : 'Désactivé' }}
+                        </x-puce>
+                        @if ($soiMeme)
+                            <x-puce couleur="ogar">C’est vous</x-puce>
+                        @endif
+                    </div>
+                </div>
             </div>
-            <div>
-                <a href="{{ route('admin.users.index') }}" class="btn btn-light btn-lg">
-                    <i class="bi bi-arrow-left me-2"></i>
-                    Retour à la liste
+
+            <dl class="grid gap-px border-t border-gris-100 bg-gris-100 sm:grid-cols-2">
+                <div class="bg-white px-5 py-3">
+                    <dt class="text-[11px] font-semibold uppercase tracking-wide text-gris-500">Matricule</dt>
+                    <dd class="mt-0.5 font-mono text-sm font-semibold text-gris-900">{{ $user->matricule ?: '—' }}</dd>
+                </div>
+                <div class="bg-white px-5 py-3">
+                    <dt class="text-[11px] font-semibold uppercase tracking-wide text-gris-500">Adresse e-mail</dt>
+                    <dd class="mt-0.5 truncate text-sm text-gris-800">
+                        @if ($user->email)
+                            <a href="mailto:{{ $user->email }}" class="hover:text-ogar-700 hover:underline">{{ $user->email }}</a>
+                        @else
+                            <span class="text-gris-400">Aucune</span>
+                        @endif
+                    </dd>
+                </div>
+                <div class="bg-white px-5 py-3">
+                    <dt class="text-[11px] font-semibold uppercase tracking-wide text-gris-500">Téléphone</dt>
+                    <dd class="mt-0.5 text-sm tabular-nums text-gris-800">
+                        {{ $user->telephone ?: '—' }}
+                    </dd>
+                </div>
+                <div class="bg-white px-5 py-3">
+                    <dt class="text-[11px] font-semibold uppercase tracking-wide text-gris-500">Dernière connexion</dt>
+                    <dd class="mt-0.5 text-sm text-gris-800">
+                        @if ($user->last_login_at)
+                            {{ $user->last_login_at->format('d/m/Y à H:i') }}
+                        @else
+                            <span class="text-gris-400">Jamais connecté</span>
+                        @endif
+                    </dd>
+                </div>
+            </dl>
+
+            <p class="border-t border-gris-100 px-5 py-3 text-[11px] text-gris-500">
+                Se connecte avec son matricule{{ $user->email ? ', son adresse e-mail' : '' }}{{ $user->telephone ? ' ou son numéro de téléphone' : '' }}.
+            </p>
+        </div>
+
+        {{-- ------------------------------------------------------------
+             Le mot de passe : ce qu'on peut encore en faire
+             ------------------------------------------------------------ --}}
+        @if ($modifiable)
+            <div class="carte overflow-hidden">
+                <div class="carte-entete">
+                    <div>
+                        <h2 class="text-sm font-semibold text-gris-900">Mot de passe</h2>
+                        <p class="mt-0.5 text-xs text-gris-400">
+                            À engendrer de nouveau quand la personne l’a perdu.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center justify-between gap-4 p-5">
+                    <p class="max-w-lg text-sm leading-relaxed text-gris-600">
+                        Le mot de passe n’est pas conservé en clair : il n’est lisible qu’une fois,
+                        sur l’écran qui suit sa création. Le bouton ci-contre en engendre un nouveau
+                        et l’affiche ici même, prêt à être copié et remis à l’intéressé —
+                        <strong class="text-gris-900">l’ancien cesse aussitôt de fonctionner</strong>.
+                    </p>
+
+                    <x-confirmation :action="route('admin.users.mot-de-passe', $user)"
+                                    methode="POST"
+                                    titre="Engendrer un nouveau mot de passe ?"
+                                    :message="$user->name.' ne pourra plus entrer avec son mot de passe actuel. Le nouveau s’affichera une seule fois, à vous de le lui remettre.'"
+                                    confirmer="Engendrer"
+                                    ton="primaire"
+                                    bouton="bouton-secondaire shrink-0">
+                        Engendrer un nouveau mot de passe
+                    </x-confirmation>
+                </div>
+            </div>
+        @endif
+
+        {{-- ------------------------------------------------------------
+             Ce que le rôle ouvre
+             ------------------------------------------------------------ --}}
+        @if ($acces)
+            <div class="carte overflow-hidden">
+                <div class="carte-entete">
+                    <div>
+                        <h2 class="text-sm font-semibold text-gris-900">Droits d’accès</h2>
+                        <p class="mt-0.5 text-xs text-gris-400">
+                            {{ \App\Support\Roles::detail($user->role) }}
+                        </p>
+                    </div>
+                </div>
+
+                <ul class="divide-y divide-gris-100">
+                    @foreach ($acces as $droit)
+                        @php $refus = str_starts_with($droit, 'Aucun'); @endphp
+                        <li class="flex items-start gap-3 px-5 py-3 text-sm text-gris-700">
+                            @if ($refus)
+                                <svg class="mt-0.5 h-4 w-4 shrink-0 text-corail-500" fill="none" stroke="currentColor"
+                                     stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            @else
+                                <svg class="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" fill="none" stroke="currentColor"
+                                     stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+                                </svg>
+                            @endif
+                            <span class="{{ $refus ? 'text-gris-500' : '' }}">{{ $droit }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+    </div>
+
+    {{-- ------------------------------------------------------------
+         Colonne latérale
+         ------------------------------------------------------------ --}}
+    <div class="space-y-4">
+
+        @if ($moduleDedie)
+            <div class="carte border-ogar-200 p-5">
+                <h2 class="text-sm font-semibold text-gris-900">Se gère ailleurs</h2>
+                <p class="mt-1.5 text-sm leading-relaxed text-gris-600">
+                    Ce compte accompagne une fiche : classes, enfants ou inscription s’y trouvent.
+                    C’est là qu’il se modifie vraiment.
+                </p>
+                <a href="{{ $moduleDedie['url'] }}" class="bouton-secondaire mt-3 w-full justify-center">
+                    Ouvrir « {{ $moduleDedie['libelle'] }} »
                 </a>
             </div>
-        </div>
-    </div>
+        @endif
 
-    <!-- Messages de statut -->
-    @if(session('success'))
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle me-2"></i>
-                {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        </div>
-    </div>
-    @endif
-
-    @if(session('error'))
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle me-2"></i>
-                {{ session('error') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        </div>
-    </div>
-    @endif
-
-    <div class="row">
-        <!-- Informations principales -->
-        <div class="col-lg-8">
-            <div class="card info-card mb-4">
-                <div class="card-header bg-light border-0">
-                    <div class="text-center">
-                        <div class="user-avatar-large">
-                            {{ strtoupper(substr($user->name, 0, 1)) }}
-                        </div>
-                        <h3 class="mb-1">{{ $user->name }}</h3>
-                        <div class="d-flex justify-content-center gap-2 mb-2">
-                            <span class="role-badge role-{{ $user->role }}">
-                                @switch($user->role)
-                                    @case('superadmin')
-                                        Super Admin
-                                        @break
-                                    @case('admin')
-                                        Administrateur
-                                        @break
-                                    @case('teacher')
-                                        Enseignant
-                                        @break
-                                    @case('secretary')
-                                        Secrétaire
-                                        @break
-                                    @case('parent')
-                                        Parent
-                                        @break
-                                    @default
-                                        {{ ucfirst($user->role) }}
-                                @endswitch
-                            </span>
-                            <span class="status-badge {{ $user->is_active ? 'status-active' : 'status-inactive' }}">
-                                <i class="bi bi-{{ $user->is_active ? 'check-circle' : 'x-circle' }} me-1"></i>
-                                {{ $user->is_active ? 'Actif' : 'Inactif' }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <div class="info-item">
-                        <div class="info-label">
-                            <i class="bi bi-envelope me-1"></i>
-                            Adresse email
-                        </div>
-                        <div class="info-value">
-                            <a href="mailto:{{ $user->email }}" class="text-decoration-none">{{ $user->email }}</a>
-                        </div>
-                    </div>
-                    
-                    <div class="info-item">
-                        <div class="info-label">
-                            <i class="bi bi-person-badge me-1"></i>
-                            Rôle dans le système
-                        </div>
-                        <div class="info-value">
-                            @switch($user->role)
-                                @case('superadmin')
-                                    Super Admin
-                                    <small class="text-muted d-block">Accès complet au système y compris la maintenance</small>
-                                    @break
-                                @case('admin')
-                                    Administrateur
-                                    <small class="text-muted d-block">Accès administratif complet sauf maintenance</small>
-                                    @break
-                                @case('teacher')
-                                    Enseignant
-                                    <small class="text-muted d-block">Accès aux classes, notes et présences</small>
-                                    @break
-                                @case('secretary')
-                                    Secrétaire
-                                    <small class="text-muted d-block">Gestion des inscriptions et paiements</small>
-                                    @break
-                                @case('parent')
-                                    Parent
-                                    <small class="text-muted d-block">Consultation du suivi de ses enfants</small>
-                                    @break
-                                @default
-                                    {{ ucfirst($user->role) }}
-                            @endswitch
-                        </div>
-                    </div>
-
-                    <div class="info-item">
-                        <div class="info-label">
-                            <i class="bi bi-clock-history me-1"></i>
-                            Dernière connexion
-                        </div>
-                        <div class="info-value">
-                            @if($user->last_login_at)
-                                {{ $user->last_login_at->format('d/m/Y à H:i') }}
-                                <small class="text-muted d-block">{{ $user->last_login_at->diffForHumans() }}</small>
-                            @else
-                                <span class="text-muted">Jamais connecté</span>
-                            @endif
-                        </div>
-                    </div>
-
-                    <div class="info-item">
-                        <div class="info-label">
-                            <i class="bi bi-calendar-plus me-1"></i>
-                            Date de création
-                        </div>
-                        <div class="info-value">
-                            {{ $user->created_at->format('d/m/Y à H:i') }}
-                            <small class="text-muted d-block">{{ $user->created_at->diffForHumans() }}</small>
-                        </div>
-                    </div>
-
-                    @if($user->updated_at != $user->created_at)
-                    <div class="info-item">
-                        <div class="info-label">
-                            <i class="bi bi-calendar-check me-1"></i>
-                            Dernière modification
-                        </div>
-                        <div class="info-value">
-                            {{ $user->updated_at->format('d/m/Y à H:i') }}
-                            <small class="text-muted d-block">{{ $user->updated_at->diffForHumans() }}</small>
-                        </div>
-                    </div>
-                    @endif
-                </div>
+        <div class="carte overflow-hidden">
+            <div class="carte-entete">
+                <h2 class="text-sm font-semibold text-gris-900">Accès</h2>
             </div>
 
-            @if($user->role === 'parent')
-                <!-- Section Enfants pour les parents -->
-                @php
-                    $parentModel = \App\Models\ParentModel::where('user_id', $user->id)->first();
-                    $children = $parentModel ? $parentModel->students : collect();
-                @endphp
-                <div class="card info-card">
-                    <div class="card-header bg-light border-0">
-                        <h5 class="mb-0">
-                            <i class="bi bi-people me-2"></i>
-                            Enfants liés ({{ $children->count() }})
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        @if($children->count() > 0)
-                            <div class="list-group list-group-flush">
-                                @foreach($children as $student)
-                                    <div class="list-group-item">
-                                        <div class="d-flex align-items-center">
-                                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" 
-                                                 style="width: 40px; height: 40px; font-weight: bold;">
-                                                {{ strtoupper(substr($student->first_name, 0, 1)) }}{{ strtoupper(substr($student->last_name, 0, 1)) }}
-                                            </div>
-                                            <div class="flex-grow-1">
-                                                <h6 class="mb-1">{{ $student->first_name }} {{ $student->last_name }}</h6>
-                                                <small class="text-muted">
-                                                    <i class="bi bi-card-text me-1"></i>Matricule: {{ $student->student_id }}
-                                                    @if($student->pivot && $student->pivot->relationship_type)
-                                                        • 
-                                                        @switch($student->pivot->relationship_type)
-                                                            @case('father') Père @break
-                                                            @case('mother') Mère @break
-                                                            @case('guardian') Tuteur @break
-                                                            @default Autre
-                                                        @endswitch
-                                                    @endif
-                                                </small>
-                                            </div>
-                                            <a href="{{ route('students.show', $student->id) }}" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-eye me-1"></i>Voir
-                                            </a>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                        @else
-                            <div class="text-center text-muted py-4">
-                                <i class="bi bi-people fs-1 d-block mb-2"></i>
-                                <p class="mb-0">Aucun enfant associé à ce parent</p>
-                            </div>
-                        @endif
-                    </div>
-                </div>
+            <div class="space-y-2 p-5">
+                @if ($soiMeme)
+                    <p class="rounded-xl bg-gris-50 px-4 py-3 text-sm text-gris-600">
+                        On ne coupe pas son propre accès : il faut un autre compte de direction
+                        pour le faire.
+                    </p>
+                @elseif (! $modifiable)
+                    <p class="rounded-xl bg-gris-50 px-4 py-3 text-sm text-gris-600">
+                        Un compte de super administrateur ne se modifie que par un
+                        super administrateur.
+                    </p>
+                @else
+                    <x-confirmation :action="route('admin.users.toggle-status', $user)"
+                                    methode="POST"
+                                    :titre="$user->is_active ? 'Désactiver ce compte ?' : 'Réactiver ce compte ?'"
+                                    :message="$user->is_active
+                                        ? $user->name.' n’aura plus accès à l’application dès sa prochaine visite.'
+                                        : $user->name.' pourra de nouveau se connecter.'"
+                                    :confirmer="$user->is_active ? 'Désactiver' : 'Réactiver'"
+                                    :ton="$user->is_active ? 'danger' : 'primaire'"
+                                    bouton="bouton-secondaire w-full justify-center">
+                        {{ $user->is_active ? 'Désactiver le compte' : 'Réactiver le compte' }}
+                    </x-confirmation>
 
-                @if($parentModel)
-                    <!-- Informations détaillées du parent -->
-                    <div class="card info-card mt-4">
-                        <div class="card-header bg-light border-0">
-                            <h5 class="mb-0">
-                                <i class="bi bi-info-circle me-2"></i>
-                                Informations complémentaires
-                            </h5>
-                        </div>
-                        <div class="card-body p-0">
-                            @if($parentModel->phone)
-                            <div class="info-item">
-                                <div class="info-label">
-                                    <i class="bi bi-telephone me-1"></i>
-                                    Téléphone principal
-                                </div>
-                                <div class="info-value">
-                                    <a href="tel:{{ $parentModel->phone }}">{{ $parentModel->phone }}</a>
-                                </div>
-                            </div>
-                            @endif
-
-                            @if($parentModel->phone_2)
-                            <div class="info-item">
-                                <div class="info-label">
-                                    <i class="bi bi-telephone me-1"></i>
-                                    Téléphone secondaire
-                                </div>
-                                <div class="info-value">
-                                    <a href="tel:{{ $parentModel->phone_2 }}">{{ $parentModel->phone_2 }}</a>
-                                </div>
-                            </div>
-                            @endif
-
-                            @if($parentModel->profession)
-                            <div class="info-item">
-                                <div class="info-label">
-                                    <i class="bi bi-briefcase me-1"></i>
-                                    Profession
-                                </div>
-                                <div class="info-value">{{ $parentModel->profession }}</div>
-                            </div>
-                            @endif
-
-                            @if($parentModel->workplace)
-                            <div class="info-item">
-                                <div class="info-label">
-                                    <i class="bi bi-building me-1"></i>
-                                    Lieu de travail
-                                </div>
-                                <div class="info-value">{{ $parentModel->workplace }}</div>
-                            </div>
-                            @endif
-
-                            @if($parentModel->address)
-                            <div class="info-item">
-                                <div class="info-label">
-                                    <i class="bi bi-geo-alt me-1"></i>
-                                    Adresse
-                                </div>
-                                <div class="info-value">{{ $parentModel->address }}</div>
-                            </div>
-                            @endif
-
-                            <div class="info-item">
-                                <div class="info-label">
-                                    <i class="bi bi-check-circle me-1"></i>
-                                    Statuts
-                                </div>
-                                <div class="info-value">
-                                    @if($parentModel->is_primary_contact)
-                                        <span class="badge bg-success me-1">Contact principal</span>
-                                    @endif
-                                    @if($parentModel->can_pickup)
-                                        <span class="badge bg-info">Autorisé à récupérer</span>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <x-confirmation :action="route('admin.users.destroy', $user)"
+                                    methode="DELETE"
+                                    titre="Supprimer ce compte ?"
+                                    :message="'Le compte de '.$user->name.' sera supprimé. Cette action est définitive.'"
+                                    confirmer="Supprimer"
+                                    bouton="bouton-secondaire w-full justify-center text-corail-600">
+                        Supprimer le compte
+                    </x-confirmation>
                 @endif
-            @else
-                <!-- Permissions pour les autres rôles -->
-                <div class="card info-card">
-                    <div class="card-header bg-light border-0">
-                        <h5 class="mb-0">
-                            <i class="bi bi-shield-check me-2"></i>
-                            Permissions et Accès
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="permissions-list">
-                            @switch($user->role)
-                                @case('superadmin')
-                                    <h6 class="text-danger mb-2">Super Administrateur - Accès Complet</h6>
-                                    <ul class="mb-0">
-                                        <li>✅ Gestion complète des utilisateurs</li>
-                                        <li>✅ Accès à tous les modules</li>
-                                        <li>✅ Maintenance système</li>
-                                        <li>✅ Sauvegarde et restauration</li>
-                                        <li>✅ Configuration avancée</li>
-                                    </ul>
-                                    @break
-                                @case('admin')
-                                    <h6 class="text-primary mb-2">Administrateur</h6>
-                                    <ul class="mb-0">
-                                        <li>✅ Gestion des utilisateurs (sauf superadmin)</li>
-                                        <li>✅ Accès à tous les modules pédagogiques</li>
-                                        <li>✅ Gestion des paramètres généraux</li>
-                                        <li>❌ Maintenance système</li>
-                                    </ul>
-                                    @break
-                                @case('teacher')
-                                    <h6 class="text-success mb-2">Enseignant</h6>
-                                    <ul class="mb-0">
-                                        <li>✅ Gestion des classes assignées</li>
-                                        <li>✅ Saisie des notes</li>
-                                        <li>✅ Gestion des présences</li>
-                                        <li>✅ Consultation des emplois du temps</li>
-                                        <li>❌ Gestion administrative</li>
-                                    </ul>
-                                    @break
-                                @case('secretary')
-                                    <h6 class="text-warning mb-2">Secrétaire</h6>
-                                    <ul class="mb-0">
-                                        <li>✅ Gestion des inscriptions</li>
-                                        <li>✅ Gestion des paiements</li>
-                                        <li>✅ Communication avec les parents</li>
-                                        <li>✅ Génération de documents</li>
-                                        <li>❌ Gestion pédagogique</li>
-                                    </ul>
-                                    @break
-                            @endswitch
-                        </div>
-                    </div>
-                </div>
-            @endif
+            </div>
         </div>
 
-        <!-- Actions et informations complémentaires -->
-        <div class="col-lg-4">
-            <!-- Actions rapides -->
-            <div class="card info-card mb-4">
-                <div class="card-header bg-light border-0">
-                    <h5 class="mb-0">
-                        <i class="bi bi-gear me-2"></i>
-                        Actions
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        @if($user->role === 'parent')
-                            {{-- Actions limitées pour les parents --}}
-                            <button type="button" class="btn btn-action-large btn-toggle toggle-status-btn" 
-                                    data-user-id="{{ $user->id }}" 
-                                    data-user-name="{{ $user->name }}"
-                                    data-current-status="{{ $user->is_active }}">
-                                <i class="bi bi-toggle-{{ $user->is_active ? 'off' : 'on' }} me-2"></i>
-                                {{ $user->is_active ? 'Désactiver' : 'Activer' }} le compte
-                            </button>
-
-                            <div class="alert alert-info mb-0">
-                                <i class="bi bi-info-circle me-2"></i>
-                                La gestion complète du parent se fait via le module Parents.
-                            </div>
-                        @elseif($user->id !== auth()->id() && (!$user->isSuperAdmin() || auth()->user()->isSuperAdmin()))
-                            {{-- Actions complètes pour les autres rôles --}}
-                            <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-action-large btn-edit">
-                                <i class="bi bi-pencil me-2"></i>
-                                Modifier l'utilisateur
-                            </a>
-                            
-                            <button type="button" class="btn btn-action-large btn-toggle toggle-status-btn" 
-                                    data-user-id="{{ $user->id }}" 
-                                    data-user-name="{{ $user->name }}"
-                                    data-current-status="{{ $user->is_active }}">
-                                <i class="bi bi-toggle-{{ $user->is_active ? 'off' : 'on' }} me-2"></i>
-                                {{ $user->is_active ? 'Désactiver' : 'Activer' }} le compte
-                            </button>
-
-                            <button type="button" class="btn btn-action-large btn-delete delete-user-btn" 
-                                    data-user-id="{{ $user->id }}" 
-                                    data-user-name="{{ $user->name }}">
-                                <i class="bi bi-trash me-2"></i>
-                                Supprimer l'utilisateur
-                            </button>
-                        @else
-                            <div class="alert alert-info">
-                                <i class="bi bi-info-circle me-2"></i>
-                                Vous ne pouvez pas modifier votre propre compte ou un compte superadmin.
-                            </div>
-                        @endif
-
-                        <a href="{{ route('admin.users.index') }}" class="btn btn-action-large btn-back">
-                            <i class="bi bi-arrow-left me-2"></i>
-                            Retour à la liste
-                        </a>
-                    </div>
-                </div>
+        <div class="carte overflow-hidden">
+            <div class="carte-entete">
+                <h2 class="text-sm font-semibold text-gris-900">Historique</h2>
             </div>
 
-            <!-- Activité récente -->
-            <div class="card info-card">
-                <div class="card-header bg-light border-0">
-                    <h5 class="mb-0">
-                        <i class="bi bi-activity me-2"></i>
-                        Activité
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="activity-item">
-                        <div class="d-flex justify-content-between">
-                            <strong>Compte créé</strong>
-                            <small class="text-muted">{{ $user->created_at->format('d/m/Y') }}</small>
-                        </div>
-                        <small class="text-muted">{{ $user->created_at->diffForHumans() }}</small>
-                    </div>
-                    
-                    @if($user->updated_at != $user->created_at)
-                    <div class="activity-item">
-                        <div class="d-flex justify-content-between">
-                            <strong>Dernière modification</strong>
-                            <small class="text-muted">{{ $user->updated_at->format('d/m/Y') }}</small>
-                        </div>
-                        <small class="text-muted">{{ $user->updated_at->diffForHumans() }}</small>
-                    </div>
-                    @endif
-                    
-                    @if($user->last_login_at)
-                    <div class="activity-item">
-                        <div class="d-flex justify-content-between">
-                            <strong>Dernière connexion</strong>
-                            <small class="text-muted">{{ $user->last_login_at->format('d/m/Y') }}</small>
-                        </div>
-                        <small class="text-muted">{{ $user->last_login_at->diffForHumans() }}</small>
-                    </div>
-                    @endif
-                </div>
-            </div>
+            <ul class="divide-y divide-gris-100 text-sm">
+                <li class="flex items-center justify-between gap-3 px-5 py-3">
+                    <span class="text-gris-600">Compte ouvert</span>
+                    <span class="text-gris-800">{{ optional($user->created_at)->format('d/m/Y') }}</span>
+                </li>
+                @if ($user->updated_at && $user->created_at && $user->updated_at->ne($user->created_at))
+                    <li class="flex items-center justify-between gap-3 px-5 py-3">
+                        <span class="text-gris-600">Dernière modification</span>
+                        <span class="text-gris-800">{{ $user->updated_at->format('d/m/Y') }}</span>
+                    </li>
+                @endif
+                <li class="flex items-center justify-between gap-3 px-5 py-3">
+                    <span class="text-gris-600">Dernière connexion</span>
+                    <span class="text-gris-800">
+                        {{ $user->last_login_at ? $user->last_login_at->format('d/m/Y') : 'Jamais' }}
+                    </span>
+                </li>
+            </ul>
         </div>
     </div>
 </div>
 
-<!-- Modals -->
-@include('admin.users._modals')
 @endsection

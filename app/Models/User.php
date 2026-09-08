@@ -84,7 +84,9 @@ class User extends Authenticatable
      */
     public function isAdmin(): bool
     {
-        return in_array($this->role, ['admin', 'superadmin']);
+        // Le directeur, le proviseur et le censeur commandent aussi
+        // l'etablissement : le catalogue des roles fait foi.
+        return \App\Support\Roles::estDeDirection($this->role);
     }
 
     /**

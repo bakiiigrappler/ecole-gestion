@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\SchoolSettings;
 
+
 /**
  * Le menu de l'application, décrit en données.
  *
@@ -28,7 +29,7 @@ class MenuPrincipal
 
         $estEnseignant = $role === 'teacher';
         $estSecretaire = $role === 'secretary';
-        $estAdmin = in_array($role, ['admin', 'superadmin'], true);
+        $estAdmin = Roles::estDeDirection($role);
         $estSuperAdmin = $role === 'superadmin';
         $estEleve = $role === 'student';
         $estParent = $role === 'parent';
@@ -113,7 +114,8 @@ class MenuPrincipal
             ],
             [
                 'titre' => 'Finances',
-                'visible' => ($estAdmin || $estSecretaire) && $dansUnEtablissement,
+                // Le censeur seconde sur la scolarite, pas sur la caisse.
+                'visible' => Roles::voitLesFinances($role) && $dansUnEtablissement,
                 'liens' => [
                     ['libelle' => 'Frais scolaires', 'route' => 'fees.index', 'motif' => 'fees.*'],
                     ['libelle' => 'Paiements', 'route' => 'payments.index', 'motif' => 'payments.*'],

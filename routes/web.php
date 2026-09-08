@@ -505,6 +505,11 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
         // Gestion des utilisateurs (admin/superadmin)
         Route::resource('users', UserController::class);
         Route::post('/users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
+
+        // Le mot de passe n'est pas conserve en clair : le seul recours quand
+        // il est perdu est d'en engendrer un nouveau, affiche une fois.
+        Route::post('/users/{user}/mot-de-passe', [UserController::class, 'reinitialiserMotDePasse'])
+            ->name('users.mot-de-passe');
         
         // Informations système (superadmin uniquement)
         Route::get('/system-info', [SettingsController::class, 'systemInfo'])->name('system-info');

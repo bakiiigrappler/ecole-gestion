@@ -22,8 +22,30 @@ class UserController extends Controller
 
         $query = User::query();
 
-        // Exclure les superadmins de la liste
-        $query->where('role', '!=', 'superadmin');
+        /*
+         * Cet ecran gere le personnel de l'etablissement : direction et
+         * secretariat. Les enseignants, les parents et les eleves ont leur
+         * compte cree depuis leur propre fiche, avec ce qu'elle porte de
+         * classes, d'enfants ou d'inscription — les lister ici melangerait
+         * 900 comptes a la dizaine qui se gere vraiment.
+         *
+         * Le super administrateur reste hors liste : il ne depend d'aucun
+         * etablissement.
+         */
+        $query->whereIn('role', \App\Support\Roles::personnel())
+            ->where('role', '!=', 'superadmin');
+
+        /*
+         * Et seulement les comptes de son etablissement. Le modele `User` ne
+         * porte pas le filtre global — le scope interrogerait l'utilisateur
+         * connecte, dont la resolution passe par le modele — si bien que cet
+         * ecran montrait a l'administrateur d'une ecole les comptes de toutes
+         * les autres. Le super administrateur, lui, surplombe l'ensemble tant
+         * qu'il ne s'est place dans aucun etablissement.
+         */
+        if ($ecole = \App\Support\EcoleCourante::id()) {
+            $query->where('school_id', $ecole);
+        }
 
         // Filtrage par rôle
         if ($request->has('role') && $request->role) {
@@ -47,7 +69,10 @@ class UserController extends Controller
 
         $users = $query->orderBy('created_at', 'desc')->paginate(15);
         
-        return view('admin.users.index', compact('users'));
+        return view('admin.users.index', [
+            'users' => $users,
+            'roles' => \App\Support\Roles::personnel(),
+        ]);
     }
 
     /**
@@ -67,55 +92,75 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
-        if (!auth()->user()->isAdmin()) {
+        if (! auth()->user()->isAdmin()) {
             abort(403, 'Accès non autorisé.');
         }
 
-        $validator = Validator::make($request->all(), [
+        /*
+         * Seuls les roles du personnel s'attribuent ici, et le super
+         * administrateur ne se transmet qu'entre super administrateurs.
+         */
+        $roles = \App\Support\Roles::attribuablesPar(auth()->user()->role);
+
+        $donnees = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            // 'parent' manquait alors que la liste en affiche : enregistrer un tel
-            // compte echouait sur la validation du role.
-            'role' => 'required|in:superadmin,admin,teacher,secretary,parent',
-            'is_active' => 'boolean'
+            // Le courriel devient facultatif : le matricule attribue suffit a
+            // entrer, et tout le personnel n'a pas d'adresse.
+            'email' => 'nullable|string|email|max:255|unique:users,email',
+            'telephone' => 'nullable|string|max:30',
+            'role' => 'required|in:'.implode(',', $roles),
+            'is_active' => 'boolean',
+        ], [], [
+            'name' => 'nom complet',
+            'role' => 'rôle',
         ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
+        $numero = \App\Support\ComptesUtilisateurs::normaliserLeNumero($donnees['telephone'] ?? null);
+
+        if ($numero && User::where('telephone', $numero)->exists()) {
+            return back()->withInput()->withErrors([
+                'telephone' => 'Ce numéro sert déjà à un autre compte.',
+            ]);
         }
 
-        // Vérifier si l'utilisateur peut créer un superadmin
-        if ($request->role === 'superadmin' && !auth()->user()->isSuperAdmin()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Seul un superadmin peut créer un autre superadmin.'
-            ], 403);
-        }
-
-        // Générer le mot de passe par défaut : premier nom + 1234
-        $firstName = explode(' ', trim($request->name))[0];
-        $defaultPassword = $firstName . '1234';
-
-        // Générer le matricule automatiquement
-        $matricule = User::generateMatricule($request->name);
+        $matricule = User::generateMatricule($donnees['name']);
+        $motDePasse = \App\Support\ComptesUtilisateurs::motDePasseInitial();
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($defaultPassword),
+            'name' => $donnees['name'],
+            'email' => $donnees['email'] ?: null,
+            'telephone' => $numero,
+            'password' => Hash::make($motDePasse),
             'matricule' => $matricule,
-            'role' => $request->role,
+            'role' => $donnees['role'],
+            // Le compte appartient a l'etablissement d'ou il est cree ; sans
+            // cela il ne verrait aucune donnee une fois connecte.
+            'school_id' => \App\Support\EcoleCourante::id(),
             'is_active' => $request->boolean('is_active', true),
+            'email_verified_at' => now(),
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => "Utilisateur créé avec succès ! Matricule : {$matricule} - Mot de passe : {$defaultPassword}",
-            'user' => $user
-        ]);
+        /*
+         * Une redirection, et non du JSON : le formulaire poste normalement, et
+         * l'ancienne version affichait sa reponse brute a l'ecran.
+         */
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Compte créé. Matricule {$matricule}, mot de passe {$motDePasse}.",
+                'user' => $user,
+            ]);
+        }
+
+        return redirect()->route('admin.users.show', $user)
+            ->with('success', 'Compte créé avec succès.')
+            ->with('compte_ouvert', [
+                'titre' => 'Compte '.mb_strtolower(\App\Support\Roles::libelle($user->role)).' ouvert',
+                'identifiant' => $matricule,
+                'courriel' => $user->email,
+                'telephone' => $user->telephone,
+                'mot_de_passe' => $motDePasse,
+            ]);
     }
 
     /**
@@ -127,14 +172,45 @@ class UserController extends Controller
             abort(403, 'Accès non autorisé.');
         }
 
-        // Charger les relations pour les parents
-        if ($user->role === 'parent') {
-            $parentModel = \App\Models\ParentModel::where('user_id', $user->id)
-                ->with('students')
-                ->first();
-        }
+        self::verifierLEtablissement($user);
 
         return view('admin.users.show', compact('user'));
+    }
+
+    /**
+     * Engendrer un nouveau mot de passe, et l'afficher une fois.
+     *
+     * Le mot de passe initial n'est lisible qu'à l'écran qui suit la création :
+     * il n'est pas conservé en clair. Passé cet écran, remettre un accès à
+     * quelqu'un qui l'a perdu demandait d'aller en retaper un dans le
+     * formulaire de modification. Ce bouton en engendre un et l'affiche dans
+     * le même encart, prêt à être copié.
+     */
+    public function reinitialiserMotDePasse(User $user)
+    {
+        if (! auth()->user()->isAdmin()) {
+            abort(403, 'Accès non autorisé.');
+        }
+
+        self::verifierLEtablissement($user);
+
+        if ($user->isSuperAdmin() && ! auth()->user()->isSuperAdmin()) {
+            abort(403, 'Vous ne pouvez pas modifier un super administrateur.');
+        }
+
+        $motDePasse = \App\Support\ComptesUtilisateurs::motDePasseInitial();
+
+        $user->update(['password' => Hash::make($motDePasse)]);
+
+        return redirect()->route('admin.users.show', $user)
+            ->with('success', 'Un nouveau mot de passe a été engendré. L’ancien ne fonctionne plus.')
+            ->with('compte_ouvert', [
+                'titre' => 'Nouveau mot de passe — '.$user->name,
+                'identifiant' => $user->matricule ?: $user->email,
+                'courriel' => $user->email,
+                'telephone' => $user->telephone,
+                'mot_de_passe' => $motDePasse,
+            ]);
     }
 
     /**
@@ -145,6 +221,8 @@ class UserController extends Controller
         if (!auth()->user()->isAdmin()) {
             abort(403, 'Accès non autorisé.');
         }
+
+        self::verifierLEtablissement($user);
 
         // Un admin ne peut pas modifier un superadmin
         if ($user->isSuperAdmin() && !auth()->user()->isSuperAdmin()) {
@@ -163,6 +241,8 @@ class UserController extends Controller
             abort(403, 'Accès non autorisé.');
         }
 
+        self::verifierLEtablissement($user);
+
         // Un admin ne peut pas modifier un superadmin
         if ($user->isSuperAdmin() && !auth()->user()->isSuperAdmin()) {
             abort(403, 'Vous ne pouvez pas modifier un superadmin.');
@@ -170,17 +250,27 @@ class UserController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
+            // Facultatif, comme a la creation : le matricule suffit a entrer.
             'email' => [
-                'required',
+                'nullable',
                 'string',
                 'email',
                 'max:255',
                 Rule::unique('users')->ignore($user->id)
             ],
+            'telephone' => 'nullable|string|max:30',
             'password' => 'nullable|string|min:8|confirmed',
-            // 'parent' manquait alors que la liste en affiche : enregistrer un tel
-            // compte echouait sur la validation du role.
-            'role' => 'required|in:superadmin,admin,teacher,secretary,parent',
+            /*
+             * Le catalogue fait foi. La liste etait ecrite ici a la main, et
+             * elle avait deja diverge de ce que la vue proposait. Le role
+             * actuel du compte y est ajoute : un enseignant ou un parent
+             * modifie depuis cet ecran garderait sinon un role refuse par la
+             * validation.
+             */
+            'role' => ['required', Rule::in(array_unique(array_merge(
+                \App\Support\Roles::attribuablesPar(auth()->user()->role),
+                [$user->role],
+            )))],
             'is_active' => 'boolean'
         ]);
 
@@ -209,9 +299,18 @@ class UserController extends Controller
             ], 403);
         }
 
+        $numero = \App\Support\ComptesUtilisateurs::normaliserLeNumero($request->telephone);
+
+        if ($numero && User::where('telephone', $numero)->where('id', '!=', $user->id)->exists()) {
+            return back()->withInput()->withErrors([
+                'telephone' => 'Ce numéro sert déjà à un autre compte.',
+            ]);
+        }
+
         $updateData = [
             'name' => $request->name,
-            'email' => $request->email,
+            'email' => $request->email ?: null,
+            'telephone' => $numero,
             'role' => $request->role,
             'is_active' => $request->boolean('is_active', true),
         ];
@@ -244,8 +343,14 @@ class UserController extends Controller
             abort(403, 'Accès non autorisé.');
         }
 
+        self::verifierLEtablissement($user);
+
         // Empêcher la suppression de son propre compte
         if ($user->id === auth()->id()) {
+            if (! request()->expectsJson()) {
+                return back()->with('error', 'Vous ne pouvez pas supprimer votre propre compte.');
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => 'Vous ne pouvez pas supprimer votre propre compte.'
@@ -274,10 +379,33 @@ class UserController extends Controller
         $userName = $user->name;
         $user->delete();
 
+        // La liste poste un formulaire ordinaire : lui repondre en JSON
+        // affichait l'accolade brute a l'ecran.
+        if (! request()->expectsJson()) {
+            return redirect()->route('admin.users.index')
+                ->with('success', 'Le compte de '.$userName.' a été supprimé.');
+        }
+
         return response()->json([
             'success' => true,
             'message' => "Utilisateur '{$userName}' supprimé avec succès !"
         ]);
+    }
+
+    /**
+     * Le compte relève-t-il bien de l'établissement où l'on se trouve ?
+     *
+     * La liste est cloisonnée, mais l'adresse d'une fiche se devine à un
+     * chiffre près : sans ce garde, l'administrateur d'une école ouvrait —
+     * et réinitialisait — le compte du proviseur d'une autre.
+     */
+    private static function verifierLEtablissement(User $user): void
+    {
+        $ecole = \App\Support\EcoleCourante::id();
+
+        if ($ecole && $user->school_id && $user->school_id !== $ecole) {
+            abort(403, 'Ce compte relève d’un autre établissement.');
+        }
     }
 
     /**
@@ -289,8 +417,14 @@ class UserController extends Controller
             abort(403, 'Accès non autorisé.');
         }
 
+        self::verifierLEtablissement($user);
+
         // Empêcher la désactivation de son propre compte
         if ($user->id === auth()->id()) {
+            if (! request()->expectsJson()) {
+                return back()->with('error', 'Vous ne pouvez pas désactiver votre propre compte.');
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => 'Vous ne pouvez pas désactiver votre propre compte.'
@@ -309,6 +443,10 @@ class UserController extends Controller
 
         $status = $user->is_active ? 'activé' : 'désactivé';
         
+        if (! request()->expectsJson()) {
+            return back()->with('success', 'Le compte de '.$user->name.' a été '.$status.'.');
+        }
+
         return response()->json([
             'success' => true,
             'message' => "Utilisateur {$status} avec succès !",

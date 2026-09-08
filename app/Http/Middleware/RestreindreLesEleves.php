@@ -65,6 +65,29 @@ class RestreindreLesEleves
         'statistics*',
     ];
 
+    /**
+     * La caisse de l'établissement, quel que soit le chemin pris pour y venir.
+     *
+     * Le censeur seconde le chef d'établissement sur la scolarité et la
+     * discipline ; les frais et les encaissements ne relèvent pas de lui, et sa
+     * fiche de compte l'annonce en toutes lettres. Le menu masquait déjà la
+     * rubrique — mais un menu masqué n'est pas une porte fermée : l'adresse
+     * tapée à la main répondait 200.
+     */
+    private const CAISSE = [
+        'payments.*',
+        'payment',
+        'payment-*',
+        'process-payment',
+        'online-payment.*',
+        'fees.*',
+        'fees',
+        'level-fee*',
+        'class-fee*',
+        'enrollment-fee*',
+        'dashboard.export.financial',
+    ];
+
     public function handle(Request $request, Closure $next): Response
     {
         $utilisateur = $request->user();
@@ -99,6 +122,15 @@ class RestreindreLesEleves
             foreach (self::INTERDITES_AUX_ENSEIGNANTS as $motif) {
                 if ($route === $motif || fnmatch($motif, $route)) {
                     abort(403, 'Cette page n’est pas accessible depuis un compte enseignant.');
+                }
+            }
+        }
+
+        // Le catalogue des rôles dit qui a la caisse ; ce garde le fait tenir.
+        if ($route && ! \App\Support\Roles::voitLesFinances($utilisateur->role)) {
+            foreach (self::CAISSE as $motif) {
+                if ($route === $motif || fnmatch($motif, $route)) {
+                    abort(403, 'Les frais et les encaissements ne relèvent pas de ce rôle.');
                 }
             }
         }
