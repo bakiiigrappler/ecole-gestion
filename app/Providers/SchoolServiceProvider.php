@@ -20,9 +20,17 @@ class SchoolServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Partager les paramètres de l'école avec toutes les vues
-        view()->composer('*', function ($view) {
-            $view->with('schoolSettings', SchoolHelper::getSettings());
-        });
+        /*
+         * Le partage de `schoolSettings` avec toutes les vues a lieu dans
+         * AppServiceProvider, et là seulement.
+         *
+         * Les deux fournisseurs déclaraient le même composeur sur la même
+         * variable : le second écrasait le premier, et la version d'ici — non
+         * protégée — reprenait le dessus. Base injoignable, et le rendu de la
+         * page d'erreur échouait à son tour ; on n'obtenait plus qu'un 500
+         * muet, au moment précis où il fallait lire la cause.
+         *
+         * `SchoolHelper` reste utilisé ailleurs : seul le doublon disparaît.
+         */
     }
 }
