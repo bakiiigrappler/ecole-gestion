@@ -20,7 +20,18 @@ return new class extends Migration
         Schema::table('subjects', function (Blueprint $table) {
             $table->dropForeign(['level_id']);
             $table->dropColumn('level_id');
-            $table->string('cycle')->after('description')->comment('Cycle auquel appartient la matière (primaire, college, lycee)');
+            /*
+             * Une valeur par defaut, et non une colonne simplement NOT NULL :
+             * SQLite refuse categoriquement d'ajouter une colonne NOT NULL sans
+             * defaut — « Cannot add a NOT NULL column with default value NULL ».
+             * PostgreSQL l'accepte sur une table vide, ce qui masquait le
+             * probleme jusqu'au premier deploiement sur SQLite.
+             *
+             * « college » est le cycle le plus courant ; les matieres existantes
+             * sont de toute facon reaffectees par les seeders et par l'ecran des
+             * matieres.
+             */
+            $table->string('cycle')->default('college')->after('description')->comment('Cycle auquel appartient la matière (primaire, college, lycee)');
             $table->json('series')->nullable()->after('cycle')->comment('Séries concernées pour le lycée (JSON array)');
         });
     }

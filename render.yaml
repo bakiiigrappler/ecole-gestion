@@ -1,18 +1,23 @@
 # Plan de deploiement Render.
 #
-# Deux services : l'application, servie par l'image Docker du depot, et une
-# base PostgreSQL geree. Render lit ce fichier a la creation du « Blueprint »
-# et cable les deux — l'application recoit l'adresse et les identifiants de la
-# base sans qu'on les recopie a la main.
+# Un seul service : l'application, servie par l'image Docker du depot, avec sa
+# base SQLite dans un fichier.
+#
+# ┌──────────────────────────────────────────────────────────────────────────┐
+# │ SQLite tient dans un fichier, et le disque d'un conteneur Render est      │
+# │ EPHEMERE : a chaque redeploiement, a chaque redemarrage, a chaque reveil  │
+# │ apres mise en veille, le fichier disparait et la base repart vide.        │
+# │                                                                          │
+# │ C'est acceptable pour montrer l'application. Ce ne l'est plus des qu'un   │
+# │ etablissement y saisit de vraies inscriptions.                           │
+# │                                                                          │
+# │ Deux facons d'y remedier, le moment venu :                               │
+# │   — attacher un disque persistant Render monte sur /var/www/database ;   │
+# │   — revenir a PostgreSQL (bloc commente en fin de fichier).              │
+# └──────────────────────────────────────────────────────────────────────────┘
 #
 # Ce qui n'est PAS ici : APP_KEY, qui est un secret. Render la demande a la
 # creation. Elle s'obtient en local par `php artisan key:generate --show`.
-
-databases:
-  - name: egesco-db
-    databaseName: egesco
-    user: egesco
-    plan: free
 
 services:
   - type: web
@@ -50,23 +55,16 @@ services:
       - key: APP_TIMEZONE
         value: Africa/Libreville
 
-      # --- Base de donnees : cablee sur le service ci-dessus ---------------
-      #
-      # Une seule variable plutot que cinq : Laravel sait lire une URL de
-      # connexion complete, et Render la fournit deja toute faite. Recopier
-      # l'hote, le port, la base, l'utilisateur et le mot de passe un par un,
-      # c'est cinq occasions de se tromper — dont celle, classique, de laisser
-      # les valeurs de son poste.
+      # --- Base de donnees : un fichier -------------------------------------
+      # L'entrypoint cree le fichier s'il n'existe pas, applique les migrations,
+      # et peuple la base au premier demarrage — sans quoi aucun compte
+      # n'existerait pour s'y connecter.
       - key: DB_CONNECTION
-        value: pgsql
-      - key: DB_URL
-        fromDatabase:
-          name: egesco-db
-          property: connectionString
+        value: sqlite
+      - key: DB_DATABASE
+        value: /var/www/database/database.sqlite
 
-      # --- Sessions, cache, files ------------------------------------------
-      # En base plutot qu'en fichiers : le disque d'un conteneur Render est
-      # ephemere, une session ecrite dessus disparait au redeploiement.
+      # --- Sessions, cache, file d'attente ---------------------------------
       - key: SESSION_DRIVER
         value: database
       - key: CACHE_STORE
@@ -80,3 +78,23 @@ services:
         value: stderr
       - key: LOG_LEVEL
         value: warning
+
+# ---------------------------------------------------------------------------
+# Le jour ou la base doit survivre aux redeploiements : decommenter le bloc
+# `databases` ci-dessous, remplacer les deux variables DB_CONNECTION et
+# DB_DATABASE ci-dessus par
+#
+#       - key: DB_CONNECTION
+#         value: pgsql
+#       - key: DB_URL
+#         fromDatabase:
+#           name: egesco-db
+#           property: connectionString
+#
+# puis redeployer. Les migrations sont ecrites pour les deux moteurs.
+#
+# databases:
+#   - name: egesco-db
+#     databaseName: egesco
+#     user: egesco
+#     plan: free

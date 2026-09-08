@@ -17,14 +17,25 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // La contrainte de la colonne `role` est un CHECK : elle refuserait
-        // « student » tant qu'il n'y figure pas.
-        DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
-        DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role::text = ANY (ARRAY['superadmin', 'admin', 'teacher', 'secretary', 'parent', 'student']::text[]))");
+        $pgsql = Schema::getConnection()->getDriverName() === 'pgsql';
 
-        // Le courriel n'est plus obligatoire : un élève se connecte par son
-        // matricule, et n'a pas nécessairement d'adresse.
-        DB::statement('ALTER TABLE users ALTER COLUMN email DROP NOT NULL');
+        if ($pgsql) {
+            // La contrainte de la colonne `role` est un CHECK : elle refuserait
+            // « student » tant qu'il n'y figure pas.
+            DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
+            DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role::text = ANY (ARRAY['superadmin', 'admin', 'teacher', 'secretary', 'parent', 'student']::text[]))");
+        }
+
+        /*
+         * Le courriel n'est plus obligatoire : un élève se connecte par son
+         * matricule, et n'a pas nécessairement d'adresse.
+         *
+         * SQLite ne sait pas modifier une colonne en place ; `change()` s'en
+         * charge en reconstruisant la table, et vaut sur les deux moteurs.
+         */
+        Schema::table('users', function (Blueprint $table) {
+            $table->string('email')->nullable()->change();
+        });
 
         if (! Schema::hasColumn('students', 'user_id')) {
             Schema::table('students', function (Blueprint $table) {
@@ -44,7 +55,9 @@ return new class extends Migration
 
         DB::table('users')->where('role', 'student')->delete();
 
-        DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
-        DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role::text = ANY (ARRAY['superadmin', 'admin', 'teacher', 'secretary', 'parent']::text[]))");
+        if (Schema::getConnection()->getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check');
+            DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role::text = ANY (ARRAY['superadmin', 'admin', 'teacher', 'secretary', 'parent']::text[]))");
+        }
     }
 };

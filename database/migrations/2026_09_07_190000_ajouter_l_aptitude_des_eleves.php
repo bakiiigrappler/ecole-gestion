@@ -25,8 +25,19 @@ return new class extends Migration
             $table->text('unfitness_reason')->nullable()->after('fitness_status');
         });
 
-        // Contrainte de cohérence : les deux seules valeurs admises, et un motif
-        // present des que l'eleve est declare inapte.
+        /*
+         * Contrainte de cohérence : les deux seules valeurs admises, et un
+         * motif présent dès que l'élève est déclaré inapte.
+         *
+         * SQLite n'a pas d'`ALTER TABLE ... ADD CONSTRAINT` — il faudrait
+         * reconstruire la table entière pour y poser un CHECK. La règle reste
+         * tenue par la validation du formulaire ; la base, elle, ne la garde
+         * que là où elle sait la garder.
+         */
+        if (Schema::getConnection()->getDriverName() !== 'pgsql') {
+            return;
+        }
+
         DB::statement("
             ALTER TABLE students
             ADD CONSTRAINT students_fitness_status_check
@@ -42,8 +53,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::statement('ALTER TABLE students DROP CONSTRAINT IF EXISTS students_unfitness_reason_check');
-        DB::statement('ALTER TABLE students DROP CONSTRAINT IF EXISTS students_fitness_status_check');
+        if (Schema::getConnection()->getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE students DROP CONSTRAINT IF EXISTS students_unfitness_reason_check');
+            DB::statement('ALTER TABLE students DROP CONSTRAINT IF EXISTS students_fitness_status_check');
+        }
 
         Schema::table('students', function (Blueprint $table) {
             $table->dropColumn(['fitness_status', 'unfitness_reason']);

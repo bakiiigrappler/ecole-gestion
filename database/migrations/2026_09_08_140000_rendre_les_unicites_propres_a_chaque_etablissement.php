@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Les unicités deviennent propres à chaque établissement.
@@ -39,7 +40,18 @@ return new class extends Migration
             // portent deux contraintes.
             $table = in_array($cle, ['teachers_email', 'teachers_matricule'], true) ? 'teachers' : $cle;
 
-            DB::statement("ALTER TABLE {$table} DROP CONSTRAINT IF EXISTS {$contrainte}");
+            /*
+             * PostgreSQL pose ces unicités comme des contraintes de table ;
+             * SQLite, lui, ne connaît que les index — et n'a pas de
+             * `DROP CONSTRAINT`. Le résultat est le même dans les deux cas :
+             * un index unique sur (school_id, colonne).
+             */
+            if (Schema::getConnection()->getDriverName() === 'pgsql') {
+                DB::statement("ALTER TABLE {$table} DROP CONSTRAINT IF EXISTS {$contrainte}");
+            } else {
+                DB::statement("DROP INDEX IF EXISTS {$contrainte}");
+            }
+
             DB::statement("CREATE UNIQUE INDEX IF NOT EXISTS {$contrainte} ON {$table} (school_id, {$colonne})");
         }
     }

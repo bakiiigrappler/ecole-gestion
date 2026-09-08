@@ -32,7 +32,7 @@ class TeacherSeeder extends Seeder
             // Le prenom suit le sexe : sinon le jeu de demonstration melange
             // prenoms feminins et sexe masculin.
             $sexe = fake()->randomElement(['male', 'female']);
-            Teacher::create([
+            $enseignant = Teacher::create([
                 'employee_id' => $this->prochainMatricule(),
                 'first_name' => fake()->firstName($sexe),
                 'last_name' => fake()->lastName(),
@@ -45,11 +45,18 @@ class TeacherSeeder extends Seeder
                 'specialization' => null,
                 'cycle' => 'preprimaire',
                 'teacher_type' => 'general',
-                'assigned_class_id' => $class->id,
                 'hire_date' => fake()->date('Y-m-d', '-2 years'),
                 'salary' => rand(80000, 120000),
                 'status' => 'active',
             ]);
+
+            /*
+             * L'affectation vit dans le pivot, plus dans une colonne de la
+             * fiche : `teachers.assigned_class_id` a été supprimée le jour où
+             * les deux mécanismes concurrents ont été ramenés à un seul. Le
+             * seeder l'écrivait encore, et le peuplement s'arrêtait là.
+             */
+            $enseignant->classes()->attach($class->id, ['role' => 'principal']);
         }
 
         // Enseignants pour le primaire (généralistes)
@@ -59,7 +66,7 @@ class TeacherSeeder extends Seeder
             // Le prenom suit le sexe : sinon le jeu de demonstration melange
             // prenoms feminins et sexe masculin.
             $sexe = fake()->randomElement(['male', 'female']);
-            Teacher::create([
+            $enseignant = Teacher::create([
                 'employee_id' => $this->prochainMatricule(),
                 'first_name' => fake()->firstName($sexe),
                 'last_name' => fake()->lastName(),
@@ -72,11 +79,12 @@ class TeacherSeeder extends Seeder
                 'specialization' => null,
                 'cycle' => 'primaire',
                 'teacher_type' => 'general',
-                'assigned_class_id' => $class->id,
                 'hire_date' => fake()->date('Y-m-d', '-3 years'),
                 'salary' => rand(90000, 140000),
                 'status' => 'active',
             ]);
+
+            $enseignant->classes()->attach($class->id, ['role' => 'principal']);
         }
 
         // Enseignants pour le collège (spécialisés)
@@ -99,7 +107,6 @@ class TeacherSeeder extends Seeder
                 'specialization' => $subject,
                 'cycle' => 'college',
                 'teacher_type' => 'specialized',
-                'assigned_class_id' => null,
                 'hire_date' => fake()->date('Y-m-d', '-4 years'),
                 'salary' => rand(100000, 160000),
                 'status' => 'active',
@@ -126,7 +133,6 @@ class TeacherSeeder extends Seeder
                 'specialization' => $subject,
                 'cycle' => 'lycee',
                 'teacher_type' => 'specialized',
-                'assigned_class_id' => null,
                 'hire_date' => fake()->date('Y-m-d', '-5 years'),
                 'salary' => rand(120000, 180000),
                 'status' => 'inactive', // Inactif car le lycée n'est pas encore ouvert

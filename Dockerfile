@@ -104,9 +104,13 @@ RUN mkdir -p /etc/nginx/templates /run/nginx \
     && rm -f /etc/nginx/http.d/default.conf
 COPY docker/nginx/default.conf /etc/nginx/templates/default.conf.template
 
+# Le dossier `database` rejoint storage : SQLite y ecrit son fichier, et son
+# journal de transactions a cote. Sans le dossier accessible en ecriture,
+# SQLite echoue meme quand le fichier, lui, existe.
 RUN chmod +x /usr/local/bin/entrypoint.sh \
-    && chown -R www-data:www-data storage bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
+    && mkdir -p database \
+    && chown -R www-data:www-data storage bootstrap/cache database \
+    && chmod -R 775 storage bootstrap/cache database
 
 EXPOSE 10000
 
