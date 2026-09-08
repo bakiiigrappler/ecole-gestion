@@ -178,11 +178,26 @@ class TeacherController extends Controller
         $teacher = Teacher::create($validated);
         $this->affecterCommePrincipal($teacher, $classePrincipale);
 
+        /*
+         * Un enseignant n'avait aucun compte : il figurait au dossier sans
+         * pouvoir entrer. Il en recoit un, avec un mot de passe engendre a
+         * lui remettre, et se connecte par son matricule, son courriel ou
+         * son numero.
+         */
+        $motDePasse = \App\Support\ComptesUtilisateurs::ouvrirPourEnseignant($teacher);
+
             // Le formulaire poste normalement ; seuls l'API et les anciens
             // appels fetch attendent du JSON.
             if (! $request->expectsJson()) {
                 return redirect()->route('teachers.show', $teacher)
-                    ->with('success', 'Enseignant ajouté avec succès. Matricule attribué : '.$teacher->employee_id);
+                    ->with('success', 'Enseignant ajouté avec succès. Matricule attribué : '.$teacher->employee_id)
+                    ->with('compte_ouvert', $motDePasse ? [
+                        'titre' => 'Compte enseignant ouvert',
+                        'identifiant' => $teacher->employee_id,
+                        'courriel' => $teacher->email,
+                        'telephone' => $teacher->phone,
+                        'mot_de_passe' => $motDePasse,
+                    ] : null);
             }
 
             return response()->json([

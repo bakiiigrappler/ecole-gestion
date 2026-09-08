@@ -10,6 +10,10 @@
 
 @section('contenu')
 
+    {{-- Les identifiants du compte qui vient d'etre ouvert : c'est le seul
+         endroit ou le mot de passe est encore lisible. --}}
+    <x-compte-ouvert/>
+
 @php
     $inscriptions = $student->enrollments->sortByDesc('enrollment_date');
     $inscriptionActuelle = $inscriptions->firstWhere('status', 'active') ?? $inscriptions->first();

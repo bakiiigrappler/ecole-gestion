@@ -24,36 +24,16 @@ class ComptesEleves
      */
     public static function ouvrirPour(Student $eleve): ?User
     {
-        if (! self::estAuLycee($eleve)) {
-            return null;
-        }
+        /*
+         * Le peuplement de demonstration impose le matricule comme mot de
+         * passe : l'acces rapide de la page de connexion a besoin d'un compte
+         * eleve utilisable. Toute creation reelle passe par
+         * `ComptesUtilisateurs::ouvrirPourEleve()` sans second argument, et
+         * recoit un mot de passe engendre.
+         */
+        ComptesUtilisateurs::ouvrirPourEleve($eleve, $eleve->student_id);
 
-        if ($eleve->user_id && $compte = User::find($eleve->user_id)) {
-            return $compte;
-        }
-
-        $matricule = $eleve->student_id;
-
-        if (blank($matricule)) {
-            return null;
-        }
-
-        // Le matricule est l'identifiant : deux élèves ne peuvent pas le
-        // partager, la colonne l'impose déjà côté élèves.
-        $compte = User::where('matricule', $matricule)->first() ?? User::create([
-            'name' => trim($eleve->first_name.' '.$eleve->last_name),
-            'email' => null,
-            'matricule' => $matricule,
-            'password' => Hash::make($matricule),
-            'role' => 'student',
-            'school_id' => $eleve->school_id,
-            'is_active' => true,
-            'email_verified_at' => now(),
-        ]);
-
-        $eleve->forceFill(['user_id' => $compte->id])->save();
-
-        return $compte;
+        return $eleve->fresh()->user_id ? User::find($eleve->fresh()->user_id) : null;
     }
 
     /**

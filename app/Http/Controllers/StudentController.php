@@ -452,6 +452,17 @@ class StudentController extends Controller
 
             DB::commit();
 
+            /*
+             * Le compte de l'eleve, s'il entre au lycee : seuls les lyceens
+             * en recoivent un. Il se connecte par son matricule, avec un mot
+             * de passe engendre qui doit lui etre remis — la fiche qui suit
+             * est le seul endroit ou on peut encore le lire.
+             *
+             * L'eleve est recharge : le compte ne peut s'ouvrir qu'une fois
+             * l'inscription enregistree, c'est elle qui dit le cycle.
+             */
+            $motDePasse = \App\Support\ComptesUtilisateurs::ouvrirPourEleve($student->fresh());
+
             $successMessage = 'Élève ajouté avec succès!' . 
                            ($hasEnrollment ? ' Inscription créée.' : '') .
                            ' Matricule généré: ' . $student->student_id;
@@ -481,7 +492,15 @@ class StudentController extends Controller
                 ]);
             }
 
-            return redirect()->route('students.index')->with('success', $successMessage);
+            return redirect()->route('students.show', $student->id)
+                ->with('success', $successMessage)
+                ->with('compte_ouvert', $motDePasse ? [
+                    'titre' => 'Compte élève ouvert',
+                    'identifiant' => $student->student_id,
+                    'courriel' => $student->email,
+                    'telephone' => $student->phone,
+                    'mot_de_passe' => $motDePasse,
+                ] : null);
             
         } catch (\Exception $e) {
             DB::rollback();
