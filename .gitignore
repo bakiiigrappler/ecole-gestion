@@ -152,3 +152,22 @@ composer.phar
 # Custom
 /public/storage
 /storage/app/public
+# ------------------------------------------------------------------
+# Propre a chaque installation, jamais partage
+# ------------------------------------------------------------------
+
+# Reglages de la plateforme, poses depuis l'ecran de personnalisation.
+# Chaque instance a les siens ; les valeurs d'origine sont dans le code.
+/storage/app/marque.json
+/storage/app/plateforme.json
+
+# Logo de la plateforme, televerse depuis la personnalisation
+/public/marque/
+
+# Cookies de session laisses par les appels curl de developpement
+cookies.txt
+
+# Sorties d'export produites pendant les essais
+/test_*.pdf
+/test_*.csv
+/test_*.xlsx

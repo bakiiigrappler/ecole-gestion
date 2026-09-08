@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+
+use App\Models\Concerns\AppartientAUnEtablissement;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Level extends Model
 {
+    use AppartientAUnEtablissement;
+
     protected $fillable = [
         'name',
         'code',

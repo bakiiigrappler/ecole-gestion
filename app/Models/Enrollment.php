@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+
+use App\Models\Concerns\AppartientAUnEtablissement;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Enrollment extends Model
 {
+    use AppartientAUnEtablissement;
+
     protected $fillable = [
         'student_id',
         'class_id',
@@ -22,8 +26,24 @@ class Enrollment extends Model
         'applicant_phone',
         'applicant_email',
         'applicant_address',
+        // Les cinq colonnes du responsable existaient en base mais etaient
+        // absentes d'ici : rien ne pouvait les ecrire, et la fiche affichait
+        // toujours un responsable vide.
+        'parent_first_name',
+        'parent_last_name',
+        'parent_phone',
+        'parent_email',
+        'parent_relationship',
         'enrollment_status',
         'is_new_enrollment',
+        'is_reinscription',
+        'reinscription_student_id',
+        'student_status',
+        'previous_class_id',
+        'previous_academic_year_id',
+        'previous_year_result',
+        'previous_year_average',
+        'status_comments',
         'total_fees',
         'amount_paid',
         'balance_due',
@@ -33,6 +53,7 @@ class Enrollment extends Model
         'payment_status',
         'payment_due_date',
         'receipt_number',
+        'enrollment_code',
         'mobile_money_provider',
         'mobile_money_number'
     ];
@@ -41,10 +62,12 @@ class Enrollment extends Model
         'enrollment_date' => 'date',
         'applicant_date_of_birth' => 'date',
         'is_new_enrollment' => 'boolean',
+        'is_reinscription' => 'boolean',
         'payment_due_date' => 'date',
         'total_fees' => 'decimal:2',
         'amount_paid' => 'decimal:2',
         'balance_due' => 'decimal:2',
+        'previous_year_average' => 'decimal:2',
     ];
 
     /**
@@ -188,9 +211,49 @@ class Enrollment extends Model
     }
 
     // Accesseurs pour le nouveau workflow
+    /**
+     * Identite portee par le dossier.
+     *
+     * Une inscription deposee au guichet renseigne les champs `applicant_*` ;
+     * une inscription rattachee a un eleve existant les laisse vides et
+     * l'identite vit sur l'eleve. Les recus ne lisaient que les premiers et
+     * tombaient sur `format() on null` pour les 724 dossiers rattaches.
+     */
     public function getApplicantFullNameAttribute()
     {
-        return $this->applicant_first_name . ' ' . $this->applicant_last_name;
+        $nom = trim($this->applicant_first_name . ' ' . $this->applicant_last_name);
+
+        return $nom !== '' ? $nom : ($this->student?->full_name ?? '');
+    }
+
+    /** Date de naissance du dossier, reprise sur l'eleve a defaut. */
+    public function getIdentiteNaissanceAttribute()
+    {
+        return $this->applicant_date_of_birth ?? $this->student?->date_of_birth;
+    }
+
+    /** Sexe du dossier, repris sur l'eleve a defaut. */
+    public function getIdentiteSexeAttribute()
+    {
+        return $this->applicant_gender ?? $this->student?->gender;
+    }
+
+    /** Adresse du dossier, reprise sur l'eleve a defaut. */
+    public function getIdentiteAdresseAttribute()
+    {
+        return $this->applicant_address ?: $this->student?->address;
+    }
+
+    /** Telephone du dossier, repris sur l'eleve a defaut. */
+    public function getIdentiteTelephoneAttribute()
+    {
+        return $this->applicant_phone ?: $this->student?->phone;
+    }
+
+    /** Courriel du dossier, repris sur l'eleve a defaut. */
+    public function getIdentiteCourrielAttribute()
+    {
+        return $this->applicant_email ?: $this->student?->email;
     }
 
     public function getParentFullNameAttribute()
@@ -200,7 +263,7 @@ class Enrollment extends Model
 
     public function getApplicantAgeAttribute()
     {
-        return $this->applicant_date_of_birth ? $this->applicant_date_of_birth->age : null;
+        return $this->identite_naissance?->age;
     }
 
     public function getEnrollmentStatusBadgeAttribute()
@@ -291,7 +354,7 @@ class Enrollment extends Model
             'last_name' => $this->parent_last_name,
             'phone' => $this->parent_phone,
             'email' => $this->parent_email,
-            'relationship' => $this->parent_relationship,
+            'relationship_type' => $this->parent_relationship,
             'address' => $this->applicant_address ?? 'Adresse non renseignée', // Utiliser l'adresse de l'inscrit ou valeur par défaut
             'is_primary_contact' => true,
             'can_pickup' => true
@@ -383,6 +446,32 @@ class Enrollment extends Model
     }
 
     /**
+     * Générer un code d'inscription unique pour le QR code
+     */
+    public function generateEnrollmentCode()
+    {
+        if (!$this->enrollment_code) {
+            $year = date('Y');
+            
+            // Format: ENR-YYYY-XXXXXX (ENR-2024-000001)
+            $lastEnrollment = static::where('enrollment_code', 'like', "ENR-{$year}-%")
+                                ->orderBy('enrollment_code', 'desc')
+                                ->first();
+            
+            $nextNumber = 1;
+            if ($lastEnrollment) {
+                $lastNumber = intval(substr($lastEnrollment->enrollment_code, -6));
+                $nextNumber = $lastNumber + 1;
+            }
+            
+            $this->enrollment_code = "ENR-{$year}-" . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+            $this->save();
+        }
+        
+        return $this->enrollment_code;
+    }
+
+    /**
      * Générer automatiquement une référence de paiement
      */
     public function generatePaymentReference()
@@ -444,5 +533,187 @@ class Enrollment extends Model
     public function scopePendingPayment($query)
     {
         return $query->where('payment_status', 'pending');
+    }
+    
+    // Méthodes pour la gestion du statut de réinscription
+    
+    /**
+     * Déterminer automatiquement le statut de l'élève basé sur son historique
+     */
+    public function determineStudentStatus()
+    {
+        // Si ce n'est pas une réinscription, c'est un nouvel élève
+        if (!$this->is_reinscription || !$this->reinscription_student_id) {
+            $this->student_status = 'nouveau';
+            $this->previous_year_result = 'non_applicable';
+            return 'nouveau';
+        }
+        
+        // Trouver l'élève par son matricule
+        $student = Student::where('student_id', $this->reinscription_student_id)->first();
+        
+        if (!$student) {
+            $this->student_status = 'nouveau';
+            $this->status_comments = 'Matricule non trouvé - traité comme nouvel élève';
+            return 'nouveau';
+        }
+        
+        // Trouver la dernière inscription de l'élève
+        $lastEnrollment = Enrollment::where('student_id', $student->id)
+            ->where('id', '!=', $this->id)
+            ->orderBy('academic_year_id', 'desc')
+            ->with(['schoolClass.level', 'academicYear'])
+            ->first();
+        
+        if (!$lastEnrollment) {
+            $this->student_status = 'nouveau';
+            $this->status_comments = 'Aucune inscription précédente trouvée';
+            return 'nouveau';
+        }
+        
+        // Sauvegarder les informations de l'année précédente
+        $this->previous_class_id = $lastEnrollment->class_id;
+        $this->previous_academic_year_id = $lastEnrollment->academic_year_id;
+        
+        // Calculer la moyenne de l'année précédente
+        $previousAverage = $this->calculatePreviousYearAverage($student->id, $lastEnrollment->academic_year_id);
+        $this->previous_year_average = $previousAverage;
+        
+        // Déterminer si l'élève passe ou redouble (moyenne >= 10 pour passer)
+        $hasPassed = $previousAverage >= 10;
+        
+        if ($hasPassed) {
+            $this->previous_year_result = 'admis';
+            
+            // Vérifier si l'élève s'inscrit dans la classe suivante
+            $isNextClass = $this->isNextClass($lastEnrollment->schoolClass, $this->schoolClass);
+            
+            if ($isNextClass) {
+                $this->student_status = 'passant';
+                $this->status_comments = "Admis avec moyenne de {$previousAverage}/20 - Passage en classe supérieure";
+            } else {
+                $this->student_status = 'nouveau';
+                $this->status_comments = "Admis mais inscription dans une classe différente";
+            }
+        } else {
+            $this->previous_year_result = 'redouble';
+            $this->student_status = 'redoublant';
+            $this->status_comments = "Moyenne insuffisante ({$previousAverage}/20) - Redoublement";
+        }
+        
+        return $this->student_status;
+    }
+    
+    /**
+     * Calculer la moyenne générale de l'année précédente
+     */
+    private function calculatePreviousYearAverage($studentId, $academicYearId)
+    {
+        $grades = \App\Models\Grade::where('student_id', $studentId)
+            ->whereHas('subject', function($q) use ($academicYearId) {
+                $q->whereHas('schedules', function($sq) use ($academicYearId) {
+                    $sq->where('academic_year_id', $academicYearId);
+                });
+            })
+            ->get();
+        
+        if ($grades->isEmpty()) {
+            return 0;
+        }
+        
+        $totalWeightedScore = 0;
+        $totalCoefficients = 0;
+        
+        foreach ($grades as $grade) {
+            $subject = $grade->subject;
+            $coefficient = $subject ? ($subject->coefficient ?? 1) : 1;
+            
+            $totalWeightedScore += $grade->score * $coefficient;
+            $totalCoefficients += $coefficient;
+        }
+        
+        return $totalCoefficients > 0 ? round($totalWeightedScore / $totalCoefficients, 2) : 0;
+    }
+    
+    /**
+     * Vérifier si la classe actuelle est la classe suivante de la classe précédente
+     */
+    private function isNextClass($previousClass, $currentClass)
+    {
+        if (!$previousClass || !$currentClass) {
+            return false;
+        }
+        
+        // Charger les niveaux si nécessaire
+        if (!$previousClass->relationLoaded('level')) {
+            $previousClass->load('level');
+        }
+        if (!$currentClass->relationLoaded('level')) {
+            $currentClass->load('level');
+        }
+        
+        $previousLevel = $previousClass->level;
+        $currentLevel = $currentClass->level;
+        
+        if (!$previousLevel || !$currentLevel) {
+            return false;
+        }
+        
+        // Vérifier si le cycle est le même
+        if ($previousLevel->cycle !== $currentLevel->cycle) {
+            // Peut-être un passage de cycle (ex: préprimaire -> primaire)
+            return false;
+        }
+        
+        // Vérifier si l'ordre du niveau actuel est supérieur de 1
+        return ($currentLevel->order == $previousLevel->order + 1);
+    }
+    
+    /**
+     * Obtenir le badge de statut de l'élève
+     */
+    public function getStudentStatusBadgeAttribute()
+    {
+        return [
+            'nouveau' => '<span class="badge bg-success">Nouveau</span>',
+            'redoublant' => '<span class="badge bg-warning">Redoublant</span>',
+            'passant' => '<span class="badge bg-primary">Passant</span>'
+        ][$this->student_status] ?? '<span class="badge bg-secondary">Non défini</span>';
+    }
+    
+    /**
+     * Obtenir le label du statut de l'élève
+     */
+    public function getStudentStatusLabelAttribute()
+    {
+        return [
+            'nouveau' => 'Nouveau',
+            'redoublant' => 'Redoublant',
+            'passant' => 'Passant'
+        ][$this->student_status] ?? 'Non défini';
+    }
+    
+    /**
+     * Scope pour les élèves redoublants
+     */
+    public function scopeRedoublants($query)
+    {
+        return $query->where('student_status', 'redoublant');
+    }
+    
+    /**
+     * Scope pour les élèves passants
+     */
+    public function scopePassants($query)
+    {
+        return $query->where('student_status', 'passant');
+    }
+    
+    /**
+     * Scope pour les nouveaux élèves
+     */
+    public function scopeNouveaux($query)
+    {
+        return $query->where('student_status', 'nouveau');
     }
 }

@@ -1,348 +1,124 @@
 @extends('layouts.app')
 
-@section('title', 'Informations Système - Egesco')
+@section('titre', 'Informations système')
+@section('sous-titre', 'Environnement d’exécution — '.($systemInfo['laravel']['environment'] ?? '').' · PHP '.($systemInfo['php']['version'] ?? ''))
 
-@section('breadcrumb')
-<li class="breadcrumb-item"><a href="{{ route('admin.settings.index') }}">Administration</a></li>
-<li class="breadcrumb-item active">Informations système</li>
+@section('actions-entete')
+    <a href="{{ route('admin.maintenance') }}" class="bouton-secondaire">Maintenance</a>
+    <a href="{{ route('admin.settings.index') }}" class="bouton-primaire">Paramètres généraux</a>
 @endsection
 
-@push('styles')
-<style>
-:root {
-    --primary-blue: #2563eb;
-    --success-green: #059669;
-    --warning-orange: #d97706;
-    --danger-red: #dc2626;
-    --info-cyan: #0891b2;
-    --gray-neutral: #6b7280;
-}
+@section('contenu')
 
-.system-header {
-    background: linear-gradient(135deg, var(--primary-blue), #1e40af);
-    color: white;
-    border-radius: 12px;
-    padding: 2rem;
-    margin-bottom: 2rem;
-}
+@php
+    $php = $systemInfo['php'] ?? [];
+    $serveur = $systemInfo['server'] ?? [];
+    $laravel = $systemInfo['laravel'] ?? [];
+    $base = $systemInfo['database'] ?? [];
+    $perf = $systemInfo['performance'] ?? [];
 
-.info-card {
-    border-radius: 12px;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
+    $extensions = collect($php['extensions'] ?? [])->sort()->values();
 
-.info-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
-}
+    // Le mode debug en production est la seule anomalie que cette page peut
+    // signaler d'elle-meme : autant la rendre visible.
+    $debugActif = filter_var($laravel['debug_mode'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    $enProduction = ($laravel['environment'] ?? '') === 'production';
 
-.info-card-header {
-    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
-    border-bottom: 1px solid #e5e7eb;
-    padding: 1rem 1.5rem;
-    font-weight: 600;
-    border-radius: 12px 12px 0 0;
-}
+    $bloc = function (string $titre, array $lignes) {
+        return ['titre' => $titre, 'lignes' => $lignes];
+    };
 
-.info-item {
-    display: flex;
-    justify-content: between;
-    align-items: center;
-    padding: 0.75rem 0;
-    border-bottom: 1px solid #f1f5f9;
-}
+    $blocs = [
+        $bloc('PHP', [
+            'Version' => $php['version'] ?? '—',
+            'Mémoire allouée' => $php['memory_limit'] ?? '—',
+            'Temps d’exécution max.' => ($php['max_execution_time'] ?? '—').' s',
+            'Téléversement max.' => $php['upload_max_filesize'] ?? '—',
+            'Taille de requête max.' => $php['post_max_size'] ?? '—',
+        ]),
+        $bloc('Serveur', [
+            'Logiciel' => $serveur['software'] ?? '—',
+            'Système' => $serveur['os'] ?? '—',
+            'Hôte' => $serveur['hostname'] ?? '—',
+            'Racine' => $serveur['document_root'] ?? '—',
+        ]),
+        $bloc('Application', [
+            'Laravel' => $laravel['version'] ?? '—',
+            'Environnement' => $laravel['environment'] ?? '—',
+            'Fuseau horaire' => $laravel['timezone'] ?? '—',
+            'Langue' => $laravel['locale'] ?? '—',
+            'Cache' => $laravel['cache_driver'] ?? '—',
+            'Sessions' => $laravel['session_driver'] ?? '—',
+            'Files d’attente' => $laravel['queue_driver'] ?? '—',
+        ]),
+        $bloc('Base de données', [
+            'Connexion' => $base['connection'] ?? '—',
+            'Hôte' => $base['host'] ?? '—',
+            'Base' => $base['database'] ?? '—',
+            'Version' => $base['version'] ?? '—',
+            'Taille' => $base['size'] ?? '—',
+            'Tables' => $base['tables_count'] ?? '—',
+        ]),
+    ];
+@endphp
 
-.info-item:last-child {
-    border-bottom: none;
-}
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <x-statistique libelle="Base de données" :valeur="$base['size'] ?? '—'"
+                       :detail="($base['tables_count'] ?? 0).' table(s)'" couleur="ogar"/>
+        <x-statistique libelle="Stockage" :valeur="$perf['storage_used'] ?? '—'"
+                       :detail="'Cache : '.($perf['cache_size'] ?? '—')" couleur="emerald"/>
+        <x-statistique libelle="Mémoire utilisée" :valeur="$perf['memory_usage'] ?? '—'"
+                       :detail="'Pic : '.($perf['memory_peak'] ?? '—')" couleur="violet"/>
+        <x-statistique libelle="Journaux" :valeur="$perf['logs_size'] ?? '—'"
+                       detail="storage/logs" couleur="amber"/>
+    </div>
 
-.info-label {
-    font-weight: 600;
-    color: var(--gray-neutral);
-    min-width: 150px;
-}
+    @if ($debugActif && $enProduction)
+        <div class="mt-4 flex items-start gap-3 rounded-xl border border-corail-200 bg-corail-50 px-4 py-3 text-sm text-corail-800">
+            <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+            </svg>
+            <span>
+                <strong>Le mode debug est actif en production.</strong>
+                Les traces d’erreur exposent le code et la configuration : passez <code>APP_DEBUG</code> à <code>false</code>.
+            </span>
+        </div>
+    @endif
 
-.info-value {
-    flex: 1;
-    text-align: right;
-}
+    <div class="mt-4 grid items-start gap-4 lg:grid-cols-2">
+        @foreach ($blocs as $carte)
+            <div class="carte overflow-hidden">
+                <div class="carte-entete">
+                    <h2 class="text-sm font-semibold text-gris-900">{{ $carte['titre'] }}</h2>
+                </div>
 
-.status-good { color: var(--success-green); }
-.status-warning { color: var(--warning-orange); }
-.status-error { color: var(--danger-red); }
-
-.badge-status {
-    padding: 0.25rem 0.5rem;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 500;
-}
-
-.badge-good { background-color: var(--success-green); color: white; }
-.badge-warning { background-color: var(--warning-orange); color: white; }
-.badge-error { background-color: var(--danger-red); color: white; }
-
-.extension-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.5rem;
-}
-
-.extension-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.5rem;
-    background: #f8fafc;
-    border-radius: 6px;
-}
-</style>
-@endpush
-
-@section('content')
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="system-header">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h1 class="h2 mb-2 fw-bold">
-                    <i class="bi bi-info-circle me-3"></i>
-                    Informations Système
-                </h1>
-                <p class="mb-0 opacity-75">Détails sur l'installation et performances</p>
+                <dl class="divide-y divide-gris-100">
+                    @foreach ($carte['lignes'] as $libelle => $valeur)
+                        <div class="flex items-baseline justify-between gap-4 px-5 py-2">
+                            <dt class="shrink-0 text-sm text-gris-500">{{ $libelle }}</dt>
+                            <dd class="truncate text-right text-sm font-medium text-gris-800">{{ $valeur }}</dd>
+                        </div>
+                    @endforeach
+                </dl>
             </div>
-            <div>
-                <button class="btn btn-light btn-lg" onclick="window.print()">
-                    <i class="bi bi-printer me-2"></i>
-                    Imprimer
-                </button>
-            </div>
+        @endforeach
+    </div>
+
+    <div class="carte mt-4 overflow-hidden">
+        <div class="carte-entete">
+            <h2 class="text-sm font-semibold text-gris-900">Extensions PHP chargées</h2>
+            <span class="text-xs text-gris-400">{{ $extensions->count() }}</span>
+        </div>
+
+        <div class="flex flex-wrap gap-1.5 p-5">
+            @forelse ($extensions as $extension)
+                <span class="rounded border border-gris-200 bg-gris-50 px-2 py-0.5 font-mono text-[11px] text-gris-600">
+                    {{ $extension }}
+                </span>
+            @empty
+                <p class="text-sm text-gris-400">Liste des extensions indisponible.</p>
+            @endforelse
         </div>
     </div>
 
-    <div class="row">
-        <!-- Informations PHP -->
-        <div class="col-lg-6 mb-4">
-            <div class="card info-card">
-                <div class="info-card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-code-square text-primary me-2"></i>
-                        Configuration PHP
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="info-item">
-                        <span class="info-label">Version PHP</span>
-                        <span class="info-value fw-bold">{{ $systemInfo['php']['version'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Limite mémoire</span>
-                        <span class="info-value">{{ $systemInfo['php']['memory_limit'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Temps d'exécution max</span>
-                        <span class="info-value">{{ $systemInfo['php']['max_execution_time'] }}s</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Taille max upload</span>
-                        <span class="info-value">{{ $systemInfo['php']['upload_max_filesize'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Taille max POST</span>
-                        <span class="info-value">{{ $systemInfo['php']['post_max_size'] }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Informations Serveur -->
-        <div class="col-lg-6 mb-4">
-            <div class="card info-card">
-                <div class="info-card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-server text-info me-2"></i>
-                        Informations Serveur
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="info-item">
-                        <span class="info-label">Logiciel serveur</span>
-                        <span class="info-value">{{ $systemInfo['server']['software'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Système d'exploitation</span>
-                        <span class="info-value">{{ $systemInfo['server']['os'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Nom d'hôte</span>
-                        <span class="info-value">{{ $systemInfo['server']['hostname'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Racine du document</span>
-                        <span class="info-value small">{{ Str::limit($systemInfo['server']['document_root'], 30) }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Informations Laravel -->
-        <div class="col-lg-6 mb-4">
-            <div class="card info-card">
-                <div class="info-card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-gear text-warning me-2"></i>
-                        Configuration Laravel
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="info-item">
-                        <span class="info-label">Version Laravel</span>
-                        <span class="info-value fw-bold">{{ $systemInfo['laravel']['version'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Environnement</span>
-                        <span class="info-value">
-                            <span class="badge badge-status {{ $systemInfo['laravel']['environment'] === 'production' ? 'badge-good' : 'badge-warning' }}">
-                                {{ ucfirst($systemInfo['laravel']['environment']) }}
-                            </span>
-                        </span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Mode debug</span>
-                        <span class="info-value">
-                            <span class="badge badge-status {{ $systemInfo['laravel']['debug_mode'] ? 'badge-warning' : 'badge-good' }}">
-                                {{ $systemInfo['laravel']['debug_mode'] ? 'Activé' : 'Désactivé' }}
-                            </span>
-                        </span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Fuseau horaire</span>
-                        <span class="info-value">{{ $systemInfo['laravel']['timezone'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Locale</span>
-                        <span class="info-value">{{ $systemInfo['laravel']['locale'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Driver cache</span>
-                        <span class="info-value">{{ $systemInfo['laravel']['cache_driver'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Driver session</span>
-                        <span class="info-value">{{ $systemInfo['laravel']['session_driver'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Driver queue</span>
-                        <span class="info-value">{{ $systemInfo['laravel']['queue_driver'] }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Informations Base de données -->
-        <div class="col-lg-6 mb-4">
-            <div class="card info-card">
-                <div class="info-card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-database text-success me-2"></i>
-                        Base de données
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="info-item">
-                        <span class="info-label">Connexion</span>
-                        <span class="info-value">{{ $systemInfo['database']['connection'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Hôte</span>
-                        <span class="info-value">{{ $systemInfo['database']['host'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Base de données</span>
-                        <span class="info-value">{{ $systemInfo['database']['database'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Version</span>
-                        <span class="info-value">{{ $systemInfo['database']['version'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Taille</span>
-                        <span class="info-value fw-bold">{{ $systemInfo['database']['size'] }}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Nombre de tables</span>
-                        <span class="info-value">{{ $systemInfo['database']['tables_count'] }}</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Performance et stockage -->
-        <div class="col-12 mb-4">
-            <div class="card info-card">
-                <div class="info-card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-speedometer2 text-danger me-2"></i>
-                        Performance et Stockage
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <div class="h3 text-primary">{{ $systemInfo['performance']['storage_used'] }}</div>
-                                <div class="text-muted">Stockage utilisé</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <div class="h3 text-info">{{ $systemInfo['performance']['cache_size'] }}</div>
-                                <div class="text-muted">Taille du cache</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <div class="h3 text-warning">{{ $systemInfo['performance']['logs_size'] }}</div>
-                                <div class="text-muted">Taille des logs</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <div class="h3 text-success">{{ $systemInfo['performance']['memory_usage'] }}</div>
-                                <div class="text-muted">Mémoire utilisée</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Extensions PHP -->
-        <div class="col-12">
-            <div class="card info-card">
-                <div class="info-card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-puzzle text-secondary me-2"></i>
-                        Extensions PHP Importantes
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="extension-grid">
-                        @foreach($systemInfo['php']['extensions'] as $extension => $loaded)
-                        <div class="extension-item">
-                            <span>{{ $extension }}</span>
-                            <span class="badge badge-status {{ $loaded ? 'badge-good' : 'badge-error' }}">
-                                <i class="bi bi-{{ $loaded ? 'check' : 'x' }}-circle me-1"></i>
-                                {{ $loaded ? 'Chargée' : 'Manquante' }}
-                            </span>
-                        </div>
-                        @endforeach
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 @endsection

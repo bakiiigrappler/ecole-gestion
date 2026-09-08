@@ -1,227 +1,195 @@
 @extends('layouts.app')
 
-@section('title', 'Gérer les Notes - ' . $student->first_name . ' ' . $student->last_name)
+@section('titre', 'Notes de '.$student->full_name)
+@section('sous-titre', ($class->name ?? 'classe inconnue').' — '.($academicYear->name ?? 'année en cours'))
 
-@section('head')
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+@section('actions-entete')
+    <a href="{{ route('grades.bulletin', $student->id) }}" class="bouton-secondaire">Bulletin</a>
+    <a href="{{ route('grades.create', ['student_id' => $student->id]) }}" class="bouton-primaire">Ajouter une note</a>
 @endsection
 
-@section('breadcrumb')
-<li class="breadcrumb-item"><a href="{{ route('grades.index') }}">Notes</a></li>
-<li class="breadcrumb-item active">Gérer - {{ $student->first_name }} {{ $student->last_name }}</li>
-@endsection
+@section('contenu')
 
-@section('content')
-<div class="container-fluid">
-    <!-- En-tête -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-0">Gérer les Notes</h1>
-                    <p class="text-muted">Modifier ou supprimer les notes de {{ $student->first_name }} {{ $student->last_name }}</p>
-                </div>
-                <div>
-                    <a href="{{ route('grades.create', ['student_id' => $student->id]) }}" class="btn btn-primary">
-                        <i class="bi bi-journal-plus me-2"></i>
-                        Ajouter une note
-                    </a>
-                    <a href="{{ route('grades.index') }}" class="btn btn-outline-secondary ms-2">
-                        <i class="bi bi-arrow-left me-2"></i>
-                        Retour à la liste
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+@php
+    $trimestres = ['1er trimestre', '2ème trimestre', '3ème trimestre'];
 
-    <!-- Informations de l'élève -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <strong>Élève:</strong>
-                            <p class="mb-0">{{ $student->first_name }} {{ $student->last_name }}</p>
-                        </div>
-                        <div class="col-md-3">
-                            <strong>Classe:</strong>
-                            <p class="mb-0">{{ $class->name ?? 'N/A' }}</p>
-                        </div>
-                        <div class="col-md-3">
-                            <strong>Niveau:</strong>
-                            <p class="mb-0">{{ optional($class->level)->name ?? 'N/A' }}</p>
-                        </div>
-                        <div class="col-md-3">
-                            <strong>Année scolaire:</strong>
-                            <p class="mb-0">{{ $academicYear->name ?? '2024-2025' }}</p>
-                        </div>
+    // Une note peut être sur 10, 20 ou 100 : on la ramène sur 20 pour comparer.
+    $sur20 = fn ($g) => $g->max_score > 0 ? $g->score / $g->max_score * 20 : null;
+
+    $moyenne = fn ($lot) => $lot->isEmpty() ? null : $lot->map($sur20)->filter()->avg();
+    $note = fn ($m) => $m === null ? '—' : number_format((float) $m, 2, ',', ' ');
+
+    $classeMoyenne = fn ($m) => $m === null ? 'text-gris-300'
+        : ($m >= 12 ? 'text-emerald-700' : ($m >= 10 ? 'text-soleil-700' : 'text-corail-700'));
+    $teinteMoyenne = fn ($m) => $m === null ? 'slate'
+        : ($m >= 12 ? 'emerald' : ($m >= 10 ? 'amber' : 'rose'));
+
+    $parMatiere = $grades->groupBy(fn ($g) => $g->subject->name ?? 'Matière supprimée')->sortKeys();
+    $moyenneGenerale = $moyenne($grades);
+
+    $ongletInitial = in_array(request('trimestre'), $trimestres, true) ? request('trimestre') : 'tous';
+@endphp
+
+<div x-data="{ trimestre: '{{ $ongletInitial }}' }">
+
+    {{-- ------------------------------------------------------------------
+         En-tête de l'élève
+         ------------------------------------------------------------------ --}}
+    <div class="carte mb-4 p-5">
+        <div class="flex flex-wrap items-start gap-5">
+            <x-avatar :nom="$student->full_name" :photo="$student->photo ?? null" class="h-20 w-20 shrink-0 text-xl"/>
+
+            <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="text-xl font-bold text-gris-900">{{ $student->full_name }}</h2>
+                    @if (($student->fitness_status ?? 'apte') === 'inapte')
+                        <x-puce couleur="rose">Inapte</x-puce>
+                    @endif
+                </div>
+
+                <p class="mt-1 text-sm text-gris-500">
+                    <span class="font-mono">{{ $student->student_id }}</span>
+                    &middot; {{ $class->name ?? '—' }}
+                    &middot; {{ $academicYear->name ?? '—' }}
+                </p>
+
+                <div class="mt-3 flex flex-wrap gap-x-8 gap-y-1.5 text-sm [&>div]:whitespace-nowrap">
+                    <div>
+                        <span class="text-gris-400">Notes</span>
+                        <span class="font-medium">{{ $grades->count() }}</span>
+                    </div>
+                    <div>
+                        <span class="text-gris-400">Matières</span>
+                        <span class="font-medium">{{ $parMatiere->count() }}</span>
+                    </div>
+                    <div>
+                        <span class="text-gris-400">Niveau</span>
+                        <span class="font-medium">{{ $class?->getSafeLevelName() ?? '—' }}</span>
                     </div>
                 </div>
             </div>
+
+            <div class="grid grid-cols-3 gap-3 text-center">
+                @foreach ($trimestres as $i => $t)
+                    @php($m = $moyenne($grades->where('term', $t)))
+                    <div class="rounded-lg bg-gris-50 px-4 py-3">
+                        <div class="text-lg font-bold {{ $classeMoyenne($m) }}">{{ $note($m) }}</div>
+                        <div class="text-[10px] font-semibold uppercase text-gris-500">
+                            {{ $i + 1 }}<sup>{{ $i === 0 ? 'er' : 'e' }}</sup> trim.
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-gris-100 pt-4">
+            <a href="{{ route('students.show', $student->id) }}" class="bouton-secondaire text-xs">Fiche de l’élève</a>
+            <a href="{{ route('grades.bulletin', $student->id) }}" class="bouton-secondaire text-xs">Bulletin détaillé</a>
+            <a href="{{ route('grades.index') }}" class="bouton-secondaire text-xs">Toutes les notes</a>
+
+            <span class="ml-auto flex items-baseline gap-2">
+                <span class="text-xs text-gris-400">Moyenne générale</span>
+                <span class="text-xl font-bold {{ $classeMoyenne($moyenneGenerale) }}">{{ $note($moyenneGenerale) }}</span>
+                <span class="text-xs text-gris-400">/20</span>
+            </span>
         </div>
     </div>
 
-    <!-- Liste des notes -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-list-check me-2"></i>
-                        Notes de l'élève ({{ $grades->count() }} note(s))
-                    </h5>
+    {{-- ------------------------------------------------------------------
+         Filtre par trimestre
+         ------------------------------------------------------------------ --}}
+    <div class="mb-4 flex flex-wrap gap-1 border-b border-gris-200">
+        <button type="button" @click="trimestre = 'tous'"
+                :class="trimestre === 'tous' ? 'border-ogar-700 text-ogar-700' : 'border-transparent text-gris-500 hover:text-gris-700'"
+                class="cursor-pointer border-b-2 px-4 py-2 text-sm font-semibold transition">
+            Toutes ({{ $grades->count() }})
+        </button>
+        @foreach ($trimestres as $t)
+            <button type="button" @click="trimestre = '{{ $t }}'"
+                    :class="trimestre === '{{ $t }}' ? 'border-ogar-700 text-ogar-700' : 'border-transparent text-gris-500 hover:text-gris-700'"
+                    class="cursor-pointer border-b-2 px-4 py-2 text-sm font-semibold transition">
+                {{ $t }} ({{ $grades->where('term', $t)->count() }})
+            </button>
+        @endforeach
+    </div>
+
+    {{-- ------------------------------------------------------------------
+         Notes groupées par matière
+         ------------------------------------------------------------------ --}}
+    @forelse ($parMatiere as $matiere => $notesDeLaMatiere)
+        @php($moyenneMatiere = $moyenne($notesDeLaMatiere))
+        <div class="carte mb-4 overflow-hidden">
+            <div class="carte-entete">
+                <div>
+                    <h3 class="text-sm font-semibold text-gris-900">{{ $matiere }}</h3>
+                    <p class="mt-0.5 text-xs text-gris-400">
+                        {{ $notesDeLaMatiere->count() }} note(s)
+                        @if ($notesDeLaMatiere->first()->subject?->coefficient)
+                            &middot; coefficient {{ (int) $notesDeLaMatiere->first()->subject->coefficient }}
+                        @endif
+                    </p>
                 </div>
-                <div class="card-body">
-                    @if($grades->count() > 0)
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Matière</th>
-                                        <th>Note</th>
-                                        <th>Type</th>
-                                        <th>Trimestre</th>
-                                        <th>Date</th>
-                                        <th>Enseignant</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($grades as $grade)
-                                        <tr>
-                                            <td>
-                                                <strong>{{ $grade->subject->name ?? 'N/A' }}</strong>
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-{{ $grade->grade_color }} fs-6">
-                                                    {{ $grade->formatted_score }}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-secondary">{{ ucfirst($grade->exam_type) }}</span>
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-info">{{ $grade->term }}</span>
-                                            </td>
-                                            <td>
-                                                <small>{{ $grade->exam_date ? $grade->exam_date->format('d/m/Y') : 'N/A' }}</small>
-                                            </td>
-                                            <td>
-                                                <small>{{ $grade->teacher->first_name ?? 'N/A' }} {{ $grade->teacher->last_name ?? 'N/A' }}</small>
-                                            </td>
-                                            <td>
-                                                <div class="btn-group" role="group">
-                                                    <a href="{{ route('grades.edit', $grade->id) }}" 
-                                                       class="btn btn-sm btn-outline-warning" title="Modifier">
-                                                        <i class="bi bi-pencil"></i>
-                                                    </a>
-                                                    <button type="button" 
-                                                            class="btn btn-sm btn-outline-danger" 
-                                                            title="Supprimer"
-                                                            data-grade-id="{{ $grade->id }}" 
-                                                     data-subject-name="{{ $grade->subject->name ?? 'N/A' }}"
-                                                     onclick="deleteGrade(this)">
-                                                        <i class="bi bi-trash"></i>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    @else
-                        <div class="text-center py-4">
-                            <i class="bi bi-journal-x fs-1 text-muted"></i>
-                            <h5 class="text-muted mt-3">Aucune note trouvée</h5>
-                            <p class="text-muted">Cet élève n'a pas encore de notes</p>
-                            <a href="{{ route('grades.create', ['student_id' => $student->id]) }}" class="btn btn-primary">
-                                <i class="bi bi-journal-plus me-2"></i>
-                                Ajouter la première note
-                            </a>
-                        </div>
-                    @endif
-                </div>
+                <x-puce :couleur="$teinteMoyenne($moyenneMatiere)">{{ $note($moyenneMatiere) }}/20</x-puce>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="tableau">
+                    <thead>
+                        <tr>
+                            <th>Trimestre</th>
+                            <th>Enseignant</th>
+                            <th class="text-center">Note</th>
+                            <th class="text-center">Sur 20</th>
+                            <th>Appréciation</th>
+                            <th class="text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($notesDeLaMatiere->sortBy('term') as $note_)
+                            <tr x-show="trimestre === 'tous' || trimestre === '{{ $note_->term }}'">
+                                <td class="whitespace-nowrap font-medium text-gris-800">{{ $note_->term }}</td>
+                                <td class="text-gris-600">{{ $note_->teacher?->full_name ?? '—' }}</td>
+                                <td class="text-center font-semibold text-gris-800">
+                                    {{ rtrim(rtrim(number_format($note_->score, 2, ',', ''), '0'), ',') }}
+                                    <span class="text-xs font-normal text-gris-400">/ {{ (int) $note_->max_score }}</span>
+                                </td>
+                                <td class="text-center">
+                                    @php($n = $sur20($note_))
+                                    <span class="font-semibold {{ $classeMoyenne($n) }}">{{ $note($n) }}</span>
+                                </td>
+                                <td class="max-w-xs truncate text-gris-500">{{ $note_->comments ?: '—' }}</td>
+                                <td class="text-right">
+                                    <div class="flex justify-end gap-1">
+                                        <a href="{{ route('grades.edit', $note_->id) }}" class="bouton-mini">Modifier</a>
+
+                                        <x-confirmation :action="route('grades.destroy', $note_->id)" methode="DELETE"
+                                                        titre="Supprimer cette note ?"
+                                                        :message="'La note de '.$matiere.' ('.$note_->term.') sera définitivement supprimée.'"
+                                                        confirmer="Supprimer"
+                                                        bouton="bouton-mini text-corail-600 hover:bg-corail-50">
+                                            Supprimer
+                                        </x-confirmation>
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
         </div>
-    </div>
+    @empty
+        <div class="carte">
+            <div class="carte-entete">
+                <h3 class="text-sm font-semibold text-gris-900">Aucune note</h3>
+                <a href="{{ route('grades.create', ['student_id' => $student->id]) }}" class="bouton-primaire text-xs">
+                    Ajouter une note
+                </a>
+            </div>
+            <div class="p-6">
+                <x-vide message="Aucune note n’a encore été saisie pour cet élève dans cette classe."/>
+            </div>
+        </div>
+    @endforelse
 </div>
 
-<!-- Toast Container -->
-<div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;"></div>
-
 @endsection
-
-@push('scripts')
-<script>
-// Fonction pour afficher les toasts
-function showToast(message, type = 'success') {
-    const toastContainer = document.getElementById('toast-container');
-    if (!toastContainer) {
-        const container = document.createElement('div');
-        container.id = 'toast-container';
-        container.className = 'toast-container position-fixed top-0 end-0 p-3';
-        container.style.zIndex = '9999';
-        document.body.appendChild(container);
-    }
-    
-    const toastId = 'toast-' + Date.now();
-    const toastHtml = `
-        <div id="${toastId}" class="toast align-items-center text-white bg-${type === 'error' ? 'danger' : 'success'} border-0" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="d-flex">
-                <div class="toast-body">
-                    ${message}
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-        </div>
-    `;
-    
-    document.getElementById('toast-container').insertAdjacentHTML('beforeend', toastHtml);
-    
-    const toastElement = document.getElementById(toastId);
-    const toast = new bootstrap.Toast(toastElement);
-    toast.show();
-    
-    toastElement.addEventListener('hidden.bs.toast', function() {
-        toastElement.remove();
-    });
-}
-
-// Fonction pour supprimer une note
-function deleteGrade(button) {
-    const gradeId = button.dataset.gradeId;
-    const subjectName = button.dataset.subjectName;
-    
-    if (confirm(`Êtes-vous sûr de vouloir supprimer cette note de ${subjectName} ?\n\nCette action est irréversible.`)) {
-        // Créer un formulaire temporaire pour la suppression
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/grades/${gradeId}`;
-        
-        // Ajouter le token CSRF
-        const csrfToken = document.querySelector('meta[name="csrf-token"]');
-        if (csrfToken) {
-            const csrfInput = document.createElement('input');
-            csrfInput.type = 'hidden';
-            csrfInput.name = '_token';
-            csrfInput.value = csrfToken.getAttribute('content');
-            form.appendChild(csrfInput);
-        }
-        
-        // Ajouter la méthode DELETE
-        const methodInput = document.createElement('input');
-        methodInput.type = 'hidden';
-        methodInput.name = '_method';
-        methodInput.value = 'DELETE';
-        form.appendChild(methodInput);
-        
-        // Ajouter le formulaire au DOM et le soumettre
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-</script>
-@endpush

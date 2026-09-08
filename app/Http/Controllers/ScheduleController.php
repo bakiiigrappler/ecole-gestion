@@ -26,143 +26,306 @@ class ScheduleController extends Controller
             $academicYearId = $currentYear?->id;
         }
 
-        // Récupérer TOUS les emplois du temps pour cette année académique
-        $allSchedules = Schedule::where('academic_year_id', $academicYearId)
-            ->with(['schoolClass', 'subject', 'teacher'])
-            ->orderBy('day_of_week')
-            ->orderBy('start_time')
-            ->get();
-
-        // Récupérer les classes qui ont des emplois du temps
-        $classesWithSchedules = SchoolClass::active()
-            ->with(['level'])
-            ->whereHas('schedules', function($query) use ($academicYearId) {
-                $query->where('academic_year_id', $academicYearId);
-            })
-            ->orderBy('name')
-            ->get();
-
-        // Charger les emplois du temps pour chaque classe
-        foreach ($classesWithSchedules as $class) {
-            $class->schedules = Schedule::where('class_id', $class->id)
-                ->where('academic_year_id', $academicYearId)
-                ->get();
+        // Un enseignant ne consulte pas la planification de l'école : il
+        // consulte le sien. Sa page est donc une autre page.
+        if (\App\Support\PerimetreEnseignant::estEnseignant()) {
+            return $this->monEmploiDuTemps($academicYearId);
         }
 
-        // Récupérer les emplois du temps orphelins (sans classe OU avec classe inexistante)
-        $orphanSchedules = $allSchedules->filter(function($schedule) {
-            return !$schedule->class_id || !SchoolClass::find($schedule->class_id);
-        });
+        // La liste porte sur les classes, pas sur les creneaux : c'est classe
+        // par classe qu'on planifie, et la page se lit ainsi.
+        $requete = SchoolClass::query()
+            ->with('level')
+            ->withCount(['schedules as creneaux_count' => fn ($q) => $q
+                ->where('academic_year_id', $academicYearId)])
+            ->withCount(['schedules as cours_count' => fn ($q) => $q
+                ->where('academic_year_id', $academicYearId)
+                ->where('type', 'course')]);
 
+        if ($terme = trim((string) $request->input('recherche'))) {
+            $motif = '%' . mb_strtolower($terme) . '%';
+            $requete->whereRaw('LOWER(name) LIKE ?', [$motif]);
+        }
+
+        if ($classeId = $request->input('classe')) {
+            $requete->where('id', $classeId);
+        }
+
+        if ($cycle = $request->input('cycle')) {
+            $requete->whereHas('level', fn ($q) => $q->where('cycle', $cycle));
+        }
+
+        // Planifiee ou non : la question que pose vraiment cette page.
+        if ($etat = $request->input('etat')) {
+            $requete->has('schedules', $etat === 'planifie' ? '>=' : '=', $etat === 'planifie' ? 1 : 0, 'and',
+                fn ($q) => $q->where('academic_year_id', $academicYearId));
+        }
+
+        $classes = $requete
+            ->orderBy('name')
+            ->paginate(10)
+            ->withQueryString();
+
+        // Jours couverts et volume horaire, en une requete pour toute la page.
+        $couverture = Schedule::whereIn('class_id', $classes->pluck('id'))
+            ->where('academic_year_id', $academicYearId)
+            ->get(['class_id', 'day_of_week', 'teacher_id', 'type'])
+            ->groupBy('class_id');
+
+        // Chiffres de l'entete : calcules sur l'ensemble, pas sur la page.
+        $toutesClasses = SchoolClass::withCount(['schedules as creneaux_count' => fn ($q) => $q
+            ->where('academic_year_id', $academicYearId)])->get();
+
+        $bilan = [
+            'creneaux' => $toutesClasses->sum('creneaux_count'),
+            'planifiees' => $toutesClasses->where('creneaux_count', '>', 0)->count(),
+            'a_planifier' => $toutesClasses->where('creneaux_count', 0)->count(),
+            'classes' => $toutesClasses->count(),
+            'sans_enseignant' => Schedule::where('academic_year_id', $academicYearId)
+                ->where('type', 'course')
+                ->whereNull('teacher_id')
+                ->count(),
+        ];
+
+        $listeClasses = SchoolClass::with('level')->orderBy('name')->get(['id', 'name', 'level_id']);
         $academicYears = AcademicYear::orderBy('start_date', 'desc')->get();
         $currentAcademicYear = AcademicYear::find($academicYearId);
 
-        return view('schedules.index', compact('allSchedules', 'classesWithSchedules', 'orphanSchedules', 'academicYears', 'currentAcademicYear'));
+        return view('schedules.index', compact(
+            'classes',
+            'couverture',
+            'bilan',
+            'listeClasses',
+            'academicYears',
+            'currentAcademicYear',
+            'academicYearId'
+        ));
     }
 
     /**
      * Afficher le formulaire de création d'emploi du temps (sélection de classe)
      */
-    public function create()
-    {
-        $classes = SchoolClass::active()->with('level')->orderBy('name')->get();
-        $academicYears = AcademicYear::orderBy('start_date', 'desc')->get();
-        $currentAcademicYear = AcademicYear::where('is_current', true)->first();
-
-        return view('schedules.create', compact('classes', 'academicYears', 'currentAcademicYear'));
-    }
-
     /**
-     * Afficher le formulaire de constitution d'emploi du temps pour une classe
+     * L'emploi du temps d'un enseignant : ses heures, toutes classes
+     * confondues, filtrables par classe et imprimables.
      */
-    public function build(Request $request)
+    private function monEmploiDuTemps(?int $academicYearId)
     {
-        $classId = $request->get('class_id');
-        $academicYearId = $request->get('academic_year_id');
+        $enseignant = \App\Support\PerimetreEnseignant::enseignant();
 
-        // Rediriger vers la sélection de classe si pas de classe
-        if (!$classId) {
-            return redirect()->route('schedules.create')->with('error', 'Veuillez d\'abord sélectionner une classe.');
+        if (! $enseignant) {
+            return view('schedules.mon-emploi-du-temps', [
+                'enseignant' => null,
+                'creneaux' => collect(),
+                'lignes' => collect(),
+                'grille' => collect(),
+                'classes' => collect(),
+                'academicYear' => AcademicYear::find($academicYearId),
+                'classeChoisie' => null,
+                'volumes' => collect(),
+            ]);
         }
 
-        // Si pas d'année académique, utiliser l'année en cours
-        if (!$academicYearId) {
-            $academicYear = AcademicYear::where('is_current', true)->first();
-            $academicYearId = $academicYear->id;
-        } else {
-            $academicYear = AcademicYear::findOrFail($academicYearId);
-        }
-
-        $class = SchoolClass::with('level')->findOrFail($classId);
-        
-        // Récupérer les matières selon le cycle
-        $subjects = [];
-        if ($class->level) {
-            $cycle = $class->level->cycle;
-            
-            if ($cycle === 'preprimaire' || $cycle === 'primaire') {
-                // Pour le préprimaire et primaire, récupérer les matières du cycle
-                $subjects = Subject::active()
-                    ->where('cycle', $cycle)
-                    ->orderBy('name')
-                    ->get();
-            } else {
-                // Pour le secondaire (collège et lycée), récupérer les matières du niveau
-                $subjects = Subject::active()
-                    ->where('level_id', $class->level_id)
-                    ->orderBy('name')
-                    ->get();
-                
-                // Si c'est le lycée, filtrer par série si spécifiée
-                if ($cycle === 'lycee' && $class->series) {
-                    $subjects = $subjects->filter(function($subject) use ($class) {
-                        return $subject->isApplicableToSeries($class->series);
-                    });
-                }
-            }
-        }
-        
-        // Récupérer tous les enseignants actifs
-        $teachers = Teacher::active()->orderBy('first_name')->get();
-        
-        // Récupérer les enseignants par matière pour l'utilisation côté client
-        $teachersBySubject = [];
-        foreach ($subjects as $subject) {
-            $teachersBySubject[$subject->id] = $subject->teachers()
-                ->active()
-                ->get(['teachers.id', 'teachers.first_name', 'teachers.last_name'])
-                ->map(function($teacher) {
-                    return [
-                        'id' => $teacher->id,
-                        'name' => $teacher->first_name . ' ' . $teacher->last_name
-                    ];
-                });
-        }
-
-        // Récupérer l'emploi du temps existant s'il y en a un
-        $existingSchedules = Schedule::where('class_id', $classId)
+        $lignes = Schedule::with(['subject:id,name', 'schoolClass:id,name'])
+            ->where('teacher_id', $enseignant->id)
             ->where('academic_year_id', $academicYearId)
             ->orderBy('day_of_week')
             ->orderBy('start_time')
             ->get();
 
-        // Créneaux horaires par défaut selon le cycle
-        $defaultTimeSlots = $this->getDefaultTimeSlots($class->level ? $class->level->cycle : 'primaire');
+        // Filtre par classe : « trier là où il est », sans jamais voir ailleurs.
+        $classeChoisie = request('classe');
 
-        // Jours de la semaine
-        $days = [
-            1 => 'Lundi',
-            2 => 'Mardi', 
-            3 => 'Mercredi',
-            4 => 'Jeudi',
-            5 => 'Vendredi',
-            6 => 'Samedi'
-        ];
+        if ($classeChoisie) {
+            $lignes = $lignes->where('class_id', (int) $classeChoisie)->values();
+        }
 
-        return view('schedules.build', compact(
-            'class', 'academicYear', 'subjects', 'teachers', 'teachersBySubject',
-            'existingSchedules', 'defaultTimeSlots', 'days'
+        $heure = fn ($valeur) => substr((string) $valeur, 0, 5);
+
+        $creneaux = $lignes
+            ->map(fn ($l) => ['debut' => $heure($l->start_time), 'fin' => $heure($l->end_time)])
+            ->unique(fn ($c) => $c['debut'].$c['fin'])
+            ->sortBy('debut')
+            ->values();
+
+        // Une case par jour et par heure : un enseignant n'a qu'un cours à la
+        // fois, la clé « jour-heure » suffit.
+        $grille = $lignes->keyBy(fn ($l) => $l->day_of_week.'-'.$heure($l->start_time));
+
+        $volumes = $lignes->where('type', 'course')
+            ->groupBy('subject_id')
+            ->map(fn ($lot) => [
+                'matiere' => $lot->first()->subject->name ?? '—',
+                'heures' => $lot->count(),
+                'classes' => $lot->pluck('schoolClass.name')->filter()->unique()->values()->all(),
+            ])
+            ->sortByDesc('heures')
+            ->values();
+
+        $classes = Schedule::with('schoolClass:id,name')
+            ->where('teacher_id', $enseignant->id)
+            ->where('academic_year_id', $academicYearId)
+            ->get()
+            ->pluck('schoolClass')
+            ->filter()
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
+
+        return view('schedules.mon-emploi-du-temps', [
+            'enseignant' => $enseignant,
+            'lignes' => $lignes,
+            'creneaux' => $creneaux,
+            'grille' => $grille,
+            'classes' => $classes,
+            'classeChoisie' => $classeChoisie,
+            'academicYear' => AcademicYear::find($academicYearId),
+            'volumes' => $volumes,
+        ]);
+    }
+
+    public function create(Request $request)
+    {
+        $academicYears = AcademicYear::orderBy('start_date', 'desc')->get();
+        $currentAcademicYear = AcademicYear::where('is_current', true)->first();
+
+        $anneeChoisie = $request->filled('academic_year_id')
+            ? (int) $request->get('academic_year_id')
+            : optional($currentAcademicYear)->id;
+
+        // Le compte de creneaux sert a retirer du selecteur les classes deja
+        // planifiees : on ne vient ici que pour celles qui restent a faire.
+        $classes = SchoolClass::active()
+            ->with('level')
+            ->withCount(['schedules as creneaux_count' => fn ($q) => $q
+                ->where('academic_year_id', $anneeChoisie)])
+            ->orderBy('name')
+            ->get();
+
+        $annee = $request->filled('academic_year_id')
+            ? AcademicYear::find($request->get('academic_year_id'))
+            : $currentAcademicYear;
+
+        $classe = $request->filled('class_id')
+            ? $classes->firstWhere('id', (int) $request->get('class_id'))
+            : null;
+
+        // Tant qu'aucune classe n'est choisie, la grille n'a pas d'objet :
+        // la page se limite au choix de la classe.
+        $matieres = collect();
+        $enseignants = collect();
+        $creneaux = collect();
+        $grille = collect();
+        $occupations = collect();
+
+        if ($classe && $annee) {
+            $cycle = $classe->level->cycle ?? 'primaire';
+
+            $matieres = Subject::active()
+                ->where('cycle', $cycle)
+                ->orderBy('name')
+                ->get(['id', 'name']);
+
+            // Le lycee cloisonne ses matieres par serie.
+            if ($cycle === 'lycee' && $classe->series) {
+                $matieres = $matieres->filter(fn ($m) => true)->values();
+            }
+
+            $enseignants = Teacher::active()
+                ->with('subjects:id')
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get(['id', 'first_name', 'last_name'])
+                ->map(fn ($e) => [
+                    'id' => $e->id,
+                    'nom' => $e->first_name . ' ' . $e->last_name,
+                    'matieres' => $e->subjects->pluck('id')->all(),
+                ])
+                ->values()
+                ->toBase();
+
+            $grille = Schedule::where('class_id', $classe->id)
+                ->where('academic_year_id', $annee->id)
+                ->orderBy('day_of_week')
+                ->orderBy('start_time')
+                ->get()
+                ->map(fn ($ligne) => [
+                    'jour' => (int) $ligne->day_of_week,
+                    'debut' => substr((string) $ligne->start_time, 0, 5),
+                    'fin' => substr((string) $ligne->end_time, 0, 5),
+                    'matiere_id' => $ligne->subject_id,
+                    'enseignant_id' => $ligne->teacher_id,
+                    'salle' => $ligne->room,
+                    'type' => $ligne->type ?: 'course',
+                    'titre' => $ligne->title,
+                ])
+                ->values()
+                /*
+                 * `toBase()` n'est pas cosmetique. Une collection Eloquent ne
+                 * redevient une collection ordinaire apres `map()` que si elle
+                 * contient au moins un element qui n'est pas un modele : vide,
+                 * elle reste une collection Eloquent. Son `merge()` appelle
+                 * alors `getKey()` sur les tableaux qu'on lui donne, et la page
+                 * tombait en erreur 500 pour toute classe sans emploi du temps
+                 * — c'est-a-dire au moment precis ou l'on vient en composer un.
+                 */
+                ->toBase();
+
+            // Lignes horaires : les horaires deja saisis font foi, completes
+            // par la trame du cycle. Une trame qui chevaucherait un creneau
+            // enregistre est ecartee : sinon la grille affiche deux lignes
+            // pour la meme heure de cours.
+            $saisis = $grille
+                ->map(fn ($c) => ['debut' => $c['debut'], 'fin' => $c['fin']])
+                ->unique(fn ($c) => $c['debut'] . $c['fin'])
+                ->values();
+
+            $complement = collect($this->getDefaultTimeSlots($cycle))
+                ->map(fn ($c) => ['debut' => $c['start'], 'fin' => $c['end']])
+                ->reject(fn ($t) => $saisis->contains(
+                    fn ($c) => $t['debut'] < $c['fin'] && $c['debut'] < $t['fin']
+                ));
+
+            $creneaux = $saisis->merge($complement)->sortBy('debut')->values();
+
+            // Un enseignant ne peut pas etre dans deux classes a la meme heure :
+            // on fournit ses engagements ailleurs pour signaler les collisions.
+            $occupations = Schedule::with(['schoolClass:id,name'])
+                ->where('academic_year_id', $annee->id)
+                ->where('class_id', '!=', $classe->id)
+                ->whereNotNull('teacher_id')
+                ->get()
+                ->map(fn ($ligne) => [
+                    'enseignant_id' => $ligne->teacher_id,
+                    'jour' => (int) $ligne->day_of_week,
+                    'debut' => substr((string) $ligne->start_time, 0, 5),
+                    'classe' => $ligne->schoolClass->name ?? 'une autre classe',
+                ])
+                ->values()
+                ->toBase();
+        }
+
+        return view('schedules.create', compact(
+            'classes',
+            'academicYears',
+            'currentAcademicYear',
+            'annee',
+            'classe',
+            'matieres',
+            'enseignants',
+            'creneaux',
+            'grille',
+            'occupations'
         ));
+    }
+
+    /**
+     * L'ancienne construction en deux ecrans (choix puis grille) est repliee
+     * sur la page de creation, qui porte desormais les deux.
+     */
+    public function build(Request $request)
+    {
+        return redirect()->route('schedules.create', $request->only('class_id', 'academic_year_id'));
     }
 
     /**
@@ -220,174 +383,81 @@ class ScheduleController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $valide = $request->validate([
             'class_id' => 'required|exists:classes,id',
             'academic_year_id' => 'required|exists:academic_years,id',
-            'cycle' => 'required|string',
-            'schedule' => 'required|array',
+            'creneaux' => 'array',
+            'creneaux.*.jour' => 'required|integer|min:1|max:7',
+            'creneaux.*.debut' => 'required|date_format:H:i',
+            'creneaux.*.fin' => 'required|date_format:H:i|after:creneaux.*.debut',
+            'creneaux.*.type' => 'nullable|in:course,break',
+            'creneaux.*.matiere_id' => 'nullable|exists:subjects,id',
+            'creneaux.*.enseignant_id' => 'nullable|exists:teachers,id',
+            'creneaux.*.salle' => 'nullable|string|max:50',
+            'creneaux.*.titre' => 'nullable|string|max:100',
         ]);
 
         DB::beginTransaction();
-        
+
         try {
-            // Supprimer l'emploi du temps existant pour cette classe et cette année
-            Schedule::where('class_id', $validated['class_id'])
-                   ->where('academic_year_id', $validated['academic_year_id'])
-                   ->delete();
+            // La grille remplace celle de la classe pour cette annee.
+            Schedule::where('class_id', $valide['class_id'])
+                ->where('academic_year_id', $valide['academic_year_id'])
+                ->delete();
 
-            $createdSchedules = 0;
+            $enregistres = 0;
 
-            // Définir les créneaux horaires avec format standard
-            $timeSlots = [
-                ['start' => '07:30:00', 'end' => '08:30:00'],
-                ['start' => '08:30:00', 'end' => '09:30:00'],
-                ['start' => '09:30:00', 'end' => '10:30:00'],
-                ['start' => '10:45:00', 'end' => '11:45:00'],
-                ['start' => '11:45:00', 'end' => '12:45:00'],
-                ['start' => '14:00:00', 'end' => '15:00:00'],
-                ['start' => '15:00:00', 'end' => '16:00:00'],
-                ['start' => '16:15:00', 'end' => '17:15:00']
-            ];
+            foreach ($valide['creneaux'] ?? [] as $creneau) {
+                $type = $creneau['type'] ?? 'course';
 
-            // Traiter les données de l'emploi du temps
-            // Le format peut être soit un tableau indexé par créneaux, soit un tableau plat
-            $scheduleItems = $validated['schedule'];
-            
-            // Vérifier si c'est un tableau plat (nouveau format) ou indexé par créneaux (ancien format)
-            $isFlatArray = false;
-            if (!empty($scheduleItems) && isset($scheduleItems[0]) && is_array($scheduleItems[0])) {
-                // Vérifier si le premier élément a les clés attendues pour un élément plat
-                $firstItem = $scheduleItems[0];
-                if (isset($firstItem['day']) && isset($firstItem['start_time']) && isset($firstItem['end_time'])) {
-                    $isFlatArray = true;
+                // Une heure de cours sans matiere n'est pas une case remplie.
+                if ($type === 'course' && empty($creneau['matiere_id'])) {
+                    continue;
                 }
-            }
-            
-            if ($isFlatArray) {
-                // Nouveau format : tableau plat d'éléments de planning
-                foreach ($scheduleItems as $scheduleData) {
-                    if (empty($scheduleData)) continue;
-                    
-                    $dayOfWeek = (int) $scheduleData['day'];
-                    $startTime = Carbon::createFromFormat('H:i:s', $scheduleData['start_time']);
-                    $endTime = Carbon::createFromFormat('H:i:s', $scheduleData['end_time']);
-                    
-                    if ($validated['cycle'] === 'college' || $validated['cycle'] === 'lycee') {
-                        // Pour le collège/lycée avec données réelles
-                        if (!empty($scheduleData['subject_id'])) {
-                            $scheduleRecord = [
-                                'class_id' => $validated['class_id'],
-                                'academic_year_id' => $validated['academic_year_id'],
-                                'day_of_week' => $dayOfWeek,
-                                'start_time' => $startTime,
-                                'end_time' => $endTime,
-                                'subject_id' => $scheduleData['subject_id'],
-                                'subject_name' => $scheduleData['subject_name'] ?? null,
-                                'teacher_id' => $scheduleData['teacher_id'] ?? null,
-                                'type' => $scheduleData['type'] ?? 'course',
-                                'is_active' => true,
-                            ];
 
-                            Schedule::create($scheduleRecord);
-                            $createdSchedules++;
-                        }
-                    } else {
-                        // Pour le préprimaire/primaire avec données de base
-                        if (!empty($scheduleData['subject_id']) && !empty($scheduleData['teacher_id'])) {
-                            $scheduleRecord = [
-                                'class_id' => $validated['class_id'],
-                                'academic_year_id' => $validated['academic_year_id'],
-                                'day_of_week' => $dayOfWeek,
-                                'start_time' => $startTime,
-                                'end_time' => $endTime,
-                                'subject_name' => $scheduleData['subject_id'], // Dans l'ancien format, c'était le nom
-                                'teacher_name' => $scheduleData['teacher_id'], // Dans l'ancien format, c'était le nom
-                                'type' => $scheduleData['type'] ?? 'course',
-                                'is_active' => true,
-                            ];
+                Schedule::create([
+                    'class_id' => $valide['class_id'],
+                    'academic_year_id' => $valide['academic_year_id'],
+                    'day_of_week' => (int) $creneau['jour'],
+                    'start_time' => $creneau['debut'] . ':00',
+                    'end_time' => $creneau['fin'] . ':00',
+                    'subject_id' => $type === 'course' ? $creneau['matiere_id'] : null,
+                    'teacher_id' => $type === 'course' ? ($creneau['enseignant_id'] ?? null) : null,
+                    'room' => $creneau['salle'] ?? null,
+                    'type' => $type,
+                    'title' => $creneau['titre'] ?? null,
+                    'is_active' => true,
+                ]);
 
-                            Schedule::create($scheduleRecord);
-                            $createdSchedules++;
-                        }
-                    }
-                }
-            } else {
-                // Ancien format : tableau indexé par créneaux horaires
-                foreach ($scheduleItems as $timeIndex => $days) {
-                    $timeSlot = $timeSlots[$timeIndex] ?? ['start' => '07:30:00', 'end' => '08:30:00'];
-                    $startTime = Carbon::createFromFormat('H:i:s', $timeSlot['start']);
-                    $endTime = Carbon::createFromFormat('H:i:s', $timeSlot['end']);
-
-                    // Traiter chaque jour
-                    foreach ($days as $dayIndex => $scheduleData) {
-                        if (empty($scheduleData)) continue;
-
-                        // Déterminer le jour de la semaine (0 = Lundi, 1 = Mardi, etc.)
-                        $dayOfWeek = $dayIndex + 1; // Convertir en 1-6 pour la base
-
-                        if ($validated['cycle'] === 'college' || $validated['cycle'] === 'lycee') {
-                            // Pour le collège/lycée avec données réelles
-                            if (!empty($scheduleData['subject_id'])) {
-                                $scheduleRecord = [
-                                    'class_id' => $validated['class_id'],
-                                    'academic_year_id' => $validated['academic_year_id'],
-                                    'day_of_week' => $dayOfWeek,
-                                    'start_time' => $startTime,
-                                    'end_time' => $endTime,
-                                    'subject_id' => $scheduleData['subject_id'],
-                                    'subject_name' => $scheduleData['subject_name'],
-                                    'teacher_id' => $scheduleData['teacher_id'] ?? null,
-                                    'type' => 'course',
-                                    'is_active' => true,
-                                ];
-
-                                Schedule::create($scheduleRecord);
-                                $createdSchedules++;
-                            }
-                        } else {
-                            // Pour le préprimaire/primaire avec données de base
-                            if (!empty($scheduleData['subject']) && !empty($scheduleData['teacher'])) {
-                                $scheduleRecord = [
-                                    'class_id' => $validated['class_id'],
-                                    'academic_year_id' => $validated['academic_year_id'],
-                                    'day_of_week' => $dayOfWeek,
-                                    'start_time' => $startTime,
-                                    'end_time' => $endTime,
-                                    'subject_name' => $scheduleData['subject'],
-                                    'teacher_name' => $scheduleData['teacher'],
-                                    'type' => 'course',
-                                    'is_active' => true,
-                                ];
-
-                                Schedule::create($scheduleRecord);
-                                $createdSchedules++;
-                            }
-                        }
-                    }
-                }
+                $enregistres++;
             }
 
             DB::commit();
 
-            $message = "Emploi du temps enregistré avec succès! {$createdSchedules} créneaux créés.";
-            
-            return response()->json([
-                'success' => true,
-                'message' => $message,
-                'schedules_created' => $createdSchedules
-            ]);
+            $message = $enregistres > 0
+                ? "Emploi du temps enregistré : {$enregistres} créneau(x)."
+                : "Emploi du temps vidé : aucun créneau enregistré.";
+
+            if ($request->expectsJson()) {
+                return response()->json(['success' => true, 'message' => $message, 'schedules_created' => $enregistres]);
+            }
+
+            return redirect()
+                ->route('schedules.create', [
+                    'class_id' => $valide['class_id'],
+                    'academic_year_id' => $valide['academic_year_id'],
+                ])
+                ->with('success', $message);
 
         } catch (\Exception $e) {
             DB::rollBack();
-            
-            Log::error('Erreur lors de la sauvegarde de l\'emploi du temps: ' . $e->getMessage());
-            Log::error('Stack trace: ' . $e->getTraceAsString());
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de l\'enregistrement: ' . $e->getMessage(),
-                'error_details' => config('app.debug') ? $e->getTraceAsString() : null
-            ], 500);
+            Log::error("Erreur lors de la sauvegarde de l'emploi du temps : " . $e->getMessage());
+
+            if ($request->expectsJson()) {
+                return response()->json(['success' => false, 'message' => 'Erreur : ' . $e->getMessage()], 500);
+            }
+
+            return back()->withInput()->with('error', "Erreur lors de l'enregistrement : " . $e->getMessage());
         }
     }
 
@@ -589,26 +659,81 @@ class ScheduleController extends Controller
         $class->load('level');
         $academicYear = AcademicYear::find($academicYearId);
 
-        $schedules = Schedule::with(['subject', 'teacher'])
+        $lignes = Schedule::with(['subject:id,name', 'teacher:id,first_name,last_name'])
             ->where('class_id', $class->id)
             ->where('academic_year_id', $academicYearId)
             ->orderBy('day_of_week')
             ->orderBy('start_time')
             ->get();
 
-        // Organiser les horaires par jour
-        $schedulesByDay = $schedules->groupBy('day_of_week');
-        
-        $days = [
-            1 => 'Lundi',
-            2 => 'Mardi', 
-            3 => 'Mercredi',
-            4 => 'Jeudi',
-            5 => 'Vendredi',
-            6 => 'Samedi'
+        $heure = fn ($valeur) => substr((string) $valeur, 0, 5);
+
+        // La grille est batie a partir des horaires reellement saisis : une
+        // trame fixe laisserait des lignes vides ou masquerait des cours.
+        $creneaux = $lignes
+            ->map(fn ($l) => ['debut' => $heure($l->start_time), 'fin' => $heure($l->end_time)])
+            ->unique(fn ($c) => $c['debut'] . $c['fin'])
+            ->sortBy('debut')
+            ->values();
+
+        // Case par case : « jour-debut » suffit, une classe n'a qu'un cours
+        // a la fois.
+        $grille = $lignes->keyBy(fn ($l) => $l->day_of_week . '-' . $heure($l->start_time));
+
+        // Une couleur par matiere, la meme qu'a la composition.
+        $nuancier = [
+            ['fond' => '#e0f2fe', 'bord' => '#7dd3fc', 'encre' => '#075985'],
+            ['fond' => '#dcfce7', 'bord' => '#86efac', 'encre' => '#166534'],
+            ['fond' => '#fef3c7', 'bord' => '#fcd34d', 'encre' => '#92400e'],
+            ['fond' => '#ede9fe', 'bord' => '#c4b5fd', 'encre' => '#5b21b6'],
+            ['fond' => '#ffe4e6', 'bord' => '#fda4af', 'encre' => '#9f1239'],
+            ['fond' => '#cffafe', 'bord' => '#67e8f9', 'encre' => '#155e75'],
+            ['fond' => '#fae8ff', 'bord' => '#f0abfc', 'encre' => '#86198f'],
+            ['fond' => '#ffedd5', 'bord' => '#fdba74', 'encre' => '#9a3412'],
+            ['fond' => '#e0e7ff', 'bord' => '#a5b4fc', 'encre' => '#3730a3'],
+            ['fond' => '#d1fae5', 'bord' => '#6ee7b7', 'encre' => '#065f46'],
         ];
 
-        return view('schedules.print', compact('class', 'academicYear', 'schedulesByDay', 'days'));
+        $couleurs = $lignes->pluck('subject_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->mapWithKeys(fn ($id, $i) => [$id => $nuancier[$i % count($nuancier)]])
+            ->all();
+
+        // Volume horaire par matiere, recapitule sous la grille.
+        $volumes = $lignes->where('type', 'course')
+            ->groupBy('subject_id')
+            ->map(fn ($lot) => [
+                'matiere' => $lot->first()->subject->name ?? 'Matière supprimée',
+                'heures' => $lot->count(),
+                'enseignants' => $lot->pluck('teacher')
+                    ->filter()
+                    ->map(fn ($e) => $e->first_name . ' ' . $e->last_name)
+                    ->unique()
+                    ->values()
+                    ->all(),
+            ])
+            ->sortByDesc('heures')
+            ->values();
+
+        $jours = [1 => 'Lundi', 2 => 'Mardi', 3 => 'Mercredi', 4 => 'Jeudi', 5 => 'Vendredi', 6 => 'Samedi'];
+
+        // Ne pas imprimer une colonne de samedi vide.
+        $joursUtiles = array_filter($jours, fn ($n, $j) => $lignes->contains('day_of_week', $j), ARRAY_FILTER_USE_BOTH);
+        $jours = $joursUtiles ?: [1 => 'Lundi', 2 => 'Mardi', 3 => 'Mercredi', 4 => 'Jeudi', 5 => 'Vendredi'];
+
+        return view('schedules.print', compact(
+            'class',
+            'academicYear',
+            'academicYearId',
+            'creneaux',
+            'grille',
+            'couleurs',
+            'volumes',
+            'jours',
+            'lignes'
+        ));
     }
 
     /**

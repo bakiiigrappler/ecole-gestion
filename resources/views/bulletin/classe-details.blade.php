@@ -1,178 +1,150 @@
 @extends('layouts.app')
 
-@section('title', 'Détails de la Classe - ' . ($classe->name ?? 'Classe'))
+@section('titre', 'Bulletins — '.$classe->name)
+@section('sous-titre', ($classe->getSafeLevelName() ?? '—').' · '.$eleves->count().' élève(s) — '.($annee->name ?? 'année en cours'))
 
-@section('content')
-<div class="container-fluid">
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <h1 class="h3 mb-0">Détails de la Classe</h1>
-                <div>
-                    <a href="{{ route('bulletins.index') }}" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i> Retour aux bulletins
-                    </a>
-                    @if($classe->getSafeLevel())
-                        <a href="{{ route('bulletins.byLevel', $classe->getSafeLevel()->id) }}" class="btn btn-info">
-                            <i class="fas fa-filter"></i> Voir toutes les classes de ce niveau
-                        </a>
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-info-circle"></i>
-                        Informations de la Classe
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <p><strong>Nom:</strong> {{ $classe->name }}</p>
-                    
-                    @if($classe->getSafeLevel())
-                        <p><strong>Niveau:</strong> {{ $classe->getSafeLevel()->name }}</p>
-                        <p><strong>Code du niveau:</strong> {{ $classe->getSafeLevel()->code }}</p>
-                        <p><strong>Cycle:</strong> 
-                            <span class="badge bg-{{ 
-                                $classe->getSafeCycle() == 'preprimaire' ? 'primary' : 
-                                ($classe->getSafeCycle() == 'primaire' ? 'success' : 
-                                ($classe->getSafeCycle() == 'college' ? 'info' : 'warning'))
-                            }}">
-                                {{ ucfirst($classe->getSafeCycle()) }}
-                            </span>
-                        </p>
-                    @else
-                        <p><strong>Niveau:</strong> <span class="text-danger">Non défini</span></p>
-                    @endif
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-info text-white">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-users"></i>
-                        Informations sur les étudiants
-                    </h5>
-                </div>
-                <div class="card-body">
-                    @if($classe->students && $classe->students->count() > 0)
-                        <p><strong>Nombre d'étudiants:</strong> {{ $classe->students->count() }}</p>
-                        <div class="progress mb-3">
-                            <div class="progress-bar bg-success" role="progressbar" 
-                                 style="width: 100%" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
-                                {{ $classe->students->count() }} étudiants
-                            </div>
-                        </div>
-                        <a href="#" class="btn btn-sm btn-outline-primary">
-                            <i class="fas fa-list"></i> Voir la liste des étudiants
-                        </a>
-                    @else
-                        <p><strong>Nombre d'étudiants:</strong> 0</p>
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i>
-                            Aucun étudiant n'est inscrit dans cette classe.
-                        </div>
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
-
-    @if($classe->students && $classe->students->count() > 0)
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Liste des étudiants ({{ $classe->students->count() }})</h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Nom</th>
-                                    <th>Prénom</th>
-                                    <th>Statut</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($classe->students as $student)
-                                    <tr>
-                                        <td>{{ $student->last_name }}</td>
-                                        <td>{{ $student->first_name }}</td>
-                                        <td>
-                                            <span class="badge bg-{{ $student->status == 'active' ? 'success' : 'secondary' }}">
-                                                {{ $student->status == 'active' ? 'Actif' : 'Inactif' }}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <a href="{{ route('bulletins.student', $student->id) }}" 
-                                               class="btn btn-sm btn-outline-primary">
-                                                <i class="fas fa-eye"></i> Voir notes
-                                            </a>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+@section('actions-entete')
+    @if ($classe->getSafeLevel())
+        <a href="{{ route('bulletins.byLevel', $classe->getSafeLevel()->id) }}" class="bouton-secondaire">
+            Classes du niveau
+        </a>
     @endif
-
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Actions</h5>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex gap-2">
-                        <a href="#" class="btn btn-primary">
-                            <i class="fas fa-edit"></i> Modifier la classe
-                        </a>
-                        <a href="#" class="btn btn-success">
-                            <i class="fas fa-user-plus"></i> Ajouter des étudiants
-                        </a>
-                        <a href="#" class="btn btn-info">
-                            <i class="fas fa-chart-bar"></i> Statistiques
-                        </a>
-                        @if($classe->getSafeLevel())
-                                                         <a href="{{ route('bulletins.byCycle', $classe->getSafeCycle()) }}" class="btn btn-warning">
-                                 <i class="fas fa-filter"></i> Voir le cycle {{ ucfirst($classe->getSafeCycle()) }}
-                             </a>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+    <a href="{{ route('bulletins.index') }}" class="bouton-primaire">Tous les bulletins</a>
 @endsection
 
-@section('styles')
-<style>
-    .card {
-        transition: transform 0.2s;
-    }
-    .card:hover {
-        transform: translateY(-2px);
-    }
-    .badge {
-        font-size: 0.8em;
-    }
-    .progress {
-        height: 20px;
-    }
-</style>
+@section('contenu')
+
+@php
+    $libellesCycle = ['preprimaire' => 'Préprimaire', 'primaire' => 'Primaire', 'college' => 'Collège', 'lycee' => 'Lycée'];
+    $teintesCycle = ['preprimaire' => 'amber', 'primaire' => 'emerald', 'college' => 'sky', 'lycee' => 'violet'];
+    $cycle = $classe->getSafeCycle();
+
+    $notes = fn ($eleve) => (int) ($chiffres[$eleve->id]->notes ?? 0);
+    $moyenne = fn ($eleve) => isset($chiffres[$eleve->id]) ? (float) $chiffres[$eleve->id]->moyenne : null;
+
+    $notesEleves = $eleves->filter(fn ($e) => $notes($e) > 0);
+    $moyennes = $notesEleves->map(fn ($e) => $moyenne($e))->filter();
+    $moyenneClasse = $moyennes->isNotEmpty() ? $moyennes->avg() : null;
+
+    // Classes écrites en entier : Tailwind ne compile pas une teinte interpolée.
+    $encre = fn ($m) => $m === null ? 'text-gris-400' : ($m >= 12 ? 'text-emerald-600' : ($m >= 10 ? 'text-soleil-600' : 'text-corail-600'));
+    $puce = fn ($m) => $m === null ? 'slate' : ($m >= 12 ? 'emerald' : ($m >= 10 ? 'amber' : 'rose'));
+
+    // Le préprimaire et le primaire s'évaluent par compétences, pas par notes.
+    $parCompetences = in_array($cycle, ['preprimaire', 'primaire'], true);
+@endphp
+
+    {{-- ----------------------------------------------------------------
+         Un onglet par classe : un enseignant passe de l'une a l'autre sans
+         repasser par une liste de l'etablissement.
+         ---------------------------------------------------------------- --}}
+    @if (($estEnseignant ?? false) && ($mesClasses ?? collect())->count() > 1)
+        <div class="mb-6 flex flex-wrap gap-1 border-b border-gris-200">
+            @foreach ($mesClasses as $uneClasse)
+                <a href="{{ route('bulletins.class', $uneClasse->id) }}"
+                   class="rounded-t-lg border border-b-0 px-4 py-2 text-sm font-medium transition
+                          {{ (int) $classe->id === (int) $uneClasse->id
+                             ? 'border-gris-200 bg-white text-ogar-700'
+                             : 'border-transparent text-gris-500 hover:text-gris-800' }}">
+                    {{ $uneClasse->name }}
+                </a>
+            @endforeach
+        </div>
+    @endif
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <x-statistique libelle="Élèves inscrits" :valeur="$eleves->count()"
+                       :detail="($annee->name ?? '—')" couleur="ogar"/>
+        <x-statistique libelle="Élèves notés" :valeur="$notesEleves->count()"
+                       :detail="$eleves->isNotEmpty() ? round($notesEleves->count() / $eleves->count() * 100).'% de la classe' : '—'"
+                       :couleur="$notesEleves->isNotEmpty() ? 'emerald' : 'rose'"/>
+        <x-statistique libelle="Moyenne de la classe"
+                       :valeur="$moyenneClasse !== null ? number_format($moyenneClasse, 2, ',', ' ') : '—'"
+                       detail="Sur 20"
+                       couleur="violet"/>
+        <x-statistique libelle="Niveau" :valeur="$classe->getSafeLevelName() ?? '—'"
+                       :detail="$libellesCycle[$cycle] ?? $cycle" couleur="amber"/>
+    </div>
+
+    @if ($parCompetences)
+        <div class="mt-4 flex items-start gap-3 rounded-xl border border-ogar-200 bg-ogar-50 px-4 py-3 text-sm text-ogar-800">
+            <svg class="mt-0.5 h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/>
+            </svg>
+            <span>
+                Ce cycle s’évalue <strong>par compétences</strong> et non par notes chiffrées.
+                Les bulletins correspondants se préparent depuis
+                <a href="{{ $cycle === 'preprimaire' ? route('pre-primary-evaluations.index') : route('competency-evaluations.index') }}"
+                   class="font-semibold underline">
+                    {{ $cycle === 'preprimaire' ? 'Notes préprimaire' : 'Compétences (primaire)' }}</a>.
+            </span>
+        </div>
+    @endif
+
+    {{-- ----------------------------------------------------------------
+         Les élèves de la classe et leur bulletin
+         ---------------------------------------------------------------- --}}
+    <div class="carte mt-4 overflow-hidden" x-data="{ recherche: '' }">
+        <div class="carte-entete">
+            <div>
+                <h2 class="text-sm font-semibold text-gris-900">Élèves de la classe</h2>
+                <p class="mt-0.5 text-xs text-gris-400">Ouvrez un bulletin pour le consulter ou l’exporter.</p>
+            </div>
+            <input x-model="recherche" type="search" placeholder="Rechercher un élève…"
+                   class="champ w-56 text-xs">
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="tableau">
+                <thead>
+                    <tr>
+                        <th>Élève</th>
+                        <th>Matricule</th>
+                        <th class="text-center">Notes saisies</th>
+                        <th class="text-center">Moyenne</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($eleves as $eleve)
+                        @php($m = $moyenne($eleve))
+                        <tr x-show="recherche === '' || '{{ Str::lower($eleve->full_name.' '.$eleve->student_id) }}'.includes(recherche.toLowerCase())">
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <x-avatar :nom="$eleve->full_name" :photo="$eleve->photo ?? null" class="h-9 w-9 shrink-0 text-[11px]"/>
+                                    <a href="{{ route('students.show', $eleve->id) }}"
+                                       class="font-medium text-gris-800 hover:text-ogar-700 hover:underline">
+                                        {{ $eleve->full_name }}
+                                    </a>
+                                </div>
+                            </td>
+                            <td class="font-mono text-[11px] text-gris-500">{{ $eleve->student_id }}</td>
+                            <td class="text-center {{ $notes($eleve) > 0 ? 'text-gris-700' : 'text-gris-400' }}">
+                                {{ $notes($eleve) }}
+                            </td>
+                            <td class="text-center">
+                                @if ($m === null)
+                                    <span class="text-xs text-gris-400">—</span>
+                                @else
+                                    <x-puce :couleur="$puce($m)">{{ number_format($m, 2, ',', ' ') }}</x-puce>
+                                @endif
+                            </td>
+                            <td class="text-right">
+                                <div class="flex justify-end gap-1">
+                                    <a href="{{ route('grades.bulletin', $eleve->id) }}"
+                                       class="bouton-mini {{ $notes($eleve) === 0 ? 'cursor-not-allowed opacity-50' : 'border-ogar-600 bg-ogar-600 text-white' }}">
+                                        Bulletin
+                                    </a>
+                                    <a href="{{ route('bulletins.student', $eleve->id) }}" class="bouton-mini">Notes</a>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <x-vide :colonnes="5" message="Aucun élève inscrit dans cette classe sur l’année en cours."/>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 @endsection

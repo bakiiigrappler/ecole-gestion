@@ -21,9 +21,9 @@ return new class extends Migration
         Schema::create('payments', function (Blueprint $table) {
             $table->id();
             $table->string('transaction_id')->unique();
-            $table->foreignId('enrollment_id')->nullable()->constrained()->onDelete('cascade');
-            $table->foreignId('parent_id')->nullable()->constrained('parents')->onDelete('cascade');
-            $table->foreignId('student_id')->nullable()->constrained()->onDelete('cascade');
+            $table->unsignedBigInteger('enrollment_id')->nullable();
+            $table->unsignedBigInteger('parent_id')->nullable();
+            $table->unsignedBigInteger('student_id')->nullable();
             $table->decimal('amount', 10, 2);
             $table->string('currency', 5);
             $table->enum('payment_type', [
@@ -34,7 +34,7 @@ return new class extends Migration
                 'moov_money', 'airtel_money', 'card', 
                 'bank_transfer', 'cash', 'check'
             ]);
-            $table->foreignId('payment_gateway_id')->nullable()->constrained()->onDelete('set null');
+            $table->unsignedBigInteger('payment_gateway_id')->nullable();
             $table->enum('status', [
                 'pending', 'processing', 'completed', 
                 'failed', 'cancelled', 'refunded', 'partially_refunded'

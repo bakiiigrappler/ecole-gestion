@@ -19,6 +19,17 @@ class TeacherController extends Controller
     {
         $query = Teacher::query();
         
+        // Filtre de recherche
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhere('employee_id', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+        
         // Filtres
         if ($request->has('cycle') && $request->cycle) {
             $query->byCycle($request->cycle);
@@ -28,7 +39,15 @@ class TeacherController extends Controller
             $query->byType($request->teacher_type);
         }
         
-        $teachers = $query->with(['assignedClass'])->orderBy('created_at', 'desc')->paginate(10);
+        if ($request->has('specialization') && $request->specialization) {
+            $query->where('specialization', $request->specialization);
+        }
+        
+        if ($request->has('status') && $request->status) {
+            $query->where('status', $request->status);
+        }
+        
+        $teachers = $query->with(['classePrincipale.level'])->orderBy('created_at', 'desc')->paginate(10);
         
         // Statistiques pour les cartes
         $totalTeachers = Teacher::count();
@@ -61,11 +80,14 @@ class TeacherController extends Controller
      */
     public function create()
     {
-        $classes = SchoolClass::where('is_active', true)->get();
+        $classes = SchoolClass::with('level')->where('is_active', true)->get();
         $subjects = Subject::where('is_active', true)->get();
         $levels = Level::active()->orderBy('order')->get();
         
-        return view('teachers.create', compact('classes', 'subjects', 'levels'));
+        // Apercu du matricule a venir : lecture seule, sans effet de bord.
+        $prochainMatricule = Teacher::generateEmployeeId();
+
+        return view('teachers.create', compact('classes', 'subjects', 'levels', 'prochainMatricule'));
     }
 
     /**
@@ -73,7 +95,8 @@ class TeacherController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        try {
+            $validated = $request->validate([
             // Le matricule est toujours généré automatiquement, pas de validation nécessaire
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -83,6 +106,7 @@ class TeacherController extends Controller
             'gender' => 'nullable|in:male,female',
             'address' => 'nullable|string',
             'qualification' => 'nullable|string|max:255',
+            'diploma_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:15360', // 15MB max
             'specialization' => 'nullable|string|max:255',
             'cycle' => 'required|in:preprimaire,primaire,college,lycee',
             'teacher_type' => 'required|in:general,specialized',
@@ -109,33 +133,78 @@ class TeacherController extends Controller
             Log::info('Aucun fichier photo reçu pour l\'enseignant');
         }
 
+        // Handle diploma file upload
+        if ($request->hasFile('diploma_file')) {
+            $file = $request->file('diploma_file');
+            if ($file->isValid()) {
+                $validated['diploma_file'] = $file->store('teachers/diplomas', 'public');
+                Log::info('Diplôme enseignant uploadé avec succès: ' . $validated['diploma_file']);
+            } else {
+                Log::error('Fichier diplôme enseignant invalide');
+            }
+        } else {
+            Log::info('Aucun fichier diplôme reçu pour l\'enseignant');
+        }
+
         // Validation spécifique selon le type d'enseignant
         if ($validated['teacher_type'] === 'general') {
-            // Pour les généralistes, une classe est obligatoire
-            if (empty($validated['assigned_class_id'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Une classe doit être assignée pour un enseignant généraliste.'
-                ], 422);
+            // Pour les enseignants généralistes, la classe n'est obligatoire que pour collège/lycée
+            if (in_array($validated['cycle'], ['college', 'lycee']) && empty($validated['assigned_class_id'])) {
+                $message = 'Une classe doit être assignée pour un enseignant polyvalent de collège ou de lycée.';
+
+                if (! $request->expectsJson()) {
+                    return back()->withInput()->withErrors(['assigned_class_id' => $message]);
+                }
+
+                return response()->json(['success' => false, 'message' => $message], 422);
             }
         } else {
             // Pour les spécialisés, une spécialisation est obligatoire
             if (empty($validated['specialization'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Une spécialisation est obligatoire pour un enseignant spécialisé.'
-                ], 422);
+                $message = 'La matière enseignée est obligatoire pour un enseignant spécialisé.';
+
+                if (! $request->expectsJson()) {
+                    return back()->withInput()->withErrors(['specialization' => $message]);
+                }
+
+                return response()->json(['success' => false, 'message' => $message], 422);
             }
         }
 
-        $teacher = Teacher::create($validated);
+        // L'affectation vit sur le pivot : elle ne fait pas partie des colonnes.
+        $classePrincipale = $validated['assigned_class_id'] ?? null;
+        unset($validated['assigned_class_id']);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Enseignant ajouté avec succès!',
-            'teacher' => $teacher->load(['assignedClass']),
-            'generated_matricule' => $teacher->employee_id
-        ]);
+        $teacher = Teacher::create($validated);
+        $this->affecterCommePrincipal($teacher, $classePrincipale);
+
+            // Le formulaire poste normalement ; seuls l'API et les anciens
+            // appels fetch attendent du JSON.
+            if (! $request->expectsJson()) {
+                return redirect()->route('teachers.show', $teacher)
+                    ->with('success', 'Enseignant ajouté avec succès. Matricule attribué : '.$teacher->employee_id);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Enseignant ajouté avec succès!',
+                'teacher' => $teacher->load(['classePrincipale']),
+                'generated_matricule' => $teacher->employee_id
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la création d\'enseignant: ' . $e->getMessage());
+            Log::error('Trace: ' . $e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue lors de la création de l\'enseignant: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -143,7 +212,14 @@ class TeacherController extends Controller
      */
     public function show(Teacher $teacher)
     {
-        $teacher->load(['grades', 'subjects', 'assignedClass']);
+        // La fiche affiche les classes tenues, les matieres et l'emploi du temps.
+        $teacher->load([
+            'subjects',
+            'classePrincipale.level',
+            'classes.level',
+            'schedules.schoolClass',
+            'schedules.subject',
+        ]);
         
         return view('teachers.show', compact('teacher'));
     }
@@ -153,7 +229,7 @@ class TeacherController extends Controller
      */
     public function edit(Teacher $teacher)
     {
-        $classes = SchoolClass::where('is_active', true)->get();
+        $classes = SchoolClass::with('level')->where('is_active', true)->get();
         $subjects = Subject::where('is_active', true)->get();
         $levels = Level::active()->orderBy('order')->get();
         
@@ -175,6 +251,7 @@ class TeacherController extends Controller
             'gender' => 'nullable|in:male,female',
             'address' => 'nullable|string',
             'qualification' => 'nullable|string|max:255',
+            'diploma_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:15360', // 15MB max
             'specialization' => 'nullable|string|max:255',
             'cycle' => 'required|in:preprimaire,primaire,college,lycee',
             'teacher_type' => 'required|in:general,specialized',
@@ -208,24 +285,58 @@ class TeacherController extends Controller
             Log::info('Aucun fichier photo reçu lors de la modification enseignant');
         }
 
+        // Handle diploma file upload
+        if ($request->hasFile('diploma_file')) {
+            $file = $request->file('diploma_file');
+            if ($file->isValid()) {
+                // Supprimer l'ancien diplôme si il existe
+                if ($teacher->diploma_file && Storage::disk('public')->exists($teacher->diploma_file)) {
+                    Storage::disk('public')->delete($teacher->diploma_file);
+                    Log::info('Ancien diplôme enseignant supprimé: ' . $teacher->diploma_file);
+                }
+                $validated['diploma_file'] = $file->store('teachers/diplomas', 'public');
+                Log::info('Nouveau diplôme enseignant uploadé: ' . $validated['diploma_file']);
+            } else {
+                Log::error('Fichier diplôme enseignant invalide lors de la modification');
+            }
+        } else {
+            Log::info('Aucun fichier diplôme reçu lors de la modification enseignant');
+        }
+
         // Validation spécifique selon le type d'enseignant
         if ($validated['teacher_type'] === 'general') {
-            if (empty($validated['assigned_class_id'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Une classe doit être assignée pour un enseignant généraliste.'
-                ], 422);
+            // Pour les enseignants généralistes, la classe n'est obligatoire que pour collège/lycée
+            if (in_array($validated['cycle'], ['college', 'lycee']) && empty($validated['assigned_class_id'])) {
+                $message = 'Une classe doit être assignée pour un enseignant polyvalent de collège ou de lycée.';
+
+                if (! $request->expectsJson()) {
+                    return back()->withInput()->withErrors(['assigned_class_id' => $message]);
+                }
+
+                return response()->json(['success' => false, 'message' => $message], 422);
             }
         } else {
             if (empty($validated['specialization'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Une spécialisation est obligatoire pour un enseignant spécialisé.'
-                ], 422);
+                $message = 'La matière enseignée est obligatoire pour un enseignant spécialisé.';
+
+                if (! $request->expectsJson()) {
+                    return back()->withInput()->withErrors(['specialization' => $message]);
+                }
+
+                return response()->json(['success' => false, 'message' => $message], 422);
             }
         }
 
+        $classePrincipale = $validated['assigned_class_id'] ?? null;
+        unset($validated['assigned_class_id']);
+
         $teacher->update($validated);
+        $this->affecterCommePrincipal($teacher, $classePrincipale);
+
+        if (! $request->expectsJson()) {
+            return redirect()->route('teachers.show', $teacher)
+                ->with('success', 'Enseignant modifié avec succès.');
+        }
 
         return response()->json([
             'success' => true,
@@ -237,7 +348,7 @@ class TeacherController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Teacher $teacher)
+    public function destroy(Request $request, Teacher $teacher)
     {
         try {
             // Supprimer la photo associée si elle existe
@@ -248,16 +359,50 @@ class TeacherController extends Controller
 
             $teacher->delete();
 
+            // La liste supprime via un formulaire classique ; l'API et les
+            // anciens appels fetch attendent toujours du JSON.
+            if (! $request->expectsJson()) {
+                return redirect()->route('teachers.index')
+                    ->with('success', 'Enseignant supprimé avec succès.');
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Enseignant supprimé avec succès!'
             ]);
         } catch (\Exception $e) {
             Log::error('Erreur lors de la suppression de l\'enseignant: ' . $e->getMessage());
+            if (! $request->expectsJson()) {
+                return redirect()->route('teachers.index')
+                    ->with('error', "Erreur lors de la suppression de l'enseignant.");
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la suppression de l\'enseignant.'
             ], 500);
+        }
+    }
+
+    /**
+     * Ecrit l'affectation de professeur principal sur le pivot `class_teacher`.
+     *
+     * L'ancienne colonne `teachers.assigned_class_id` decrivait le meme fait
+     * sans jamais alimenter le pivot : la liste des classes annoncait « aucun
+     * enseignant affecte » alors que seize classes en avaient un.
+     */
+    private function affecterCommePrincipal(Teacher $teacher, $classeId): void
+    {
+        // On libere l'ancienne classe principale, sans toucher aux classes ou
+        // l'enseignant intervient sans etre principal.
+        $teacher->classes()->wherePivot('role', 'principal')->detach();
+
+        if ($classeId) {
+            $teacher->classes()->syncWithoutDetaching([
+                $classeId => ['role' => 'principal'],
+            ]);
+
+            $teacher->classes()->updateExistingPivot($classeId, ['role' => 'principal']);
         }
     }
 

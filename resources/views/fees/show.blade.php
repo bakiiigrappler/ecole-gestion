@@ -1,279 +1,157 @@
 @extends('layouts.app')
 
-@section('title', 'Détails du Frais - Egesco')
+@section('titre', $fee->name)
+@section('sous-titre', number_format($fee->amount, 0, ',', ' ').' FCFA — '.($fee->frequency === 'monthly' ? 'mensuel' : ($fee->frequency === 'quarterly' ? 'trimestriel' : ($fee->frequency === 'yearly' ? 'annuel' : 'paiement unique'))))
 
-@section('breadcrumb')
-<li class="breadcrumb-item"><a href="{{ route('fees.index') }}">Frais scolaires</a></li>
-<li class="breadcrumb-item active">Détails</li>
+@section('actions-entete')
+    <a href="{{ route('fees.edit', $fee) }}" class="bouton-secondaire">Modifier</a>
+    <a href="{{ route('fees.index') }}" class="bouton-primaire">Tous les frais</a>
 @endsection
 
-@section('content')
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-0">Détails du Frais</h1>
-                    <p class="text-muted">Informations complètes sur "{{ $fee->name }}"</p>
-                </div>
-                <div>
-                    <div class="btn-group" role="group">
-                        <a href="{{ route('fees.edit', $fee->id) }}" class="btn btn-warning">
-                            <i class="bi bi-pencil me-2"></i>
-                            Modifier
-                        </a>
-                        <a href="{{ route('fees.index') }}" class="btn btn-secondary">
-                            <i class="bi bi-arrow-left me-2"></i>
-                            Retour
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+@section('contenu')
 
-    <!-- Main Fee Information -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-cash-stack me-2"></i>
-                        Informations principales
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td class="fw-bold" style="width: 150px;">Nom:</td>
-                                    <td>{{ $fee->name }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">Type:</td>
-                                    <td><span class="badge bg-primary">{{ $fee->fee_type_label }}</span></td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">Fréquence:</td>
-                                    <td><span class="badge bg-info">{{ $fee->frequency_label }}</span></td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">Statut:</td>
-                                    <td><span class="badge bg-{{ $fee->status_color }}">{{ $fee->status_label }}</span></td>
-                                </tr>
-                            </table>
-                        </div>
-                        <div class="col-md-6">
-                            <table class="table table-borderless">
-                                <tr>
-                                    <td class="fw-bold" style="width: 150px;">Montant:</td>
-                                    <td class="text-success fw-bold fs-5">{{ $fee->formatted_amount }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">Classe:</td>
-                                    <td>{{ $fee->schoolClass ? $fee->schoolClass->name : 'Toutes les classes' }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">Année académique:</td>
-                                    <td>{{ $fee->academicYear->name }}</td>
-                                </tr>
-                                <tr>
-                                    <td class="fw-bold">Date d'échéance:</td>
-                                    <td>{{ $fee->due_date ? $fee->due_date->format('d/m/Y') : 'Non définie' }}</td>
-                                </tr>
-                            </table>
+@php
+    $montant = fn ($v) => number_format((float) $v, 0, ',', ' ').' FCFA';
+
+    $libellesType = [
+        'tuition' => 'Scolarité', 'registration' => 'Inscription', 'uniform' => 'Uniforme',
+        'transport' => 'Transport', 'meal' => 'Repas', 'other' => 'Autre',
+    ];
+
+    $libellesFrequence = [
+        'monthly' => 'Mensuel', 'quarterly' => 'Trimestriel',
+        'yearly' => 'Annuel', 'one_time' => 'Paiement unique',
+    ];
+
+    // Classes écrites en entier : Tailwind ne compile pas une teinte interpolée.
+    $puceType = [
+        'tuition' => 'ogar', 'registration' => 'emerald', 'uniform' => 'violet',
+        'transport' => 'amber', 'meal' => 'sky', 'other' => 'slate',
+    ];
+
+    $echeances = ['monthly' => 10, 'quarterly' => 3, 'yearly' => 1, 'one_time' => 1];
+    $nombreEcheances = $echeances[$fee->frequency] ?? 1;
+@endphp
+
+    <div class="grid gap-4 lg:grid-cols-3">
+
+        <div class="space-y-4 lg:col-span-2">
+            <div class="carte p-5">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-gris-500">Montant</p>
+                        <p class="mt-0.5 text-3xl font-bold text-gris-900">{{ $montant($fee->amount) }}</p>
+                        <div class="mt-2 flex flex-wrap items-center gap-2">
+                            <x-puce :couleur="$puceType[$fee->fee_type] ?? 'slate'">
+                                {{ $libellesType[$fee->fee_type] ?? $fee->fee_type }}
+                            </x-puce>
+                            <x-puce :couleur="$fee->is_active ? 'emerald' : 'slate'">
+                                {{ $fee->is_active ? 'Actif' : 'Désactivé' }}
+                            </x-puce>
+                            @if ($fee->is_mandatory)
+                                <x-puce couleur="rose">Obligatoire</x-puce>
+                            @endif
                         </div>
                     </div>
-                    
-                    @if($fee->description)
-                    <div class="mt-3">
-                        <strong>Description:</strong>
-                        <p class="text-muted mb-0">{{ $fee->description }}</p>
-                    </div>
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Quick Actions -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-primary">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-lightning me-2"></i>
-                        Actions rapides
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="d-flex gap-2 flex-wrap">
-                        <a href="{{ route('fees.edit', $fee->id) }}" class="btn btn-warning">
-                            <i class="bi bi-pencil me-2"></i>
-                            Modifier ce frais
-                        </a>
-                        <button type="button" class="btn btn-danger" onclick="confirmDelete()">
-                            <i class="bi bi-trash me-2"></i>
-                            Supprimer
-                        </button>
-                        <a href="{{ route('fees.index') }}" class="btn btn-secondary">
-                            <i class="bi bi-list me-2"></i>
-                            Voir tous les frais
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Payment Information -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-credit-card me-2"></i>
-                        Informations sur les paiements
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="text-center py-4">
-                        <i class="bi bi-info-circle fs-1 text-info"></i>
-                        <h6 class="mt-3">Gestion des paiements</h6>
-                        <p class="text-muted mt-2">
-                            Les paiements sont maintenant gérés au niveau des inscriptions (enrollments) 
-                            plutôt qu'au niveau des frais individuels. Pour consulter l'historique des 
-                            paiements, veuillez accéder à la section des inscriptions.
+                    <div class="text-right">
+                        <p class="text-[11px] uppercase tracking-wide text-gris-400">Coût sur l’année</p>
+                        <p class="text-lg font-semibold text-gris-800">{{ $montant($fee->montantAnnuel()) }}</p>
+                        <p class="text-[11px] text-gris-400">
+                            {{ $nombreEcheances }} échéance(s) de {{ $montant($fee->amount) }}
                         </p>
-                        <a href="{{ route('enrollments.index') }}" class="btn btn-outline-primary mt-2">
-                            <i class="bi bi-arrow-right me-2"></i>
-                            Voir les inscriptions
-                        </a>
                     </div>
+                </div>
+
+                @if ($fee->description)
+                    <p class="mt-4 border-t border-gris-100 pt-4 text-sm leading-relaxed text-gris-600">
+                        {{ $fee->description }}
+                    </p>
+                @endif
+            </div>
+
+            <div class="carte overflow-hidden">
+                <div class="carte-entete">
+                    <h2 class="text-sm font-semibold text-gris-900">Paramètres</h2>
+                </div>
+
+                <dl class="grid grid-cols-2 gap-x-8 gap-y-3 p-5 text-sm sm:grid-cols-3">
+                    <div>
+                        <dt class="text-[11px] uppercase tracking-wide text-gris-400">Périodicité</dt>
+                        <dd class="font-medium text-gris-800">
+                            {{ $libellesFrequence[$fee->frequency] ?? $fee->frequency }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] uppercase tracking-wide text-gris-400">Échéance</dt>
+                        <dd class="font-medium text-gris-800">
+                            {{ optional($fee->due_date)->format('d/m/Y') ?? '—' }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] uppercase tracking-wide text-gris-400">Année scolaire</dt>
+                        <dd class="font-medium text-gris-800">{{ $fee->academicYear->name ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] uppercase tracking-wide text-gris-400">Niveau</dt>
+                        <dd class="font-medium text-gris-800">{{ $fee->niveau->name ?? 'Tous' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] uppercase tracking-wide text-gris-400">Classe</dt>
+                        <dd class="font-medium text-gris-800">{{ $fee->schoolClass->name ?? 'Toutes' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] uppercase tracking-wide text-gris-400">Créé le</dt>
+                        <dd class="font-medium text-gris-800">{{ optional($fee->created_at)->format('d/m/Y') }}</dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <div class="carte p-5">
+                <h2 class="mb-3 text-sm font-semibold text-gris-900">À qui s’applique ce frais</h2>
+
+                <p class="text-sm leading-relaxed text-gris-600">
+                    @if ($fee->schoolClass)
+                        Aux élèves de <span class="font-semibold text-gris-900">{{ $fee->schoolClass->name }}</span>.
+                    @elseif ($fee->niveau)
+                        À tous les élèves du niveau <span class="font-semibold text-gris-900">{{ $fee->niveau->name }}</span>.
+                    @else
+                        À <span class="font-semibold text-gris-900">tous les élèves</span> de l’établissement.
+                    @endif
+
+                    @if ($fee->is_mandatory)
+                        Ce frais est obligatoire.
+                    @else
+                        Ce frais est facultatif.
+                    @endif
+                </p>
+
+                @unless ($fee->is_active)
+                    <p class="mt-3 rounded-lg bg-gris-50 p-3 text-[11px] text-gris-500">
+                        Ce frais est désactivé : il n’est plus facturé aux nouvelles inscriptions.
+                    </p>
+                @endunless
+            </div>
+
+            <div class="carte p-5">
+                <h2 class="mb-3 text-sm font-semibold text-gris-900">Actions</h2>
+
+                <div class="space-y-2">
+                    <a href="{{ route('fees.edit', $fee) }}" class="bouton-primaire w-full justify-center">Modifier</a>
+
+                    <x-confirmation :action="route('fees.destroy', $fee)"
+                                    methode="DELETE"
+                                    titre="Supprimer ce frais ?"
+                                    :message="'« '.$fee->name.' » ('.$montant($fee->amount).') sera retiré de la grille tarifaire. Cette action est définitive.'"
+                                    confirmer="Supprimer"
+                                    bouton="bouton-danger w-full justify-center">
+                        Supprimer
+                    </x-confirmation>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Delete Confirmation Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="deleteModalLabel">
-                    <i class="bi bi-exclamation-triangle me-2"></i>
-                    Confirmer la suppression
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>Êtes-vous sûr de vouloir supprimer le frais <strong>"{{ $fee->name }}"</strong> ?</p>
-                <p class="text-danger mb-0">
-                    <i class="bi bi-exclamation-circle me-1"></i>
-                    Cette action est irréversible !
-                </p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <form action="{{ route('fees.destroy', $fee->id) }}" method="POST" class="d-inline">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-trash me-2"></i>
-                        Supprimer définitivement
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-@endsection
-
-@section('scripts')
-<script>
-function confirmDelete() {
-    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-    modal.show();
-}
-
-// Afficher les messages de succès/erreur
-@if(session('success'))
-    // Créer et afficher un toast de succès
-    const toast = document.createElement('div');
-    toast.className = 'toast show position-fixed bottom-0 end-0 m-3';
-    toast.style.zIndex = '9999';
-    toast.innerHTML = `
-        <div class="toast-header bg-success text-white">
-            <i class="bi bi-check-circle me-2"></i>
-            <strong class="me-auto">Succès</strong>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-        </div>
-        <div class="toast-body">
-            {{ session('success') }}
-        </div>
-    `;
-    document.body.appendChild(toast);
-    
-    // Supprimer le toast après 5 secondes
-    setTimeout(() => {
-        toast.remove();
-    }, 5000);
-@endif
-
-@if(session('error'))
-    // Créer et afficher un toast d'erreur
-    const toast = document.createElement('div');
-    toast.className = 'toast show position-fixed bottom-0 end-0 m-3';
-    toast.style.zIndex = '9999';
-    toast.innerHTML = `
-        <div class="toast-header bg-danger text-white">
-            <i class="bi bi-exclamation-circle me-2"></i>
-            <strong class="me-auto">Erreur</strong>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-        </div>
-        <div class="toast-body">
-            {{ session('error') }}
-        </div>
-    `;
-    document.body.appendChild(toast);
-    
-    // Supprimer le toast après 5 secondes
-    setTimeout(() => {
-        toast.remove();
-    }, 5000);
-@endif
-</script>
-
-<style>
-.card {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    border: 1px solid rgba(0, 0, 0, 0.125);
-}
-
-.card-header {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
-}
-
-.table th {
-    border-top: none;
-    font-weight: 600;
-    color: #495057;
-}
-
-.badge {
-    font-size: 0.75em;
-}
-
-.btn-group .btn {
-    border-radius: 0.375rem;
-}
-
-.btn-group .btn:not(:last-child) {
-    margin-right: 0.5rem;
-}
-</style>
 @endsection

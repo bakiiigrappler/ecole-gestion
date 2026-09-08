@@ -1,3 +1,43 @@
+// Coefficients par série pour le lycée
+const SERIES_COEFFICIENTS = {
+    'S': {
+        'Mathématiques': 7, 'Sciences physiques': 6, 'Sciences de la Vie et de la Terre': 6,
+        'Français': 4, 'Histoire-Géographie': 3, 'Anglais': 2, 'Philosophie': 4,
+        'Éducation physique et sportive': 1
+    },
+    'C': {
+        'Mathématiques': 7, 'Sciences physiques': 6, 'Sciences de la Vie et de la Terre': 5,
+        'Français': 4, 'Histoire-Géographie': 3, 'Anglais': 2, 'Philosophie': 4,
+        'Éducation physique et sportive': 1
+    },
+    'D': {
+        'Sciences de la Vie et de la Terre': 7, 'Mathématiques': 5, 'Sciences physiques': 5,
+        'Français': 4, 'Histoire-Géographie': 3, 'Anglais': 2, 'Philosophie': 4,
+        'Éducation physique et sportive': 1
+    },
+    'A1': {
+        'Français': 6, 'Littérature': 5, 'Latin': 4, 'Histoire-Géographie': 4,
+        'Anglais': 3, 'Mathématiques': 2, 'Philosophie': 4, 'Éducation physique et sportive': 1
+    },
+    'A2': {
+        'Français': 6, 'Littérature': 5, 'Espagnol': 4, 'Histoire-Géographie': 4,
+        'Anglais': 3, 'Mathématiques': 2, 'Philosophie': 4, 'Éducation physique et sportive': 1
+    },
+    'B': {
+        'Sciences économiques et sociales': 7, 'Mathématiques': 5, 'Français': 4,
+        'Histoire-Géographie': 4, 'Anglais': 3, 'Philosophie': 4, 'Éducation physique et sportive': 1
+    },
+    'E': {
+        'Technologie industrielle': 8, 'Mathématiques': 6, 'Sciences physiques': 5,
+        'Français': 3, 'Histoire-Géographie': 2, 'Anglais': 2, 'Philosophie': 3,
+        'Éducation physique et sportive': 1
+    },
+    'LE': {
+        'Français': 6, 'Littérature': 5, 'Histoire-Géographie': 4, 'Anglais': 3,
+        'Mathématiques': 2, 'Philosophie': 4, 'Éducation physique et sportive': 1
+    }
+};
+
 // Données JSON pour la création de classe
 const CLASS_CREATION_DATA = {
     // Données de test pour les professeurs par niveau (IDs réels de la base)
@@ -49,6 +89,15 @@ const CLASS_CREATION_DATA = {
             { id: 26, first_name: 'Kristoffer', last_name: 'Ziemann', teacher_type: 'specialized', specialization: 'Histoire-Géographie' },
             { id: 27, first_name: 'Jovanny', last_name: 'Osinski', teacher_type: 'specialized', specialization: 'Philosophie' },
             { id: 29, first_name: 'ESSONO', last_name: 'Florent', teacher_type: 'specialized', specialization: 'Français' }
+        ],
+        // Niveau 15 (Terminale - Lycée)
+        15: [
+            { id: 30, first_name: 'ESSONO', last_name: 'Florent', teacher_type: 'specialized', specialization: 'Mathématiques' },
+            { id: 17, first_name: 'Stacy', last_name: 'Terry', teacher_type: 'specialized', specialization: 'Mathématiques' },
+            { id: 18, first_name: 'Tressa', last_name: 'Reinger', teacher_type: 'specialized', specialization: 'Français' },
+            { id: 19, first_name: 'Vincenzo', last_name: 'Friesen', teacher_type: 'specialized', specialization: 'Histoire-Géographie' },
+            { id: 20, first_name: 'Jerrod', last_name: 'Wuckert', teacher_type: 'specialized', specialization: 'Sciences' },
+            { id: 21, first_name: 'Bertha', last_name: 'Cummings', teacher_type: 'specialized', specialization: 'Anglais' }
         ]
     },
     
@@ -59,7 +108,8 @@ const CLASS_CREATION_DATA = {
         { id: 9, name: '6ème', code: '6EME', cycle: 'college' },
         { id: 10, name: '5ème', code: '5EME', cycle: 'college' },
         { id: 13, name: '2nde', code: '2NDE', cycle: 'lycee' },
-        { id: 14, name: '1ère', code: '1ERE', cycle: 'lycee' }
+        { id: 14, name: '1ère', code: '1ERE', cycle: 'lycee' },
+        { id: 15, name: 'Terminal', code: 'TERMINAL', cycle: 'lycee' }
     ]
 };
 
@@ -173,6 +223,15 @@ class ClassCreationManager {
     
     onSeriesChange() {
         this.checkExistingClasses();
+        
+        // Mettre à jour les coefficients pour tous les professeurs sélectionnés
+        if (this.selectedLevel && this.selectedLevel.cycle === 'lycee') {
+            const seriesSelect = document.getElementById('series');
+            if (seriesSelect && seriesSelect.value) {
+                this.selectedSeries = seriesSelect.value;
+                this.updateAllTeacherCoefficients();
+            }
+        }
     }
     
     checkExistingClasses() {
@@ -416,6 +475,7 @@ class ClassCreationManager {
             'Première': ['S', 'A1', 'A2', 'B'],
             '1ère': ['S', 'A1', 'A2', 'B'],
             'Terminale': ['S', 'A1', 'A2', 'B', 'C', 'D', 'E', 'F1', 'F2', 'F3', 'F4', 'G1', 'G2', 'G3'],
+            'Terminal': ['S', 'A1', 'A2', 'B', 'C', 'D', 'E', 'F1', 'F2', 'F3', 'F4', 'G1', 'G2', 'G3'],
             'Tle': ['S', 'A1', 'A2', 'B', 'C', 'D', 'E', 'F1', 'F2', 'F3', 'F4', 'G1', 'G2', 'G3']
         };
         
@@ -498,11 +558,17 @@ class ClassCreationManager {
     updateTeacherSectionForCycle(data) {
         const addTeacherBtn = document.getElementById('addTeacherBtn');
         const teachersContainer = document.getElementById('teachersContainer');
+        const teachersSectionTitle = document.getElementById('teachersSectionTitle');
         
         if (data.is_primary) {
             // Pour le primaire : masquer le bouton + et s'assurer qu'il n'y a qu'un seul enseignant
             if (addTeacherBtn) {
                 addTeacherBtn.style.display = 'none';
+            }
+            
+            // Mettre à jour le titre pour le primaire
+            if (teachersSectionTitle) {
+                teachersSectionTitle.textContent = 'Enseignant de la classe';
             }
             
             // Vider le conteneur existant
@@ -519,6 +585,11 @@ class ClassCreationManager {
             // Pour collège/lycée : afficher le bouton + et permettre plusieurs enseignants
             if (addTeacherBtn) {
                 addTeacherBtn.style.display = 'inline-block';
+            }
+            
+            // Mettre à jour le titre pour le collège/lycée
+            if (teachersSectionTitle) {
+                teachersSectionTitle.textContent = 'Professeurs de la classe';
             }
             
             // Ne pas vider le conteneur pour le collège/lycée, garder les enseignants existants
@@ -737,7 +808,13 @@ class ClassCreationManager {
         if (this.isPrimaryLevel) {
             teacherNumber.textContent = 'Principal';
         } else {
-            teacherNumber.textContent = this.teacherCounter;
+            // Pour collège/lycée : le premier professeur est "Principal"
+            const existingTeachers = document.querySelectorAll('.teacher-entry');
+            if (existingTeachers.length === 0) {
+                teacherNumber.textContent = 'Principal';
+            } else {
+                teacherNumber.textContent = existingTeachers.length + 1;
+            }
         }
         
         // Pour le primaire, masquer le bouton de suppression
@@ -751,6 +828,9 @@ class ClassCreationManager {
         // Ajouter au conteneur
         teachersContainer.appendChild(clone);
         console.log('Entrée ajoutée au conteneur');
+        
+        // Mettre à jour les numéros des professeurs
+        this.updateTeacherNumbers();
         
         // Mettre à jour les options du nouveau select avec les données déjà chargées
         const levelId = parseInt(levelSelect.value);
@@ -776,6 +856,9 @@ class ClassCreationManager {
             
             // Mettre à jour les options des autres sélecteurs après suppression
             this.updateAllTeacherOptions();
+            
+            // Vérifier s'il faut réactiver le bouton d'ajout
+            this.checkAvailableTeachers();
         }
     }
     
@@ -810,6 +893,14 @@ class ClassCreationManager {
                 this.selectedSubjects.add(teacher.specialization);
             }
             
+            // Afficher le coefficient pour le lycée
+            if (this.selectedLevel && this.selectedLevel.cycle === 'lycee' && this.selectedSeries) {
+                const teacherEntry = select.closest('.teacher-entry');
+                if (teacherEntry) {
+                    displayCoefficientForTeacher(teacherEntry, this.selectedSeries);
+                }
+            }
+            
             console.log('Professeur ajouté aux sélections:', teacher);
             console.log('Sélections actuelles:', Array.from(this.selectedTeachers.values()));
             console.log('Matières sélectionnées:', Array.from(this.selectedSubjects));
@@ -823,6 +914,9 @@ class ClassCreationManager {
         this.updateTeacherInfo(select);
         this.updateAllTeacherOptions();
         this.updateSelectedTeachersSummary();
+        
+        // Vérifier s'il reste des professeurs disponibles après la sélection
+        this.checkAvailableTeachers();
     }
     
     removeTeacherFromSelection(teacherId) {
@@ -857,7 +951,8 @@ class ClassCreationManager {
             teacherName.textContent = selectedOption.textContent.split(' (')[0];
             teacherType.textContent = teacherTypeValue === 'general' ? 'Généraliste' : 'Spécialisé';
             
-            if (specialization) {
+            // Ne pas afficher la spécialisation pour les enseignants de primaire/pré-primaire
+            if (specialization && !this.isPrimaryLevel) {
                 teacherSpecialization.textContent = ` - ${specialization}`;
             } else {
                 teacherSpecialization.textContent = '';
@@ -876,42 +971,147 @@ class ClassCreationManager {
         teacherSelects.forEach(select => {
             this.updateTeacherOptionsFromAPI(select, this.availableTeachers);
         });
+        
+        // Vérifier s'il reste des professeurs disponibles
+        this.checkAvailableTeachers();
+    }
+    
+    updateAllTeacherCoefficients() {
+        if (!this.selectedSeries) return;
+        
+        const teacherEntries = document.querySelectorAll('.teacher-entry');
+        teacherEntries.forEach(entry => {
+            const teacherSelect = entry.querySelector('.teacher-select');
+            if (teacherSelect && teacherSelect.value) {
+                displayCoefficientForTeacher(entry, this.selectedSeries);
+            }
+        });
+    }
+    
+    checkAvailableTeachers() {
+        const addTeacherBtn = document.getElementById('addTeacherBtn');
+        const teachersContainer = document.getElementById('teachersContainer');
+        
+        if (!addTeacherBtn || !teachersContainer || this.isPrimaryLevel) return;
+        
+        // Compter les professeurs déjà sélectionnés
+        const selectedTeacherIds = Array.from(this.selectedTeachers.keys());
+        const availableCount = this.availableTeachers.length;
+        const selectedCount = selectedTeacherIds.length;
+        
+        console.log(`Professeurs disponibles: ${availableCount}, Sélectionnés: ${selectedCount}`);
+        
+        if (selectedCount >= availableCount) {
+            // Tous les professeurs ont été assignés
+            addTeacherBtn.disabled = true;
+            addTeacherBtn.classList.remove('btn-success');
+            addTeacherBtn.classList.add('btn-secondary');
+            addTeacherBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Tous les professeurs assignés';
+            
+            // Afficher un message informatif
+            this.showAllTeachersAssignedMessage();
+        } else {
+            // Il reste des professeurs disponibles
+            addTeacherBtn.disabled = false;
+            addTeacherBtn.classList.remove('btn-secondary');
+            addTeacherBtn.classList.add('btn-success');
+            addTeacherBtn.innerHTML = '<i class="bi bi-plus me-1"></i>Ajouter un professeur';
+            
+            // Masquer le message si il existe
+            this.hideAllTeachersAssignedMessage();
+        }
+    }
+    
+    showAllTeachersAssignedMessage() {
+        // Vérifier si le message existe déjà
+        let messageDiv = document.getElementById('allTeachersAssignedMessage');
+        if (messageDiv) return;
+        
+        // Créer le message
+        messageDiv = document.createElement('div');
+        messageDiv.id = 'allTeachersAssignedMessage';
+        messageDiv.className = 'alert alert-info mt-3';
+        messageDiv.innerHTML = `
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Tous les professeurs de la classe ont été assignés !</strong>
+            <br><small class="text-muted">Vous pouvez maintenant procéder à la création de la classe.</small>
+        `;
+        
+        // Insérer après le conteneur des professeurs
+        const teachersContainer = document.getElementById('teachersContainer');
+        if (teachersContainer) {
+            teachersContainer.parentNode.insertBefore(messageDiv, teachersContainer.nextSibling);
+        }
+    }
+    
+    hideAllTeachersAssignedMessage() {
+        const messageDiv = document.getElementById('allTeachersAssignedMessage');
+        if (messageDiv) {
+            messageDiv.remove();
+        }
     }
     
     updateSelectedTeachersSummary() {
         const selectedTeachers = Array.from(this.selectedTeachers.values());
         const summaryContainer = document.getElementById('selectedTeachersSummary');
+        const summaryRow = document.getElementById('teachersSummaryRow');
         
-        if (!summaryContainer) {
-            // Créer le conteneur de résumé s'il n'existe pas
-            const teachersSection = document.querySelector('.col-md-6:last-child');
-            const summaryDiv = document.createElement('div');
-            summaryDiv.id = 'selectedTeachersSummary';
-            summaryDiv.className = 'alert alert-success mt-3';
-            summaryDiv.innerHTML = '<h6><i class="bi bi-check-circle me-2"></i>Résumé des professeurs sélectionnés</h6><div id="summaryContent"></div>';
-            teachersSection.appendChild(summaryDiv);
+        if (!summaryContainer || !summaryRow) {
+            console.error('Conteneur de résumé non trouvé');
+            return;
         }
         
-        const summaryContent = document.getElementById('summaryContent');
         if (selectedTeachers.length === 0) {
-            summaryContent.innerHTML = '<p class="mb-0 text-muted">Aucun professeur sélectionné</p>';
+            // Masquer la section du résumé
+            summaryRow.style.display = 'none';
+            summaryContainer.innerHTML = '<p class="mb-0 text-muted">Aucun professeur sélectionné</p>';
         } else {
+            // Afficher la section du résumé
+            summaryRow.style.display = 'block';
+            
             let summaryHTML = '<ul class="mb-0">';
-            selectedTeachers.forEach(teacher => {
+            selectedTeachers.forEach((teacher, index) => {
                 const typeLabel = teacher.type === 'general' ? 'Généraliste' : 'Spécialisé';
-                const subjectInfo = teacher.specialization ? ` - ${teacher.specialization}` : '';
-                summaryHTML += `<li><strong>${teacher.name}</strong> (${typeLabel}${subjectInfo})</li>`;
+                // Ne pas afficher la spécialisation pour les enseignants de primaire/pré-primaire
+                const subjectInfo = (teacher.specialization && !this.isPrimaryLevel) ? ` - ${teacher.specialization}` : '';
+                
+                // Marquer le premier professeur comme "Principal" pour tous les niveaux
+                let principalLabel = '';
+                if (index === 0) {
+                    principalLabel = ' (Professeur Principal)';
+                }
+                
+                summaryHTML += `<li><strong>${teacher.name}</strong>${principalLabel} - ${typeLabel}${subjectInfo}</li>`;
             });
             summaryHTML += '</ul>';
-            summaryContent.innerHTML = summaryHTML;
+            summaryContainer.innerHTML = summaryHTML;
         }
     }
     
     updateTeacherNumbers() {
         const teacherEntries = document.querySelectorAll('.teacher-entry');
+        console.log(`Mise à jour des numéros pour ${teacherEntries.length} professeurs`);
+        
         teacherEntries.forEach((entry, index) => {
-            entry.querySelector('.teacher-number').textContent = index + 1;
+            const teacherNumber = entry.querySelector('.teacher-number');
+            if (teacherNumber) {
+                // Pour le primaire, garder "Principal", sinon numéroter
+                if (this.isPrimaryLevel) {
+                    teacherNumber.textContent = 'Principal';
+                } else {
+                    // Pour collège/lycée : le premier est "Principal", les autres numérotés
+                    if (index === 0) {
+                        teacherNumber.textContent = 'Principal';
+                    } else {
+                        teacherNumber.textContent = index;
+                    }
+                }
+                console.log(`Professeur ${index + 1} mis à jour`);
+            }
         });
+        
+        // Mettre à jour le résumé des professeurs sélectionnés
+        this.updateSelectedTeachersSummary();
     }
     
     filterTeachers(searchInput) {
@@ -1003,6 +1203,44 @@ class ClassCreationManager {
             submitBtn.disabled = false;
             submitBtnContent.classList.remove('d-none');
             submitBtnSpinner.classList.add('d-none');
+        }
+    }
+}
+
+// Fonction pour récupérer le coefficient selon la série et la matière
+function getCoefficientForSeries(seriesCode, subjectName) {
+    if (!seriesCode || !subjectName) return 1;
+    
+    const seriesData = SERIES_COEFFICIENTS[seriesCode];
+    if (!seriesData) return 1;
+    
+    return seriesData[subjectName] || 1;
+}
+
+// Fonction pour afficher le coefficient dans l'interface
+function displayCoefficientForTeacher(teacherEntry, seriesCode) {
+    const teacherSelect = teacherEntry.querySelector('.teacher-select');
+    const selectedOption = teacherSelect.options[teacherSelect.selectedIndex];
+    
+    if (selectedOption && selectedOption.value) {
+        const specialization = selectedOption.getAttribute('data-specialization');
+        if (specialization && seriesCode) {
+            const coefficient = getCoefficientForSeries(seriesCode, specialization);
+            
+            // Afficher le coefficient dans l'interface
+            let coefficientDisplay = teacherEntry.querySelector('.coefficient-display');
+            if (!coefficientDisplay) {
+                coefficientDisplay = document.createElement('div');
+                coefficientDisplay.className = 'coefficient-display mt-2 p-2 bg-info text-white rounded';
+                teacherEntry.appendChild(coefficientDisplay);
+            }
+            
+            coefficientDisplay.innerHTML = `
+                <small>
+                    <i class="bi bi-calculator me-1"></i>
+                    Coefficient pour la série ${seriesCode}: <strong>${coefficient}</strong>
+                </small>
+            `;
         }
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Fee;
+use App\Models\Level;
 use App\Models\SchoolClass;
 use App\Models\AcademicYear;
 use Illuminate\Support\Facades\DB;
@@ -14,10 +15,71 @@ class FeeController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        // Rediriger vers le nouveau système de gestion des frais
-        return redirect('/fees/dashboard');
+        // La page renvoyait vers /fees/dashboard, qui lit `level_fees` et
+        // `class_fees` — deux tables vides — pendant que les frais reellement
+        // saisis dans `fees` n'etaient affiches nulle part.
+        $requete = Fee::query()->with(['schoolClass:id,name', 'niveau:id,name,cycle']);
+
+        if ($terme = trim((string) $request->input('recherche'))) {
+            $motif = '%' . mb_strtolower($terme) . '%';
+            $requete->whereRaw('LOWER(name) LIKE ?', [$motif]);
+        }
+
+        foreach (['fee_type', 'frequency'] as $champ) {
+            if ($valeur = $request->input($champ)) {
+                $requete->where($champ, $valeur);
+            }
+        }
+
+        if ($niveau = $request->input('level_id')) {
+            $requete->where('level_id', $niveau);
+        }
+
+        if ($request->filled('etat')) {
+            $requete->where('is_active', $request->input('etat') === 'actif');
+        }
+
+        $bilan = [
+            'total' => Fee::count(),
+            'actifs' => Fee::where('is_active', true)->count(),
+            'obligatoires' => Fee::where('is_mandatory', true)->count(),
+            'montant_annuel' => Fee::where('is_active', true)->get()->sum(fn ($f) => $f->montantAnnuel()),
+        ];
+
+        $fees = $requete->orderBy('fee_type')->orderBy('name')->paginate(10)->withQueryString();
+
+        $levels = Level::orderBy('order')->get(['id', 'name', 'cycle']);
+
+        return view('fees.index', compact('fees', 'bilan', 'levels') + [
+            'feeTypes' => $this->typesDeFrais(),
+            'frequencies' => $this->frequences(),
+        ]);
+    }
+
+    /** Libelles des types de frais, partages par toutes les vues du module. */
+    private function typesDeFrais(): array
+    {
+        return [
+            'tuition' => 'Scolarité',
+            'registration' => 'Inscription',
+            'uniform' => 'Uniforme',
+            'transport' => 'Transport',
+            'meal' => 'Repas',
+            'other' => 'Autre',
+        ];
+    }
+
+    /** Libelles des periodicites. */
+    private function frequences(): array
+    {
+        return [
+            'monthly' => 'Mensuel',
+            'quarterly' => 'Trimestriel',
+            'yearly' => 'Annuel',
+            'one_time' => 'Unique',
+        ];
     }
 
     /**
@@ -44,7 +106,9 @@ class FeeController extends Controller
             'one_time' => 'Unique'
         ];
 
-        return view('fees.create', compact('classes', 'academicYears', 'feeTypes', 'frequencies'));
+        $levels = Level::orderBy('order')->get(['id', 'name', 'cycle']);
+
+        return view('fees.create', compact('classes', 'academicYears', 'feeTypes', 'frequencies', 'levels'));
     }
 
     /**
@@ -62,6 +126,7 @@ class FeeController extends Controller
             'fee_type' => 'required|in:tuition,registration,uniform,transport,meal,other',
             'frequency' => 'required|in:monthly,quarterly,yearly,one_time',
             'class_id' => 'nullable|exists:classes,id',
+            'level_id' => 'nullable|exists:levels,id',
             'academic_year_id' => 'required|exists:academic_years,id',
             'due_date' => 'nullable|date',
             'is_mandatory' => 'boolean',
@@ -117,7 +182,9 @@ class FeeController extends Controller
             'one_time' => 'Unique'
         ];
 
-        return view('fees.edit', compact('fee', 'classes', 'academicYears', 'feeTypes', 'frequencies'));
+        $levels = Level::orderBy('order')->get(['id', 'name', 'cycle']);
+
+        return view('fees.edit', compact('fee', 'classes', 'academicYears', 'feeTypes', 'frequencies', 'levels'));
     }
 
     /**
@@ -134,6 +201,7 @@ class FeeController extends Controller
             'fee_type' => 'required|in:tuition,registration,uniform,transport,meal,other',
             'frequency' => 'required|in:monthly,quarterly,yearly,one_time',
             'class_id' => 'nullable|exists:classes,id',
+            'level_id' => 'nullable|exists:levels,id',
             'academic_year_id' => 'required|exists:academic_years,id',
             'due_date' => 'nullable|date',
             'is_mandatory' => 'boolean',

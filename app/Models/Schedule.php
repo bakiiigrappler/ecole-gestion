@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+
+use App\Models\Concerns\AppartientAUnEtablissement;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Schedule extends Model
 {
+    use AppartientAUnEtablissement;
+
     protected $fillable = [
         'class_id',
         'subject_id',

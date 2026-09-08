@@ -8,9 +8,12 @@ use App\Models\Subject;
 use App\Models\SchoolClass;
 use App\Models\Teacher;
 use App\Models\AcademicYear;
+use App\Models\Attendance;
+use App\Models\Level;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class GradeController extends Controller
 {
@@ -19,118 +22,151 @@ class GradeController extends Controller
      */
     public function index(Request $request)
     {
-        // Récupérer les paramètres de filtrage
-        $classId = $request->get('class_id');
-        $subjectId = $request->get('subject_id');
-        $examType = $request->get('exam_type');
-        $term = $request->get('term');
-        $teacherId = $request->get('teacher_id');
+        /*
+         * L'ancienne version chargeait 300 lignes de notes, les regroupait en
+         * PHP, relancait une requete par eleve pour sa moyenne cumulee, puis
+         * paginait le tableau en memoire. Avec 2880 notes, la plupart des eleves
+         * n'apparaissaient jamais et le total affiche par la pagination etait
+         * faux. Tout est desormais agrege en base, et la page pagine vraiment.
+         */
+        $classesDuSecondaire = SchoolClass::whereHas('level', fn ($q) => $q->whereIn('cycle', ['college', 'lycee']))
+            ->orderBy('name')
+            ->pluck('id');
 
-        // Construire la requête avec les filtres
-        $query = StudentGrade::with(['student', 'subject', 'schoolClass', 'teacher']);
+        /*
+         * Un enseignant lit ses notes classe par classe : la page lui ouvre un
+         * onglet par classe, et se place d'office sur la premiere. Sans cela
+         * il tombait sur un melange de toutes ses classes, trie par moyenne.
+         */
+        $estEnseignant = \App\Support\PerimetreEnseignant::estEnseignant();
+        $mesClasses = collect();
 
-        if ($classId) {
-            $query->byClass($classId);
-        }
-        if ($subjectId) {
-            $query->bySubject($subjectId);
-        }
-        if ($term) {
-            $query->byTerm($term);
-        }
-        if ($teacherId) {
-            $query->byTeacher($teacherId);
-        }
-
-        // Récupérer les notes groupées par élève
-        $gradesByStudent = $query->with(['student.enrollments.schoolClass', 'subject', 'teacher'])
-            ->get()
-            ->groupBy('student_id');
-
-        // Calculer les moyennes cumulées pour chaque élève
-        $studentsWithGrades = [];
-        foreach ($gradesByStudent as $studentId => $studentGrades) {
-            $student = $studentGrades->first()->student;
-            $classId = $studentGrades->first()->class_id;
-            
-            // Calculer la moyenne cumulée de l'élève dans cette classe
-            $cumulativeGrades = StudentGrade::where('student_id', $studentId)
-                ->where('class_id', $classId)
+        if ($estEnseignant) {
+            $mesClasses = SchoolClass::with('level')
+                ->whereIn('id', \App\Support\PerimetreEnseignant::classes() ?: [0])
+                ->whereIn('id', $classesDuSecondaire)
+                ->orderBy('name')
                 ->get();
-            
-            if ($cumulativeGrades->count() > 0) {
-                $totalScore = $cumulativeGrades->sum('score');
-                $totalMaxScore = $cumulativeGrades->sum('max_score');
-                $cumulativeScore = $totalMaxScore > 0 ? round(($totalScore / $totalMaxScore) * 20, 2) : 0;
-                $cumulativePercentage = $totalMaxScore > 0 ? round(($totalScore / $totalMaxScore) * 100, 1) : 0;
-                
-                // Déterminer la couleur de la note
-                $cumulativeGradeColor = 'danger';
-                if ($cumulativePercentage >= 80) {
-                    $cumulativeGradeColor = 'success';
-                } elseif ($cumulativePercentage >= 70) {
-                    $cumulativeGradeColor = 'info';
-                } elseif ($cumulativePercentage >= 60) {
-                    $cumulativeGradeColor = 'primary';
-                } elseif ($cumulativePercentage >= 50) {
-                    $cumulativeGradeColor = 'warning';
-                } elseif ($cumulativePercentage >= 40) {
-                    $cumulativeGradeColor = 'secondary';
-                }
-            } else {
-                $cumulativeScore = '--';
-                $cumulativePercentage = 0;
-                $cumulativeGradeColor = 'secondary';
+
+            $demandee = $request->input('class_id');
+
+            if (! $mesClasses->contains('id', (int) $demandee)) {
+                /*
+                 * L'onglet ouvert d'office est celui d'une classe ou il a
+                 * effectivement note : ouvrir sur une classe vide donnait un
+                 * tableau vide, et laissait croire que le filtre etait casse.
+                 */
+                $laPlusFournie = StudentGrade::whereIn('class_id', $mesClasses->pluck('id'))
+                    ->whereIn('subject_id', \App\Support\PerimetreEnseignant::matieres() ?: [0])
+                    ->selectRaw('class_id, count(*) as notes')
+                    ->groupBy('class_id')
+                    ->orderByDesc('notes')
+                    ->value('class_id');
+
+                $request->merge(['class_id' => $laPlusFournie ?: $mesClasses->first()?->id]);
             }
-            
-            $studentsWithGrades[] = [
-                'student' => $student,
-                'grades' => $studentGrades,
-                'cumulative_score' => $cumulativeScore,
-                'cumulative_percentage' => $cumulativePercentage,
-                'cumulative_grade_color' => $cumulativeGradeColor,
-                'total_grades' => $studentGrades->count(),
-                'class' => $studentGrades->first()->schoolClass
-            ];
         }
 
-        // Pagination manuelle pour les élèves
-        $perPage = 20;
-        $currentPage = request()->get('page', 1);
-        $offset = ($currentPage - 1) * $perPage;
-        $paginatedStudents = array_slice($studentsWithGrades, $offset, $perPage);
-        
-        // Créer un objet de pagination personnalisé
-        $grades = new \Illuminate\Pagination\LengthAwarePaginator(
-            $paginatedStudents,
-            count($studentsWithGrades),
-            $perPage,
-            $currentPage,
-            ['path' => request()->url(), 'pageName' => 'page']
-        );
+        $lignes = StudentGrade::query()
+            ->whereIn('student_grades.class_id', $classesDuSecondaire)
+            // Un enseignant ne note que ses classes, et seulement la matiere
+            // qu'il y enseigne : les deux conditions valent ensemble.
+            ->when(\App\Support\PerimetreEnseignant::estEnseignant(), fn ($q) => $q
+                ->whereIn('student_grades.class_id', \App\Support\PerimetreEnseignant::classes() ?: [0])
+                ->whereIn('subject_id', \App\Support\PerimetreEnseignant::matieres() ?: [0]))
+            ->when($request->input('class_id'), fn ($q, $v) => $q->where('student_grades.class_id', $v))
+            ->when($request->input('subject_id'), fn ($q, $v) => $q->where('subject_id', $v))
+            ->when($request->input('term'), fn ($q, $v) => $q->where('term', $v))
+            ->when($request->input('teacher_id'), fn ($q, $v) => $q->where('teacher_id', $v))
+            ->when($request->input('recherche'), function ($q, $motif) {
+                $q->whereHas('student', fn ($s) => $s
+                    ->where('first_name', 'ilike', "%{$motif}%")
+                    ->orWhere('last_name', 'ilike', "%{$motif}%")
+                    ->orWhere('student_id', 'ilike', "%{$motif}%"));
+            })
+            // Une note peut etre sur 10, 20 ou 100 : on ramene tout sur 20 avant
+            // de moyenner, sinon les matieres ne sont pas comparables.
+            ->selectRaw("
+                student_grades.student_id,
+                student_grades.class_id,
+                count(*) as total_notes,
+                count(distinct subject_id) as matieres,
+                avg(case when max_score > 0 then score / max_score * 20 end) as moyenne,
+                avg(case when term = '1er trimestre'  and max_score > 0 then score / max_score * 20 end) as t1,
+                avg(case when term = '2ème trimestre' and max_score > 0 then score / max_score * 20 end) as t2,
+                avg(case when term = '3ème trimestre' and max_score > 0 then score / max_score * 20 end) as t3
+            ")
+            ->groupBy('student_grades.student_id', 'student_grades.class_id')
+            ->orderByDesc('moyenne');
 
-        // Statistiques
-        $stats = $this->getGradeStats($request);
+        // Taille de page : celle demandee si elle est permise, sinon celle
+        // reglee pour la plateforme.
+        $parPage = \App\Support\ParametresPlateforme::pagination($request->input('per_page'));
 
-        // Données pour les filtres
-        $classes = SchoolClass::orderBy('name')->get();
-        $subjects = Subject::orderBy('name')->get();
-        $teachers = Teacher::orderBy('first_name')->get();
-        $students = Student::orderBy('first_name')->get();
+        $releves = $lignes->paginate($parPage)->withQueryString();
 
-        return view('grades.index', compact(
-            'grades',
-            'stats',
-            'classes',
-            'subjects',
-            'teachers',
-            'students'
-        ));
+        // Les eleves et les classes de la page courante, en deux requetes.
+        $eleves = Student::whereIn('id', $releves->pluck('student_id'))->get()->keyBy('id');
+        $classes = SchoolClass::with('level')->whereIn('id', $releves->pluck('class_id'))->get()->keyBy('id');
+
+        return view('grades.index', [
+            'releves' => $releves,
+            'eleves' => $eleves,
+            'classesDesReleves' => $classes,
+            // Les compteurs d'en-tete portent sur ce que la personne a le
+            // droit de voir : donner a un enseignant la moyenne generale de
+            // l'etablissement reviendrait a la lui ouvrir par la bande.
+            'statistiques' => $this->chiffresDesNotes(
+                $estEnseignant ? $mesClasses->pluck('id') : $classesDuSecondaire,
+                $estEnseignant ? \App\Support\PerimetreEnseignant::matieres() : null
+            ),
+            'classes' => $estEnseignant
+                ? $mesClasses
+                : SchoolClass::with('level')->whereIn('id', $classesDuSecondaire)->orderBy('name')->get(),
+            'subjects' => Subject::whereIn('cycle', ['college', 'lycee'])
+                ->when($estEnseignant, fn ($q) => $q->whereIn('id', \App\Support\PerimetreEnseignant::matieres() ?: [0]))
+                ->orderBy('name')->get(),
+            'teachers' => Teacher::orderBy('last_name')->orderBy('first_name')->get(),
+            'estEnseignant' => $estEnseignant,
+            'mesClasses' => $mesClasses,
+        ]);
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Chiffres de la liste des notes, en une requete groupee plutot qu'en une
+     * dizaine de compteurs separes.
      */
+    private function chiffresDesNotes($classes, ?array $matieres = null): array
+    {
+        $global = StudentGrade::whereIn('class_id', $classes)
+            ->when($matieres !== null, fn ($q) => $q->whereIn('subject_id', $matieres ?: [0]))
+            ->selectRaw("
+                count(*) as notes,
+                count(distinct student_id) as eleves,
+                count(distinct subject_id) as matieres,
+                avg(case when max_score > 0 then score / max_score * 20 end) as moyenne,
+                count(*) filter (where max_score > 0 and score / max_score * 20 >= 10) as suffisantes
+            ")
+            ->first();
+
+        $parTrimestre = StudentGrade::whereIn('class_id', $classes)
+            ->when($matieres !== null, fn ($q) => $q->whereIn('subject_id', $matieres ?: [0]))
+            ->selectRaw("term, count(*) as n, avg(case when max_score > 0 then score / max_score * 20 end) as moyenne")
+            ->groupBy('term')
+            ->orderBy('term')
+            ->get();
+
+        $notes = (int) ($global->notes ?? 0);
+
+        return [
+            'notes' => $notes,
+            'eleves' => (int) ($global->eleves ?? 0),
+            'matieres' => (int) ($global->matieres ?? 0),
+            'moyenne' => $global->moyenne !== null ? round((float) $global->moyenne, 2) : null,
+            'taux_reussite' => $notes > 0 ? (int) round($global->suffisantes / $notes * 100) : null,
+            'par_trimestre' => $parTrimestre,
+        ];
+    }
     public function create(Request $request)
     {
         // Récupérer les niveaux pour la sélection hiérarchique
@@ -244,15 +280,13 @@ class GradeController extends Controller
     public function show(string $id)
     {
         try {
-            // Si l'ID est numérique, c'est l'ancien format (note individuelle)
-            if (is_numeric($id)) {
-                $grade = StudentGrade::with(['student', 'subject', 'schoolClass', 'teacher'])->findOrFail($id);
-                return view('grades.show', compact('grade'));
-            }
-            
-            // Sinon, c'est un ID d'élève pour le bulletin
+            // L'ID est toujours un ID d'élève pour afficher son bulletin
             $studentId = $id;
             $student = Student::with(['enrollments.schoolClass.level'])->findOrFail($studentId);
+            // Ce dossier est-il le sien, celui de son enfant, ou celui d'un
+            // eleve de sa classe ? Sans cette verification, changer le chiffre
+            // dans l'URL suffisait a lire le dossier de n'importe qui.
+            \App\Support\AccesEleve::verifier($student);
             $currentEnrollment = $student->enrollments()->where('status', 'active')->first();
             
             if (!$currentEnrollment || !$currentEnrollment->schoolClass) {
@@ -295,6 +329,34 @@ class GradeController extends Controller
             
             $class = $currentEnrollment->schoolClass;
             $academicYear = AcademicYear::where('is_current', true)->first();
+            
+            // Préparer les informations de l'étudiant
+            $studentInfo = [
+                'id' => $student->id,
+                'matricule' => $student->student_id,
+                'first_name' => $student->first_name,
+                'last_name' => $student->last_name,
+                'birth_date' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : 'N/C',
+                'birth_place' => $student->place_of_birth ?? $student->birth_place ?? 'N/C',
+                'gender' => $student->gender === 'male' ? 'M' : 'F',
+                'nationality' => $student->nationality ?? 'Gabonaise',
+                'address' => $student->address ?? 'N/C'
+            ];
+            
+            // Calculer l'effectif de la classe
+            $totalStudents = $class->enrollments()->where('status', 'active')->count();
+            $maleStudents = $class->enrollments()->where('status', 'active')
+                ->whereHas('student', function($q) {
+                    $q->where('gender', 'male');
+                })->count();
+            $femaleStudents = $class->enrollments()->where('status', 'active')
+                ->whereHas('student', function($q) {
+                    $q->where('gender', 'female');
+                })->count();
+            
+            // Récupérer le professeur principal
+            $principalTeacher = $class->allTeachers()->wherePivot('role', 'principal')->first();
+            $principalTeacherName = $principalTeacher ? $principalTeacher->first_name . ' ' . $principalTeacher->last_name : 'N/C';
             
             // Préparer les données pour le PDF
             $tableDataForPDF = [];
@@ -364,7 +426,12 @@ class GradeController extends Controller
                 'cumulativePercentage', 
                 'cumulativeGradeColor',
                 'tableDataForPDF',
-                'totalsRowForPDF'
+                'totalsRowForPDF',
+                'studentInfo',
+                'totalStudents',
+                'maleStudents',
+                'femaleStudents',
+                'principalTeacherName'
             ));
             
         } catch (\Exception $e) {
@@ -385,7 +452,9 @@ class GradeController extends Controller
         $grade = StudentGrade::findOrFail($id);
         $students = Student::orderBy('first_name')->get();
         $subjects = Subject::orderBy('name')->get();
-        $classes = SchoolClass::orderBy('name')->get();
+        $classes = SchoolClass::whereHas('level', function($q) {
+            $q->where('cycle', 'lycee');
+        })->orderBy('name')->get();
         $teachers = Teacher::orderBy('first_name')->get();
 
         return view('grades.edit', compact('grade', 'students', 'subjects', 'classes', 'teachers'));
@@ -416,7 +485,7 @@ class GradeController extends Controller
 
         $grade->update($validated);
 
-        return redirect()->route('grades.index')
+        return redirect()->route('grades.manage-student', $grade->student_id)
             ->with('success', 'Note mise à jour avec succès !');
     }
 
@@ -426,9 +495,10 @@ class GradeController extends Controller
     public function destroy(string $id)
     {
         $grade = StudentGrade::findOrFail($id);
+        $studentId = $grade->student_id; // Sauvegarder l'ID de l'élève avant la suppression
         $grade->delete();
 
-        return redirect()->route('grades.index')
+        return redirect()->route('grades.manage-student', $studentId)
             ->with('success', 'Note supprimée avec succès !');
     }
 
@@ -439,6 +509,10 @@ class GradeController extends Controller
     {
         try {
             $student = Student::with(['enrollments.schoolClass.level'])->findOrFail($studentId);
+            // Ce dossier est-il le sien, celui de son enfant, ou celui d'un
+            // eleve de sa classe ? Sans cette verification, changer le chiffre
+            // dans l'URL suffisait a lire le dossier de n'importe qui.
+            \App\Support\AccesEleve::verifier($student);
             $currentEnrollment = $student->enrollments()->where('status', 'active')->first();
             
             if (!$currentEnrollment || !$currentEnrollment->schoolClass) {
@@ -518,6 +592,10 @@ class GradeController extends Controller
         try {
             Log::info('showBulletin called for student: ' . $studentId);
             $student = Student::with(['enrollments.schoolClass.level'])->findOrFail($studentId);
+            // Ce dossier est-il le sien, celui de son enfant, ou celui d'un
+            // eleve de sa classe ? Sans cette verification, changer le chiffre
+            // dans l'URL suffisait a lire le dossier de n'importe qui.
+            \App\Support\AccesEleve::verifier($student);
             Log::info('Student found: ' . $student->first_name . ' ' . $student->last_name);
             $currentEnrollment = $student->enrollments()->where('status', 'active')->first();
             
@@ -528,35 +606,48 @@ class GradeController extends Controller
             $class = $currentEnrollment->schoolClass;
             $academicYear = AcademicYear::where('is_current', true)->first();
             
-            // ==================== STATISTIQUES DE LA CLASSE ====================
-            // Récupérer tous les élèves de la classe
-            $classStudents = Student::whereHas('enrollments', function ($query) use ($class) {
-                $query->where('class_id', $class->id)->where('status', 'active');
-            })->get();
-            
-            $totalStudents = $classStudents->count();
-            $maleStudents = $classStudents->where('gender', 'male')->count();
-            $femaleStudents = $classStudents->where('gender', 'female')->count();
+            // Initialiser les variables par défaut
+            // L'effectif etait fixe a zero : le bulletin annoncait « 0 eleves ».
+            $roster = Student::whereHas('enrollments', fn ($q) => $q
+                    ->where('class_id', $class->id)
+                    ->where('status', 'active'))
+                ->get(['id', 'gender']);
+
+            $totalStudents = $roster->count();
+            $maleStudents = $roster->where('gender', 'male')->count();
+            $femaleStudents = $roster->where('gender', 'female')->count();
             
             // ==================== INFORMATIONS COMPLÈTES DE L'ÉLÈVE ====================
-            // Récupérer les informations complètes de l'élève
             $studentInfo = [
                 'id' => $student->id,
                 'first_name' => $student->first_name,
                 'last_name' => $student->last_name,
                 'matricule' => $student->student_id ?? 'STU' . str_pad($student->id, 6, '0', STR_PAD_LEFT),
                 'birth_date' => $student->date_of_birth ? \Carbon\Carbon::parse($student->date_of_birth)->format('d-m-Y') : 'N/C',
-                'birth_place' => $student->place_of_birth ?? 'N/C',
                 'gender' => $student->gender ? ucfirst($student->gender) : 'N/C',
-                'nationality' => 'Gabonaise', // Par défaut
-                'photo' => $student->photo,
-                'avatar' => null
             ];
             
             // ==================== NOTES PAR TRIMESTRE ====================
             $trimesters = ['1er trimestre', '2ème trimestre', '3ème trimestre'];
             $trimesterData = [];
             
+            // Initialiser tous les trimestres avec le statut "Non disponible"
+            foreach ($trimesters as $trimester) {
+                $trimesterData[$trimester] = [
+                    'subjects' => [],
+                    'cumulative_score' => 0,
+                    'total_subjects' => 0,
+                    'rank' => 'N/C',
+                    'is_available' => false,
+                    'status' => 'Non disponible',
+                    'absences' => 0
+                ];
+            }
+
+            // Heures manquees, relevees dans le module Presences.
+            $absences = $this->absencesParTrimestre($studentId, $class->id, $academicYear);
+
+            // Traiter les trimestres avec des données
             foreach ($trimesters as $trimester) {
                 $trimesterGrades = StudentGrade::with(['subject', 'teacher'])
                     ->where('student_id', $studentId)
@@ -566,22 +657,36 @@ class GradeController extends Controller
                     ->get();
                 
                 if ($trimesterGrades->count() > 0) {
-                    $trimesterData[$trimester] = $this->calculateTrimesterGrades($trimesterGrades, $class, $studentId);
+                    try {
+                        $calculatedData = $this->calculateTrimesterGrades($trimesterGrades, $class, $studentId);
+                        $chiffres = $this->chiffresDeLaClasse($class->id, $trimester, $class);
+
+                        // Moyenne de la classe et rang, discipline par discipline :
+                        // le bulletin officiel les affiche, ils valaient « N/C ».
+                        $heures = $absences[$trimester];
+                        $calculatedData['subjects'] = array_map(function ($matiere) use ($chiffres, $studentId, $heures) {
+                            $id = $matiere['subject_id'];
+                            $matiere['class_average'] = $chiffres['par_matiere'][$id] ?? null;
+                            $matiere['rank'] = $chiffres['rangs_matiere'][$id][$studentId] ?? 'N/C';
+                            $matiere['absences'] = $heures['par_matiere'][$id] ?? 0;
+
+                            return $matiere;
+                        }, $calculatedData['subjects']);
+
+                        $trimesterData[$trimester] = array_merge($calculatedData, [
+                            'is_available' => true,
+                            'status' => 'Disponible',
+                            'rank' => $chiffres['rangs_generaux'][$studentId] ?? 'N/C',
+                            'class_average' => $chiffres['profil']['moyenne'],
+                            'class_profile' => $chiffres['profil'],
+                            'absences' => $absences[$trimester]['total'],
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::error('Erreur calcul trimestre: ' . $e->getMessage());
+                        // Garder le statut "Non disponible" en cas d'erreur
+                    }
                 }
             }
-            
-            // ==================== CALCUL DES RANGS ET MOYENNES DE CLASSE ====================
-            $subjectRanks = $this->calculateSubjectRanks($class->id, $studentId);
-            $classAverages = $this->calculateClassAverages($class->id);
-            
-            // ==================== COEFFICIENTS DES MATIÈRES ====================
-            $subjectCoefficients = $this->getSubjectCoefficients($class->level_id);
-            
-            // ==================== PROFIL DE LA CLASSE ====================
-            $classProfile = $this->calculateClassProfile($class->id);
-            
-            // ==================== BILAN GÉNÉRAL ====================
-            $generalBalance = $this->calculateGeneralBalance($trimesterData);
             
             // ==================== PROFESSEUR PRINCIPAL DE LA CLASSE ====================
             $principalTeacher = $class->allTeachers()
@@ -592,50 +697,49 @@ class GradeController extends Controller
                 $principalTeacher->first_name . ' ' . $principalTeacher->last_name : 
                 'N/C';
             
-            // ==================== DONNÉES POUR LE PDF ====================
+            // Calculer les moyennes de classe par trimestre
+            $classAverages = $this->calculateClassAveragesByTrimester($class->id);
+
+            // Le bulletin du 3e trimestre porte la decision de passage : il
+            // annonce la classe dans laquelle l'eleve entrera.
+            $niveauSuivant = $class->level
+                ? Level::where('order', '>', $class->level->order)
+                    ->where('is_active', true)
+                    ->orderBy('order')
+                    ->first()
+                : null;
+
+            $classeDePassage = $niveauSuivant?->name;
+            
+            // Variables simplifiées pour la vue
+            $subjectRanks = [];
+            $subjectCoefficients = [];
+            $classProfile = ['moyenne_classe' => $classAverages['moyenne_generale'] ?? 'N/C'];
+            $generalBalance = ['moyenne_generale' => $classAverages['moyenne_generale'] ?? 'N/C'];
             $tableDataForPDF = [];
             $totalsRowForPDF = [];
+            $gradesDataForPDF = [];
+            $cumulativeScore = 0;
+            $cumulativePercentage = 0;
+            $termLabel = '1er TRIMESTRE';
+            $schoolName = 'Établissement Scolaire';
+            $schoolSettings = null;
             
+            // Calculer les coefficients des matières pour la vue
             if (!empty($trimesterData)) {
-                // Prendre le dernier trimestre avec des notes
                 $lastTrimester = array_key_last($trimesterData);
                 $currentTrimesterGrades = $trimesterData[$lastTrimester];
                 
-                foreach ($currentTrimesterGrades['subjects'] as $subjectData) {
-                    $coefficient = $subjectCoefficients[$subjectData['subject_id']] ?? 1;
-                    $noteCoeff = $subjectData['average'] * $coefficient;
-                    $rank = $subjectRanks[$subjectData['subject_id']] ?? 'N/C';
-                    
-                    $tableDataForPDF[] = [
-                        $subjectData['subject_name'],
-                        $subjectData['average'] > 0 ? $subjectData['average'] . '/20' : 'N/C',
-                        $coefficient,
-                        $subjectData['average'] > 0 ? number_format($noteCoeff, 2) : 'N/C',
-                        $rank,
-                        '0h00', // Absences (à implémenter plus tard)
-                        $this->getAppreciation($subjectData['average']),
-                        $subjectData['teacher_name']
-                    ];
+                if (isset($currentTrimesterGrades['subjects'])) {
+                    foreach ($currentTrimesterGrades['subjects'] as $subjectData) {
+                        $subjectName = strtolower($subjectData['name']);
+                        $subjectCoefficients[$subjectName] = $subjectData['coefficient'] ?? 1;
+                    }
                 }
-                
-                // Ligne des totaux
-                $totalCoeff = array_sum(array_column($currentTrimesterGrades['subjects'], 'coefficient'));
-                $totalNoteCoeff = array_sum(array_column($currentTrimesterGrades['subjects'], 'note_coeff'));
-                
-                $totalsRowForPDF = [
-                    'TOTAL',
-                    $currentTrimesterGrades['cumulative_score'] . '/20',
-                    $totalCoeff,
-                    number_format($totalNoteCoeff, 2),
-                    $currentTrimesterGrades['rank'] ?? 'N/C',
-                    '0h00',
-                    $this->getAppreciation($currentTrimesterGrades['cumulative_score']),
-                    'PROFESSEUR PRINCIPAL'
-                ];
             }
             
-            Log::info('About to return view grades.show');
-            return view('grades.show', compact(
+            Log::info('About to return view grades.show-trimesters');
+            return view('grades.show-trimesters', compact(
                 'student', 
                 'class', 
                 'academicYear',
@@ -651,7 +755,14 @@ class GradeController extends Controller
                 'generalBalance',
                 'principalTeacherName',
                 'tableDataForPDF',
-                'totalsRowForPDF'
+                'totalsRowForPDF',
+                'gradesDataForPDF',
+                'cumulativeScore',
+                'cumulativePercentage',
+                'termLabel',
+                'classeDePassage',
+                'schoolName',
+                'schoolSettings'
             ));
             
         } catch (\Exception $e) {
@@ -1215,48 +1326,274 @@ class GradeController extends Controller
         }
     }
 
+
+    /**
+     * Heures d'absence relevees dans le module Presences, trimestre par trimestre.
+     *
+     * Le pointage se fait par seance (une date, un creneau) et non par matiere :
+     * chaque seance manquee est rattachee a sa discipline via l'emploi du temps
+     * de la classe. Tant que celui-ci n'est pas saisi, seul le total du
+     * trimestre est connu et les disciplines restent a zero.
+     */
+    private function absencesParTrimestre(int $studentId, int $classId, $academicYear): array
+    {
+        $trimestres = ['1er trimestre', '2ème trimestre', '3ème trimestre'];
+        $vide = array_fill_keys($trimestres, ['par_matiere' => [], 'total' => 0]);
+
+        if (!$academicYear) {
+            return $vide;
+        }
+
+        $debut = Carbon::parse($academicYear->start_date)->startOfDay();
+        $fin = Carbon::parse($academicYear->end_date)->endOfDay();
+        $an = $debut->year;
+
+        // Memes bornes que le decoupage de l'annee scolaire retenu par
+        // getCurrentTerm() : septembre-decembre, janvier-mars, avril-juin.
+        $bornes = [
+            '1er trimestre' => [$debut, Carbon::create($an, 12, 31)->endOfDay()],
+            '2ème trimestre' => [Carbon::create($an + 1, 1, 1)->startOfDay(), Carbon::create($an + 1, 3, 31)->endOfDay()],
+            '3ème trimestre' => [Carbon::create($an + 1, 4, 1)->startOfDay(), $fin],
+        ];
+
+        // 'absent' comme 'excused' comptent comme heures manquees ; un retard
+        // ('late') n'est pas une absence.
+        $seances = Attendance::where('student_id', $studentId)
+            ->whereIn('status', ['absent', 'excused'])
+            ->whereBetween('attendance_date', [$debut->toDateString(), $fin->toDateString()])
+            ->get(['attendance_date', 'time_slot']);
+
+        if ($seances->isEmpty()) {
+            return $vide;
+        }
+
+        $emploiDuTemps = DB::table('schedules')
+            ->where('class_id', $classId)
+            ->where('academic_year_id', $academicYear->id)
+            ->get(['subject_id', 'day_of_week', 'start_time', 'end_time']);
+
+        $absences = $vide;
+
+        foreach ($seances as $seance) {
+            $jour = Carbon::parse($seance->attendance_date);
+
+            foreach ($bornes as $trimestre => [$de, $a]) {
+                if ($jour->lt($de) || $jour->gt($a)) {
+                    continue;
+                }
+
+                foreach ($this->coursManques($emploiDuTemps, $jour, $seance->time_slot) as $cours) {
+                    $absences[$trimestre]['total'] += $cours['minutes'];
+
+                    if ($cours['subject_id']) {
+                        $id = $cours['subject_id'];
+                        $absences[$trimestre]['par_matiere'][$id] =
+                            ($absences[$trimestre]['par_matiere'][$id] ?? 0) + $cours['minutes'];
+                    }
+                }
+
+                break;
+            }
+        }
+
+        return $absences;
+    }
+
+    /**
+     * Les cours manques pour une seance pointee absente.
+     *
+     * Sans emploi du temps saisi, l'heure manquee ne peut etre rattachee a
+     * aucune discipline : elle compte alors pour une heure au total du
+     * trimestre, et pour rien dans les colonnes des matieres.
+     */
+    private function coursManques($emploiDuTemps, Carbon $jour, ?string $creneau): array
+    {
+        $duJour = $emploiDuTemps->where('day_of_week', $jour->dayOfWeekIso);
+
+        if ($duJour->isEmpty()) {
+            return [['subject_id' => null, 'minutes' => 60]];
+        }
+
+        $duree = function ($ligne) {
+            $de = Carbon::parse($ligne->start_time);
+            $a = Carbon::parse($ligne->end_time);
+
+            return max(0, $de->diffInMinutes($a)) ?: 60;
+        };
+
+        // Pointage a la journee : toutes les heures du jour sont manquees.
+        // La feuille d'appel enregistre ce cas sous le libelle « journee ».
+        if (!$creneau || $creneau === 'journee') {
+            return $duJour->map(fn ($ligne) => [
+                'subject_id' => $ligne->subject_id,
+                'minutes' => $duree($ligne),
+            ])->values()->all();
+        }
+
+        $heure = substr($creneau, 0, 5);
+        $cours = $duJour->first(fn ($ligne) => substr((string) $ligne->start_time, 0, 5) === $heure);
+
+        return $cours
+            ? [['subject_id' => $cours->subject_id, 'minutes' => $duree($cours)]]
+            : [['subject_id' => null, 'minutes' => 60]];
+    }
+
     /**
      * Calculer les notes d'un trimestre
      */
+
+    /**
+     * Chiffres de la classe pour un trimestre : moyenne de chaque discipline,
+     * rang de chaque eleve par discipline, moyenne generale ponderee de chaque
+     * eleve, et le profil de la classe (forte, faible et moyenne generale).
+     *
+     * Le bulletin officiel affiche ces colonnes ; elles n'etaient pas calculees
+     * — le rang valait « N/C » partout et la moyenne de la classe par discipline
+     * n'existait pas.
+     */
+    private function chiffresDeLaClasse(int $classId, string $trimestre, SchoolClass $class): array
+    {
+        $notes = StudentGrade::with('subject')
+            ->where('class_id', $classId)
+            ->where('term', $trimestre)
+            ->get();
+
+        if ($notes->isEmpty()) {
+            return [
+                'par_matiere' => [],
+                'rangs_matiere' => [],
+                'moyennes_eleves' => [],
+                'rangs_generaux' => [],
+                'profil' => ['forte' => null, 'faible' => null, 'moyenne' => null],
+            ];
+        }
+
+        // Moyenne de chaque eleve dans chaque discipline, ramenee sur 20.
+        $parMatiere = [];
+        $rangsMatiere = [];
+
+        foreach ($notes->groupBy('subject_id') as $subjectId => $lot) {
+            $moyennes = $lot->groupBy('student_id')->map(function ($n) {
+                $total = $n->sum('max_score');
+
+                return $total > 0 ? round($n->sum('score') / $total * 20, 2) : null;
+            })->filter();
+
+            $parMatiere[$subjectId] = $moyennes->avg() !== null ? round($moyennes->avg(), 2) : null;
+
+            // Rang : moyennes egales partagent le meme rang.
+            $ordonnees = $moyennes->sortDesc()->values();
+            foreach ($moyennes as $studentId => $moyenne) {
+                $rangsMatiere[$subjectId][$studentId] = $ordonnees->search($moyenne) + 1;
+            }
+        }
+
+        // Moyenne generale ponderee de chaque eleve, avec les memes coefficients
+        // que ceux appliques a l'eleve affiche.
+        $moyennesEleves = [];
+
+        foreach ($notes->groupBy('student_id') as $studentId => $lot) {
+            $points = 0;
+            $coefficients = 0;
+
+            foreach ($lot->groupBy('subject_id') as $subjectId => $sesNotes) {
+                $matiere = $sesNotes->first()->subject ?? null;
+                if (! $matiere) {
+                    continue;
+                }
+
+                $total = $sesNotes->sum('max_score');
+                if ($total <= 0) {
+                    continue;
+                }
+
+                $coefficient = $this->getSubjectCoefficient($matiere, $class);
+                $points += ($sesNotes->sum('score') / $total * 20) * $coefficient;
+                $coefficients += $coefficient;
+            }
+
+            if ($coefficients > 0) {
+                $moyennesEleves[$studentId] = round($points / $coefficients, 2);
+            }
+        }
+
+        $classement = collect($moyennesEleves)->sortDesc();
+        $ordonnees = $classement->values();
+
+        $rangsGeneraux = [];
+        foreach ($moyennesEleves as $studentId => $moyenne) {
+            $rangsGeneraux[$studentId] = $ordonnees->search($moyenne) + 1;
+        }
+
+        return [
+            'par_matiere' => $parMatiere,
+            'rangs_matiere' => $rangsMatiere,
+            'moyennes_eleves' => $moyennesEleves,
+            'rangs_generaux' => $rangsGeneraux,
+            'profil' => [
+                'forte' => $classement->first(),
+                'faible' => $classement->last(),
+                'moyenne' => $classement->isNotEmpty() ? round($classement->avg(), 2) : null,
+                'effectif' => count($moyennesEleves),
+            ],
+        ];
+    }
+
     private function calculateTrimesterGrades($grades, $class, $studentId)
     {
         $subjects = [];
-        $totalScore = 0;
-        $totalMaxScore = 0;
+        $totalWeightedScore = 0;
+        $totalCoefficient = 0;
         
-        // Grouper par matière
-        $gradesBySubject = $grades->groupBy('subject_id');
-        
-        foreach ($gradesBySubject as $subjectId => $subjectGrades) {
-            $subject = $subjectGrades->first()->subject;
-            $teacher = $subjectGrades->first()->teacher;
+        try {
+            // Grouper par matière
+            $gradesBySubject = $grades->groupBy('subject_id');
             
-            // Calculer la moyenne de la matière
-            $subjectTotalScore = $subjectGrades->sum('score');
-            $subjectTotalMaxScore = $subjectGrades->sum('max_score');
-            $subjectAverage = $subjectTotalMaxScore > 0 ? round(($subjectTotalScore / $subjectTotalMaxScore) * 20, 2) : 0;
+            foreach ($gradesBySubject as $subjectId => $subjectGrades) {
+                $subject = $subjectGrades->first()->subject ?? null;
+                $teacher = $subjectGrades->first()->teacher ?? null;
+                
+                if (!$subject) continue;
+                
+                // Calculer la moyenne de la matière
+                $subjectTotalScore = $subjectGrades->sum('score');
+                $subjectTotalMaxScore = $subjectGrades->sum('max_score');
+                $subjectAverage = $subjectTotalMaxScore > 0 ? round(($subjectTotalScore / $subjectTotalMaxScore) * 20, 2) : 0;
+                
+                // Récupérer le coefficient de la matière
+                $coefficient = $this->getSubjectCoefficient($subject, $class);
+                
+                $subjects[] = [
+                    'subject_id' => $subjectId,
+                    'name' => $subject->name,
+                    'average' => $subjectAverage,
+                    'teacher_name' => $teacher ? $teacher->first_name . ' ' . $teacher->last_name : 'N/A',
+                    'coefficient' => $coefficient,
+                    'rank' => 'N/C',
+                    'appreciation' => $this->getAppreciation($subjectAverage)
+                ];
+                
+                // Calculer la moyenne pondérée
+                $totalWeightedScore += $subjectAverage * $coefficient;
+                $totalCoefficient += $coefficient;
+            }
             
-            $subjects[] = [
-                'subject_id' => $subjectId,
-                'subject_name' => $subject->name,
-                'average' => $subjectAverage,
-                'teacher_name' => $teacher ? $teacher->first_name . ' ' . $teacher->last_name : 'N/A',
-                'coefficient' => 1, // Sera mis à jour avec les vrais coefficients
-                'note_coeff' => $subjectAverage,
-                'rank' => null // Sera calculé séparément
+            // Calculer la moyenne générale pondérée
+            $cumulativeScore = $totalCoefficient > 0 ? round($totalWeightedScore / $totalCoefficient, 2) : 0;
+            
+            return [
+                'subjects' => $subjects,
+                'cumulative_score' => $cumulativeScore,
+                'total_subjects' => count($subjects)
             ];
-            
-            $totalScore += $subjectTotalScore;
-            $totalMaxScore += $subjectTotalMaxScore;
+        } catch (\Exception $e) {
+            Log::error('Erreur calculateTrimesterGrades: ' . $e->getMessage());
+            return [
+                'subjects' => [],
+                'cumulative_score' => 0,
+                'total_subjects' => 0
+            ];
         }
-        
-        $cumulativeScore = $totalMaxScore > 0 ? round(($totalScore / $totalMaxScore) * 20, 2) : 0;
-        
-        return [
-            'subjects' => $subjects,
-            'cumulative_score' => $cumulativeScore,
-            'total_subjects' => count($subjects)
-        ];
     }
     
     /**
@@ -1317,6 +1654,61 @@ class GradeController extends Controller
         }
         
         return $averages;
+    }
+    
+    /**
+     * Calculer les moyennes de classe par trimestre
+     */
+    private function calculateClassAveragesByTrimester($classId)
+    {
+        $trimesters = ['1er trimestre', '2ème trimestre', '3ème trimestre'];
+        $trimesterAverages = [];
+        $totalAverage = 0;
+        $availableTrimesters = 0;
+        
+        foreach ($trimesters as $trimester) {
+            // Calculer la moyenne de classe pour ce trimestre
+            $grades = StudentGrade::where('class_id', $classId)
+                ->where('term', $trimester)
+                ->get();
+            
+            if ($grades->count() > 0) {
+                // Calculer la moyenne pondérée par coefficient
+                $totalWeightedScore = 0;
+                $totalCoefficient = 0;
+                
+                // Grouper par matière pour calculer les moyennes par matière
+                $gradesBySubject = $grades->groupBy('subject_id');
+                
+                foreach ($gradesBySubject as $subjectId => $subjectGrades) {
+                    $subject = $subjectGrades->first()->subject;
+                    $coefficient = $this->getSubjectCoefficient($subject, SchoolClass::find($classId));
+                    
+                    // Calculer la moyenne de la matière pour ce trimestre
+                    $subjectTotalScore = $subjectGrades->sum('score');
+                    $subjectTotalMaxScore = $subjectGrades->sum('max_score');
+                    $subjectAverage = $subjectTotalMaxScore > 0 ? ($subjectTotalScore / $subjectTotalMaxScore) * 20 : 0;
+                    
+                    $totalWeightedScore += $subjectAverage * $coefficient;
+                    $totalCoefficient += $coefficient;
+                }
+                
+                $trimesterAverage = $totalCoefficient > 0 ? round($totalWeightedScore / $totalCoefficient, 2) : 0;
+                $trimesterAverages[$trimester] = $trimesterAverage;
+                $totalAverage += $trimesterAverage;
+                $availableTrimesters++;
+            } else {
+                $trimesterAverages[$trimester] = 0;
+            }
+        }
+        
+        $moyenneGenerale = $availableTrimesters > 0 ? round($totalAverage / $availableTrimesters, 2) : 0;
+        
+        return [
+            'trimestres' => $trimesterAverages,
+            'moyenne_generale' => $moyenneGenerale,
+            'trimestres_disponibles' => $availableTrimesters
+        ];
     }
     
     /**
@@ -1446,5 +1838,457 @@ class GradeController extends Controller
         $timePart = str_pad(substr(time(), -4), 4, '0', STR_PAD_LEFT);
         
         return $year . $studentPart . $timePart;
+    }
+    
+    /**
+     * Générer et télécharger le PDF du bulletin d'un trimestre
+     */
+    public function downloadBulletinPDF(Request $request, string $studentId)
+    {
+        try {
+            $trimester = $request->get('trimester', '1er trimestre');
+            
+            $student = Student::with(['enrollments.schoolClass.level'])->findOrFail($studentId);
+            // Ce dossier est-il le sien, celui de son enfant, ou celui d'un
+            // eleve de sa classe ? Sans cette verification, changer le chiffre
+            // dans l'URL suffisait a lire le dossier de n'importe qui.
+            \App\Support\AccesEleve::verifier($student);
+            $currentEnrollment = $student->enrollments()->where('status', 'active')->first();
+            
+            if (!$currentEnrollment || !$currentEnrollment->schoolClass) {
+                return redirect()->route('grades.index')->with('error', 'L\'élève n\'est pas inscrit dans une classe active.');
+            }
+            
+            $class = $currentEnrollment->schoolClass;
+            $academicYear = AcademicYear::where('is_current', true)->first();
+            
+            // Récupérer les notes du trimestre spécifié
+            $grades = StudentGrade::with(['subject', 'teacher'])
+                ->where('student_id', $studentId)
+                ->where('class_id', $class->id)
+                ->where('term', $trimester)
+                ->get();
+            
+            if ($grades->count() === 0) {
+                return redirect()->back()->with('error', 'Aucune note disponible pour ce trimestre.');
+            }
+            
+            // Calculer les données du trimestre
+            $trimesterData = $this->calculateTrimesterGrades($grades, $class, $studentId);
+            
+            // Préparer les données pour le PDF
+            $tableDataForPDF = [];
+            $totalsRowForPDF = [];
+            
+            foreach ($trimesterData['subjects'] as $subject) {
+                $tableDataForPDF[] = [
+                    $subject['name'],
+                    $subject['average'] . '/20',
+                    $subject['coefficient'],
+                    number_format($subject['average'] * $subject['coefficient'], 2),
+                    $subject['rank'],
+                    '0h00',
+                    $subject['appreciation'],
+                    $subject['teacher_name']
+                ];
+            }
+            
+            $totalsRowForPDF = [
+                'TOTAUX',
+                $trimesterData['cumulative_score'] . '/20',
+                array_sum(array_column($trimesterData['subjects'], 'coefficient')),
+                number_format(array_sum(array_column($trimesterData['subjects'], 'average')) * array_sum(array_column($trimesterData['subjects'], 'coefficient')), 2),
+                'N/C',
+                '0h00',
+                $trimesterData['cumulative_score'] >= 10 ? "Admis" : "Non admis",
+                ''
+            ];
+            
+            // Données pour le PDF
+            $pdfData = [
+                'student' => $student,
+                'class' => $class,
+                'academicYear' => $academicYear,
+                'trimester' => $trimester,
+                'trimesterData' => $trimesterData,
+                'tableDataForPDF' => $tableDataForPDF,
+                'totalsRowForPDF' => $totalsRowForPDF,
+                'schoolName' => 'Établissement Scolaire',
+                'schoolSettings' => null
+            ];
+            
+            // Générer le PDF
+            $pdf = \PDF::loadView('grades.bulletin-pdf', $pdfData);
+            
+            $filename = 'Bulletin_' . $student->first_name . '_' . $student->last_name . '_' . $trimester . '_' . date('Y-m-d') . '.pdf';
+            
+            return $pdf->download($filename);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur lors de la génération du PDF du bulletin', [
+                'student_id' => $studentId,
+                'trimester' => $request->get('trimester'),
+                'error' => $e->getMessage()
+            ]);
+            
+            return redirect()->back()->with('error', 'Erreur lors de la génération du PDF.');
+        }
+    }
+
+    /**
+     * Afficher le bulletin sous forme de carte
+     */
+    public function showBulletinCarte(string $studentId)
+    {
+        try {
+            $student = Student::with(['enrollments.schoolClass.level'])->findOrFail($studentId);
+            // Ce dossier est-il le sien, celui de son enfant, ou celui d'un
+            // eleve de sa classe ? Sans cette verification, changer le chiffre
+            // dans l'URL suffisait a lire le dossier de n'importe qui.
+            \App\Support\AccesEleve::verifier($student);
+            $currentEnrollment = $student->enrollments()->where('status', 'active')->first();
+            
+            if (!$currentEnrollment || !$currentEnrollment->schoolClass) {
+                return redirect()->route('grades.index')->with('error', 'L\'élève n\'est pas inscrit dans une classe active.');
+            }
+            
+            $class = $currentEnrollment->schoolClass;
+            $academicYear = AcademicYear::where('is_current', true)->first();
+            
+            // Récupérer le professeur principal
+            $principalTeacher = $class->allTeachers()->wherePivot('role', 'principal')->first();
+            $principalTeacherName = $principalTeacher ? $principalTeacher->first_name . ' ' . $principalTeacher->last_name : 'N/C';
+            
+            // Données simplifiées pour les trimestres
+            $trimesters = ['1er trimestre', '2ème trimestre', '3ème trimestre'];
+            $trimesterData = [];
+            
+            // Initialiser tous les trimestres avec le statut "Non disponible"
+            foreach ($trimesters as $trimester) {
+                $trimesterData[$trimester] = [
+                    'subjects' => [],
+                    'cumulative_score' => 0,
+                    'total_subjects' => 0,
+                    'rank' => 'N/C',
+                    'is_available' => false,
+                    'status' => 'Non disponible'
+                ];
+            }
+            
+            // Récupérer les notes pour chaque trimestre
+            foreach ($trimesters as $trimester) {
+                $grades = StudentGrade::with(['subject', 'teacher'])
+                    ->where('student_id', $studentId)
+                    ->where('academic_year_id', $academicYear->id)
+                    ->where('term', $trimester)
+                    ->get();
+                
+                if ($grades->count() > 0) {
+                    $subjects = [];
+                    $totalScore = 0;
+                    $totalCoefficient = 0;
+                    
+                    foreach ($grades as $grade) {
+                        // Calculer la moyenne sur 20
+                        $average = $grade->max_score > 0 ? round(($grade->score / $grade->max_score) * 20, 2) : 0;
+                        
+                        $subjectData = [
+                            'name' => $grade->subject->name,
+                            'average' => $average,
+                            'coefficient' => $grade->subject->coefficient ?? 1,
+                            'rank' => 'N/C',
+                            'teacher_name' => $grade->teacher ? $grade->teacher->first_name . ' ' . $grade->teacher->last_name : 'N/C',
+                            'appreciation' => $this->getAppreciation($average)
+                        ];
+                        
+                        $subjects[] = $subjectData;
+                        $totalScore += $average * ($grade->subject->coefficient ?? 1);
+                        $totalCoefficient += $grade->subject->coefficient ?? 1;
+                    }
+                    
+                    $cumulativeScore = $totalCoefficient > 0 ? $totalScore / $totalCoefficient : 0;
+                    
+                    $trimesterData[$trimester] = [
+                        'subjects' => $subjects,
+                        'cumulative_score' => round($cumulativeScore, 2),
+                        'total_subjects' => count($subjects),
+                        'rank' => 'N/C',
+                        'is_available' => true,
+                        'status' => 'Disponible'
+                    ];
+                }
+            }
+            
+            return view('grades.bulletin-carte', compact(
+                'student', 
+                'class', 
+                'academicYear',
+                'trimesterData',
+                'principalTeacherName'
+            ));
+            
+        } catch (\Exception $e) {
+            return redirect()->route('grades.index')->with('error', 'Erreur lors de l\'affichage du bulletin.');
+        }
+    }
+
+    /**
+     * Récupérer l'état des trimestres d'un élève (API)
+     */
+    public function getStudentTrimesters($studentId)
+    {
+        try {
+            // Vérifier que l'élève existe
+            $student = Student::find($studentId);
+            if (!$student) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Élève non trouvé',
+                    'error' => 'Student not found'
+                ], 404);
+            }
+            
+            // Récupérer l'année académique courante
+            $academicYear = AcademicYear::where('is_current', true)->first();
+            if (!$academicYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucune année académique courante trouvée',
+                    'error' => 'No current academic year'
+                ], 500);
+            }
+            
+            $trimesters = ['1er trimestre', '2ème trimestre', '3ème trimestre'];
+            $trimesterStatus = [];
+            
+            foreach ($trimesters as $trimester) {
+                $grades = StudentGrade::with('subject')
+                    ->where('student_id', $studentId)
+                    ->where('academic_year_id', $academicYear->id)
+                    ->where('term', $trimester)
+                    ->get();
+                
+                $trimesterStatus[$trimester] = [
+                    'name' => $trimester,
+                    'has_grades' => $grades->count() > 0,
+                    'grades_count' => $grades->count(),
+                    'subjects_with_grades' => $grades->pluck('subject.name')->unique()->values()->toArray(),
+                    'average_score' => $grades->count() > 0 ? round($grades->avg('average_score'), 2) : 0,
+                    'status' => $grades->count() > 0 ? 'completed' : 'pending',
+                    'status_text' => $grades->count() > 0 ? 'Complété' : 'En attente',
+                    'status_color' => $grades->count() > 0 ? 'success' : 'warning'
+                ];
+            }
+            
+            // Déterminer le prochain trimestre à traiter
+            $nextTrimester = null;
+            foreach ($trimesters as $trimester) {
+                if (!$trimesterStatus[$trimester]['has_grades']) {
+                    $nextTrimester = $trimester;
+                    break;
+                }
+            }
+            
+            // Si tous les trimestres sont complétés
+            $allCompleted = collect($trimesterStatus)->every(function ($status) {
+                return $status['has_grades'];
+            });
+            
+            return response()->json([
+                'success' => true,
+                'student' => [
+                    'id' => $student->id,
+                    'name' => $student->first_name . ' ' . $student->last_name,
+                    'student_id' => $student->student_id ?? 'N/A'
+                ],
+                'trimesters' => $trimesterStatus,
+                'next_trimester' => $nextTrimester,
+                'all_completed' => $allCompleted,
+                'academic_year' => $academicYear->name
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Erreur dans getStudentTrimesters', [
+                'student_id' => $studentId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des données',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les données des trimestres pour un élève (version simplifiée)
+     */
+    private function getStudentTrimesterData($studentId, $classId)
+    {
+        try {
+            $trimesters = ['1er trimestre', '2ème trimestre', '3ème trimestre'];
+            $trimesterData = [];
+            
+            // Récupérer la classe avec ses relations
+            $class = SchoolClass::with('level')->find($classId);
+            if (!$class) {
+                throw new \Exception('Classe non trouvée');
+            }
+            
+            // Récupérer toutes les notes de l'élève avec les matières
+            $allGrades = StudentGrade::with('subject')
+                ->where('student_id', $studentId)
+                ->where('class_id', $classId)
+                ->get();
+            
+            foreach ($trimesters as $trimester) {
+                $grades = $allGrades->where('term', $trimester);
+                
+                if ($grades->count() > 0) {
+                    // Calculer la moyenne pondérée avec les coefficients
+                    $totalWeightedScore = 0;
+                    $totalCoefficient = 0;
+                    $subjects = [];
+                    
+                    // Grouper par matière pour calculer les moyennes pondérées
+                    $gradesBySubject = $grades->groupBy('subject_id');
+                    
+                    foreach ($gradesBySubject as $subjectId => $subjectGrades) {
+                        $subject = $subjectGrades->first()->subject ?? null;
+                        if (!$subject) continue;
+                        
+                        // Calculer la moyenne de la matière
+                        $subjectTotalScore = $subjectGrades->sum('score');
+                        $subjectTotalMaxScore = $subjectGrades->sum('max_score');
+                        $subjectAverage = $subjectTotalMaxScore > 0 ? round(($subjectTotalScore / $subjectTotalMaxScore) * 20, 2) : 0;
+                        
+                        // Récupérer le coefficient
+                        $coefficient = $this->getSubjectCoefficient($subject, $class);
+                        
+                        // Ajouter les détails de la matière
+                        $subjects[] = [
+                            'subject_id' => $subjectId,
+                            'subject_name' => $subject->name,
+                            'average' => $subjectAverage,
+                            'coefficient' => $coefficient,
+                            'teacher_name' => 'N/A' // Pas de teacher dans cette version simplifiée
+                        ];
+                        
+                        // Ajouter à la moyenne pondérée
+                        $totalWeightedScore += $subjectAverage * $coefficient;
+                        $totalCoefficient += $coefficient;
+                    }
+                    
+                    $average = $totalCoefficient > 0 ? round($totalWeightedScore / $totalCoefficient, 2) : 0;
+                    
+                    $trimesterData[$trimester] = [
+                        'is_available' => true,
+                        'average' => $average,
+                        'total_notes' => $grades->count(),
+                        'status' => 'Disponible',
+                        'subjects' => $subjects
+                    ];
+                } else {
+                    $trimesterData[$trimester] = [
+                        'is_available' => false,
+                        'average' => 0,
+                        'total_notes' => 0,
+                        'status' => 'Non disponible'
+                    ];
+                }
+            }
+            
+            return $trimesterData;
+        } catch (\Exception $e) {
+            Log::error('Erreur getStudentTrimesterData: ' . $e->getMessage());
+            // En cas d'erreur, retourner des données par défaut
+            $trimesters = ['1er trimestre', '2ème trimestre', '3ème trimestre'];
+            $trimesterData = [];
+            
+            foreach ($trimesters as $trimester) {
+                $trimesterData[$trimester] = [
+                    'is_available' => false,
+                    'average' => 0,
+                    'total_notes' => 0,
+                    'status' => 'Non disponible'
+                ];
+            }
+            
+            return $trimesterData;
+        }
+    }
+
+    /**
+     * Récupérer le coefficient d'une matière selon la classe et la série
+     */
+    private function getSubjectCoefficient($subject, $class)
+    {
+        // Si la classe a une série (lycée), utiliser les coefficients par série
+        if ($class->series) {
+            return $this->getCoefficientForSeries($class->series, $subject->name);
+        }
+        
+        // Sinon, utiliser le coefficient de la matière ou 1 par défaut
+        return $subject->coefficient ?? 1;
+    }
+
+    /**
+     * Get coefficient for a subject based on series
+     */
+    private function getCoefficientForSeries($series, $subjectName)
+    {
+        $coefficients = [
+            'S' => [
+                'Mathématiques' => 7, 'Sciences physiques' => 6, 'Sciences de la Vie et de la Terre' => 6,
+                'Français' => 4, 'Histoire-Géographie' => 3, 'Anglais' => 2, 'Philosophie' => 4,
+                'Éducation physique et sportive' => 1
+            ],
+            'C' => [
+                'Mathématiques' => 7, 'Sciences physiques' => 6, 'Sciences de la Vie et de la Terre' => 5,
+                'Français' => 4, 'Histoire-Géographie' => 3, 'Anglais' => 2, 'Philosophie' => 4,
+                'Éducation physique et sportive' => 1
+            ],
+            'D' => [
+                'Sciences de la Vie et de la Terre' => 7, 'Mathématiques' => 5, 'Sciences physiques' => 5,
+                'Français' => 4, 'Histoire-Géographie' => 3, 'Anglais' => 2, 'Philosophie' => 4,
+                'Éducation physique et sportive' => 1
+            ],
+            'A1' => [
+                'Français' => 6, 'Littérature' => 5, 'Latin' => 4, 'Histoire-Géographie' => 4,
+                'Anglais' => 3, 'Mathématiques' => 2, 'Philosophie' => 4, 'Éducation physique et sportive' => 1
+            ],
+            'A2' => [
+                'Français' => 6, 'Littérature' => 5, 'Espagnol' => 4, 'Histoire-Géographie' => 4,
+                'Anglais' => 3, 'Mathématiques' => 2, 'Philosophie' => 4, 'Éducation physique et sportive' => 1
+            ],
+            'B' => [
+                'Sciences économiques et sociales' => 7, 'Mathématiques' => 5, 'Français' => 4,
+                'Histoire-Géographie' => 4, 'Anglais' => 3, 'Philosophie' => 4, 'Éducation physique et sportive' => 1
+            ],
+            'E' => [
+                'Technologie industrielle' => 8, 'Mathématiques' => 6, 'Sciences physiques' => 5,
+                'Français' => 3, 'Histoire-Géographie' => 2, 'Anglais' => 2, 'Philosophie' => 3,
+                'Éducation physique et sportive' => 1
+            ],
+            'LE' => [
+                'Français' => 6, 'Littérature' => 5, 'Histoire-Géographie' => 4, 'Anglais' => 3,
+                'Mathématiques' => 2, 'Philosophie' => 4, 'Éducation physique et sportive' => 1
+            ]
+        ];
+
+        if (!$series) {
+            return 1; // Coefficient par défaut
+        }
+
+        // Extraire la série pure (ex: "2NDE-S" -> "S", "1ERE-C" -> "C")
+        $pureSeries = preg_replace('/^.*?([A-Z]+)$/', '$1', $series);
+        
+        if (!isset($coefficients[$pureSeries])) {
+            return 1; // Coefficient par défaut
+        }
+
+        return $coefficients[$pureSeries][$subjectName] ?? 1;
     }
 }

@@ -26,22 +26,70 @@ class PaymentController extends Controller
      */
     public function index(Request $request)
     {
-        $filters = $request->only([
-            'search', 'status', 'payment_method', 'payment_type', 
-            'date_from', 'date_to', 'enrollment_id'
-        ]);
+        // La liste porte sur les transactions de la table `payments` : ce sont
+        // elles que `show`, `edit` et `receipt` manipulent. Elle affichait des
+        // inscriptions, si bien qu'aucune action de la ligne ne visait l'objet
+        // affiche, et que les statuts propres a l'inscription (partial,
+        // overdue) tombaient tous en « Inconnu ».
+        $requete = Payment::query()
+            ->with(['student:id,first_name,last_name,student_id', 'enrollment.schoolClass:id,name']);
 
-        $payments = $this->paymentService->getPayments($filters);
-        $stats = $this->paymentService->getPaymentStats($filters);
+        if ($terme = trim((string) $request->input('search'))) {
+            $motif = '%' . mb_strtolower($terme) . '%';
 
-        // Données pour les filtres
-        $classes = SchoolClass::orderBy('name')->get();
-        $students = Student::orderBy('first_name')->get();
+            $requete->where(function ($q) use ($motif) {
+                $q->whereRaw('LOWER(transaction_id) LIKE ?', [$motif])
+                  ->orWhereRaw('LOWER(payer_name) LIKE ?', [$motif])
+                  ->orWhereRaw('LOWER(payer_phone) LIKE ?', [$motif])
+                  ->orWhereHas('student', fn ($s) => $s
+                      ->whereRaw('LOWER(first_name) LIKE ?', [$motif])
+                      ->orWhereRaw('LOWER(last_name) LIKE ?', [$motif])
+                      ->orWhereRaw('LOWER(student_id) LIKE ?', [$motif]));
+            });
+        }
+
+        foreach (['status', 'payment_method', 'payment_type'] as $champ) {
+            if ($valeur = $request->input($champ)) {
+                $requete->where($champ, $valeur);
+            }
+        }
+
+        if ($classeId = $request->input('class_id')) {
+            $requete->whereHas('enrollment', fn ($q) => $q->where('class_id', $classeId));
+        }
+
+        if ($depuis = $request->input('date_from')) {
+            $requete->whereDate('created_at', '>=', $depuis);
+        }
+
+        if ($jusqua = $request->input('date_to')) {
+            $requete->whereDate('created_at', '<=', $jusqua);
+        }
+
+        // Les chiffres portent sur le resultat filtre, pas sur la page.
+        $filtre = (clone $requete);
+
+        $bilan = [
+            'transactions' => (clone $filtre)->count(),
+            'encaisse' => (clone $filtre)->where('status', 'completed')->sum('amount'),
+            'en_attente' => (clone $filtre)->whereIn('status', ['pending', 'processing'])->count(),
+            'echouees' => (clone $filtre)->whereIn('status', ['failed', 'cancelled'])->count(),
+        ];
+
+        $payments = $requete->latest('created_at')->paginate(10)->withQueryString();
+
+        // Ce qu'il reste a recouvrer ne se lit pas dans les transactions mais
+        // dans les inscriptions : c'est la seule source du montant du.
+        $inscriptions = Enrollment::where('status', 'active');
+        $recouvrement = [
+            'du' => (clone $inscriptions)->sum('total_fees'),
+            'paye' => (clone $inscriptions)->sum('amount_paid'),
+            'en_retard' => (clone $inscriptions)->whereIn('payment_status', ['pending', 'partial'])->count(),
+        ];
+        $recouvrement['reste'] = max(0, $recouvrement['du'] - $recouvrement['paye']);
+
+        $classes = SchoolClass::orderBy('name')->get(['id', 'name']);
         $academicYears = AcademicYear::orderBy('name', 'desc')->get();
-        $enrollments = Enrollment::with(['student', 'schoolClass', 'academicYear'])
-            ->where('status', 'active')
-            ->orderBy('created_at', 'desc')
-            ->get();
 
         $paymentMethods = [
             'moov_money' => 'Moov Money',
@@ -49,7 +97,7 @@ class PaymentController extends Controller
             'card' => 'Carte bancaire',
             'bank_transfer' => 'Virement bancaire',
             'cash' => 'Espèces',
-            'check' => 'Chèque'
+            'check' => 'Chèque',
         ];
 
         $paymentTypes = [
@@ -59,7 +107,7 @@ class PaymentController extends Controller
             'transport' => 'Transport',
             'canteen' => 'Cantine',
             'uniform' => 'Uniforme',
-            'other' => 'Autre'
+            'other' => 'Autre',
         ];
 
         $statuses = [
@@ -69,13 +117,104 @@ class PaymentController extends Controller
             'failed' => 'Échoué',
             'cancelled' => 'Annulé',
             'refunded' => 'Remboursé',
-            'partially_refunded' => 'Partiellement remboursé'
+            'partially_refunded' => 'Partiellement remboursé',
         ];
 
+        $enrollments = Enrollment::with(['student:id,first_name,last_name', 'schoolClass:id,name'])
+            ->where('status', 'active')
+            ->latest('created_at')
+            ->limit(200)
+            ->get();
+
         return view('payments.index', compact(
-            'payments', 'stats', 'classes', 'students', 'academicYears',
-            'enrollments', 'paymentMethods', 'paymentTypes', 'statuses', 'filters'
+            'payments', 'bilan', 'recouvrement', 'classes', 'academicYears',
+            'enrollments', 'paymentMethods', 'paymentTypes', 'statuses'
         ));
+    }
+
+    /**
+     * Récupérer les paiements des inscriptions
+     */
+    private function getEnrollmentPayments(array $filters = [], int $perPage = 15)
+    {
+        $query = Enrollment::with(['student', 'schoolClass', 'academicYear'])
+            ->where('status', 'active');
+        
+        // Appliquer les filtres
+        if (isset($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function($q) use ($search) {
+                $q->where('enrollment_code', 'like', "%{$search}%")
+                  ->orWhere('applicant_first_name', 'like', "%{$search}%")
+                  ->orWhere('applicant_last_name', 'like', "%{$search}%")
+                  ->orWhere('applicant_phone', 'like', "%{$search}%")
+                  ->orWhereHas('student', function($q) use ($search) {
+                      $q->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%");
+                  });
+            });
+        }
+        
+        if (isset($filters['status'])) {
+            $query->where('payment_status', $filters['status']);
+        }
+        
+        if (isset($filters['class_id'])) {
+            $query->where('class_id', $filters['class_id']);
+        }
+        
+        if (isset($filters['academic_year_id'])) {
+            $query->where('academic_year_id', $filters['academic_year_id']);
+        }
+        
+        if (isset($filters['date_from'])) {
+            $query->where('enrollment_date', '>=', $filters['date_from']);
+        }
+        
+        if (isset($filters['date_to'])) {
+            $query->where('enrollment_date', '<=', $filters['date_to']);
+        }
+        
+        return $query->orderBy('enrollment_date', 'desc')->paginate($perPage);
+    }
+
+    /**
+     * Récupérer les statistiques des paiements des inscriptions
+     */
+    private function getEnrollmentPaymentStats(array $filters = []): array
+    {
+        $query = Enrollment::where('status', 'active');
+        
+        // Appliquer les filtres
+        if (isset($filters['date_from'])) {
+            $query->where('enrollment_date', '>=', $filters['date_from']);
+        }
+        
+        if (isset($filters['date_to'])) {
+            $query->where('enrollment_date', '<=', $filters['date_to']);
+        }
+        
+        if (isset($filters['status'])) {
+            $query->where('payment_status', $filters['status']);
+        }
+        
+        $totalRevenue = $query->sum('amount_paid');
+        $totalPayments = $query->count();
+
+        // Un query builder est mutable : enchainer les where sur $query cumulait
+        // les trois statuts (completed ET pending ET partial) et renvoyait zero.
+        $completedPayments = (clone $query)->where('payment_status', 'completed')->count();
+        $pendingPayments = (clone $query)->where('payment_status', 'pending')->count();
+        $partialPayments = (clone $query)->where('payment_status', 'partial')->count();
+        
+        return [
+            'total_revenue' => $totalRevenue,
+            'total_payments' => $totalPayments,
+            'completed_payments' => $completedPayments,
+            'pending_payments' => $pendingPayments,
+            'partial_payments' => $partialPayments,
+            'success_rate' => $totalPayments > 0 ? round(($completedPayments / $totalPayments) * 100, 2) : 0
+        ];
     }
 
 

@@ -2,34 +2,65 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Subject;
 use App\Models\Level;
+use App\Models\Series;
+use App\Models\Subject;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class SubjectController extends Controller
 {
+    /** Cycles qui portent des matières. Le préprimaire est polyvalent. */
+    private const CYCLES = ['primaire', 'college', 'lycee'];
+
     /**
      * Afficher la liste des matières
      */
     public function index(Request $request)
     {
-        $query = Subject::query();
-        
-        // Filtrer par cycle si spécifié
-        if ($request->has('cycle') && $request->cycle) {
-            $query->where('cycle', $request->cycle);
+        $query = Subject::query()
+            // Les compteurs alimentent la colonne « Usage » : sans eux, chaque
+            // ligne du tableau relancerait deux requêtes.
+            ->withCount(['grades', 'teachers', 'schedules']);
+
+        if ($recherche = trim((string) $request->input('recherche'))) {
+            $query->where(fn ($q) => $q
+                ->where('name', 'ilike', "%{$recherche}%")
+                ->orWhere('code', 'ilike', "%{$recherche}%")
+                ->orWhere('description', 'ilike', "%{$recherche}%"));
         }
 
-        // Filtrer par série si spécifié (pour le lycée)
-        if ($request->has('series') && $request->series) {
-            $query->whereJsonContains('series', $request->series);
+        if ($cycle = $request->input('cycle')) {
+            $query->where('cycle', $cycle);
         }
-        
-        $subjects = $query->orderBy('cycle')->orderBy('name')->paginate(15);
 
-        return view('subjects.index', compact('subjects'));
+        if ($serie = $request->input('serie')) {
+            $query->whereJsonContains('series', $serie);
+        }
+
+        if (($statut = $request->input('statut')) !== null && $statut !== '') {
+            $query->where('is_active', $statut === 'actif');
+        }
+
+        // Enseignant : filtre les matières que personne ne peut assurer.
+        if ($request->input('sans_enseignant') === '1') {
+            $query->doesntHave('teachers');
+        }
+
+        // Taille de page : celle demandee si elle est permise, sinon celle
+        // reglee pour la plateforme.
+        $parPage = \App\Support\ParametresPlateforme::pagination($request->input('per_page'));
+
+        $subjects = $query->orderBy('cycle')->orderBy('name')
+            ->paginate($parPage)
+            ->withQueryString();
+
+        return view('subjects.index', [
+            'subjects' => $subjects,
+            'series' => $this->lettresDeSerie(),
+            'statistiques' => $this->statistiques(),
+        ]);
     }
 
     /**
@@ -37,7 +68,10 @@ class SubjectController extends Controller
      */
     public function create()
     {
-        return view('subjects.create');
+        return view('subjects.create', [
+            'subject' => new Subject(['coefficient' => 1, 'is_active' => true]),
+            'series' => $this->lettresDeSerie(),
+        ]);
     }
 
     /**
@@ -45,53 +79,25 @@ class SubjectController extends Controller
      */
     public function store(Request $request)
     {
-        $rules = [
-            'name' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:subjects,code',
-            'description' => 'nullable|string',
-            'coefficient' => 'required|numeric|min:0',
-            'cycle' => 'required|in:primaire,college,lycee',
-            'is_active' => 'boolean'
-        ];
-
-        // Validation conditionnelle pour les séries du lycée
-        if ($request->cycle === 'lycee') {
-            $rules['series'] = 'required|array|min:1';
-            $rules['series.*'] = 'in:S,A1,A2,B,C,D,E,LE';
-        }
-
-        $validator = Validator::make($request->all(), $rules);
+        $validator = Validator::make($request->all(), $this->regles($request), $this->messages());
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreurs de validation: ' . implode(', ', $validator->errors()->all()),
-                'errors' => $validator->errors()
-            ], 422);
+            return $this->echecValidation($request, $validator);
         }
 
-        $validated = $validator->validated();
-
-        // Pour les cycles non-lycée, pas de séries
-        if ($request->cycle !== 'lycee') {
-            $validated['series'] = null;
-        }
+        $donnees = $this->donneesValidees($validator, $request);
 
         try {
-            $subject = Subject::create($validated);
+            $subject = Subject::create($donnees);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Matière créée avec succès!',
-                'subject' => $subject
-            ]);
+            if (! $request->expectsJson()) {
+                return redirect()->route('subjects.show', $subject->id)
+                    ->with('success', 'Matière créée avec succès.');
+            }
+
+            return response()->json(['success' => true, 'message' => 'Matière créée avec succès!', 'subject' => $subject]);
         } catch (\Exception $e) {
-            \Log::error('Erreur lors de la création de la matière: ' . $e->getMessage());
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de l\'enregistrement de la matière: ' . $e->getMessage()
-            ], 500);
+            return $this->echecEnregistrement($request, $e, 'la création');
         }
     }
 
@@ -100,7 +106,25 @@ class SubjectController extends Controller
      */
     public function show(Subject $subject)
     {
-        return view('subjects.show', compact('subject'));
+        $subject->load([
+            'teachers' => fn ($q) => $q->orderBy('last_name')->orderBy('first_name'),
+            'schedules.schoolClass',
+            'schedules.teacher',
+        ]);
+
+        // Répartition des notes : c'est ce qui dit si la matière est réellement
+        // enseignée, indépendamment des enseignants déclarés.
+        $notes = $subject->grades()
+            ->selectRaw("term, count(*) as total, avg(case when max_score > 0 then score / max_score * 20 end) as moyenne")
+            ->groupBy('term')
+            ->orderBy('term')
+            ->get();
+
+        return view('subjects.show', [
+            'subject' => $subject,
+            'notes' => $notes,
+            'totalNotes' => (int) $notes->sum('total'),
+        ]);
     }
 
     /**
@@ -108,7 +132,10 @@ class SubjectController extends Controller
      */
     public function edit(Subject $subject)
     {
-        return view('subjects.edit', compact('subject'));
+        return view('subjects.edit', [
+            'subject' => $subject,
+            'series' => $this->lettresDeSerie(),
+        ]);
     }
 
     /**
@@ -116,100 +143,232 @@ class SubjectController extends Controller
      */
     public function update(Request $request, Subject $subject)
     {
-        $rules = [
-            'name' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:subjects,code,' . $subject->id,
-            'description' => 'nullable|string',
-            'coefficient' => 'required|numeric|min:0',
-            'cycle' => 'required|in:primaire,college,lycee',
-            'is_active' => 'boolean'
-        ];
-
-        // Validation conditionnelle pour les séries du lycée
-        if ($request->cycle === 'lycee') {
-            $rules['series'] = 'required|array|min:1';
-            $rules['series.*'] = 'in:S,A1,A2,B,C,D,E,LE';
-        }
-
-        $validator = Validator::make($request->all(), $rules);
+        $validator = Validator::make($request->all(), $this->regles($request, $subject), $this->messages());
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreurs de validation: ' . implode(', ', $validator->errors()->all()),
-                'errors' => $validator->errors()
-            ], 422);
+            return $this->echecValidation($request, $validator);
         }
 
-        $validated = $validator->validated();
-
-        // Pour les cycles non-lycée, pas de séries
-        if ($request->cycle !== 'lycee') {
-            $validated['series'] = null;
-        }
+        $donnees = $this->donneesValidees($validator, $request);
 
         try {
-            $subject->update($validated);
+            $subject->update($donnees);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Matière mise à jour avec succès!',
-                'subject' => $subject
-            ]);
+            if (! $request->expectsJson()) {
+                return redirect()->route('subjects.show', $subject->id)
+                    ->with('success', 'Matière mise à jour avec succès.');
+            }
+
+            return response()->json(['success' => true, 'message' => 'Matière mise à jour avec succès!', 'subject' => $subject]);
         } catch (\Exception $e) {
-            \Log::error('Erreur lors de la mise à jour de la matière: ' . $e->getMessage());
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la mise à jour de la matière: ' . $e->getMessage()
-            ], 500);
+            return $this->echecEnregistrement($request, $e, 'la mise à jour');
         }
     }
 
     /**
      * Supprimer une matière
      */
-    public function destroy(Subject $subject)
+    public function destroy(Request $request, Subject $subject)
     {
-        // Vérifier s'il y a des notes associées
-        if ($subject->grades()->count() > 0) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Impossible de supprimer cette matière car elle a des notes associées.'
-            ], 422);
+        /*
+         * `grades()` visait la table `grades`, vide et morte : le contrôle
+         * comptait toujours zéro et laissait supprimer une matière portant des
+         * centaines de notes. La relation pointe maintenant sur `student_grades`,
+         * et les créneaux sont vérifiés en plus.
+         */
+        $notes = $subject->grades()->count();
+        $creneaux = $subject->schedules()->count();
+
+        if ($notes > 0 || $creneaux > 0) {
+            $obstacles = [];
+            if ($notes > 0) {
+                $obstacles[] = "{$notes} note(s)";
+            }
+            if ($creneaux > 0) {
+                $obstacles[] = "{$creneaux} créneau(x) d’emploi du temps";
+            }
+
+            $message = 'Impossible de supprimer « '.$subject->name.' » : elle porte '
+                .implode(' et ', $obstacles).'. Désactivez-la plutôt que de la supprimer.';
+
+            if (! $request->expectsJson()) {
+                return redirect()->route('subjects.index')->with('error', $message);
+            }
+
+            return response()->json(['success' => false, 'message' => $message], 422);
         }
 
-        $subject->delete();
+        try {
+            // Le rattachement aux enseignants ne bloque pas : il se dénoue.
+            $subject->teachers()->detach();
+            $subject->delete();
+
+            if (! $request->expectsJson()) {
+                return redirect()->route('subjects.index')->with('success', 'Matière supprimée avec succès.');
+            }
+
+            return response()->json(['success' => true, 'message' => 'Matière supprimée avec succès!']);
+        } catch (\Exception $e) {
+            return $this->echecEnregistrement($request, $e, 'la suppression');
+        }
+    }
+
+    /**
+     * Code propose pour un intitule et un cycle donnes.
+     *
+     * La generation vit dans le modele : le formulaire l'interroge plutot que
+     * de reimplementer la regle en JavaScript, ou les deux versions finiraient
+     * par diverger.
+     */
+    public function proposerCode(Request $request)
+    {
+        $nom = trim((string) $request->input('nom'));
+
+        if ($nom === '') {
+            return response()->json(['code' => '']);
+        }
 
         return response()->json([
-            'success' => true,
-            'message' => 'Matière supprimée avec succès!'
+            'code' => Subject::genererCode(
+                $nom,
+                $request->input('cycle'),
+                $request->filled('id') ? (int) $request->input('id') : null
+            ),
         ]);
     }
 
     /**
-     * Obtenir les matières d'un cycle spécifique
+     * Matieres d'un niveau, au format JSON.
+     *
+     * La route `subjects.byLevel` existait mais visait une methode absente du
+     * controleur : l'URL renvoyait une erreur 500. Une matiere est rattachee a
+     * un cycle, pas a un niveau : on passe donc par le cycle du niveau demande.
      */
-    public function byCycle(Request $request)
+    public function byLevel(Level $level)
     {
-        $cycle = $request->get('cycle');
-        $subjects = Subject::where('cycle', $cycle)->paginate(15);
-        
-        return view('subjects.index', compact('subjects'));
+        $matieres = Subject::where('is_active', true)
+            ->where('cycle', $level->cycle)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'coefficient', 'series']);
+
+        return response()->json([
+            'success' => true,
+            'level' => $level->only(['id', 'name', 'cycle']),
+            'subjects' => $matieres,
+        ]);
+    }
+
+    // ------------------------------------------------------------------
+    // Outils internes
+    // ------------------------------------------------------------------
+
+    private function regles(Request $request, ?Subject $subject = null): array
+    {
+        $regles = [
+            'name' => 'required|string|max:255',
+            'code' => 'nullable|string|max:50|unique:subjects,code'.($subject ? ','.$subject->id : ''),
+            'description' => 'nullable|string',
+            'coefficient' => 'required|integer|min:1|max:10',
+            'cycle' => 'required|in:'.implode(',', self::CYCLES),
+            'is_active' => 'nullable|boolean',
+        ];
+
+        // Au lycée une matière ne vaut que pour certaines séries : la liste des
+        // valeurs acceptées vient du référentiel, pas d'une énumération figée.
+        if ($request->input('cycle') === 'lycee') {
+            $regles['series'] = 'required|array|min:1';
+            $regles['series.*'] = 'in:'.$this->lettresDeSerie()->implode(',');
+        }
+
+        return $regles;
+    }
+
+    private function messages(): array
+    {
+        return [
+            'series.required' => 'Une matière de lycée doit viser au moins une série.',
+            'coefficient.min' => 'Le coefficient doit valoir au moins 1.',
+            'coefficient.integer' => 'Le coefficient est un nombre entier.',
+            'code.unique' => 'Ce code est déjà porté par une autre matière.',
+        ];
+    }
+
+    private function donneesValidees($validator, Request $request): array
+    {
+        $donnees = $validator->validated();
+
+        // Le code se déduit de l'intitulé et du cycle. Il reste modifiable à la
+        // main dans le formulaire ; laissé vide, il est reconstruit ici.
+        if (empty($donnees['code'])) {
+            $donnees['code'] = Subject::genererCode(
+                $donnees['name'],
+                $donnees['cycle'],
+                $request->route('subject')?->id
+            );
+        }
+
+        // Hors lycée la notion de série n'existe pas.
+        if ($request->input('cycle') !== 'lycee') {
+            $donnees['series'] = null;
+        }
+
+        // Une case décochée n'est pas envoyée : sans cette ligne on ne pourrait
+        // jamais désactiver une matière depuis le formulaire.
+        $donnees['is_active'] = $request->boolean('is_active');
+
+        return $donnees;
     }
 
     /**
-     * Rechercher des matières
+     * Lettres de série reconnues, déduites du référentiel `series` : les codes
+     * y sont préfixés par le niveau (`TERM-C`), la lettre est le suffixe.
      */
-    public function search(Request $request)
+    private function lettresDeSerie()
     {
-        $query = $request->get('q');
-        
-        $subjects = Subject::where('name', 'like', "%{$query}%")
-            ->orWhere('code', 'like', "%{$query}%")
-            ->orWhere('cycle', 'like', "%{$query}%")
-            ->paginate(15);
+        return Series::where('is_active', true)
+            ->orderBy('order')
+            ->pluck('code')
+            ->map(fn ($code) => str_contains($code, '-') ? substr($code, strpos($code, '-') + 1) : $code)
+            ->unique()
+            ->sort()
+            ->values();
+    }
 
-        return view('subjects.index', compact('subjects'));
+    private function statistiques(): array
+    {
+        return [
+            'total' => Subject::count(),
+            'actives' => Subject::where('is_active', true)->count(),
+            'sans_enseignant' => Subject::doesntHave('teachers')->count(),
+            'par_cycle' => Subject::selectRaw('cycle, count(*) as n')->groupBy('cycle')->pluck('n', 'cycle'),
+        ];
+    }
+
+    private function echecValidation(Request $request, $validator)
+    {
+        if (! $request->expectsJson()) {
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreurs de validation: '.implode(', ', $validator->errors()->all()),
+            'errors' => $validator->errors(),
+        ], 422);
+    }
+
+    private function echecEnregistrement(Request $request, \Exception $e, string $action)
+    {
+        Log::error("Erreur lors de {$action} de la matière", ['erreur' => $e->getMessage()]);
+
+        if (! $request->expectsJson()) {
+            return redirect()->back()->withInput()
+                ->with('error', "Erreur lors de {$action} de la matière.");
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => "Erreur lors de {$action} de la matière : ".$e->getMessage(),
+        ], 500);
     }
 }

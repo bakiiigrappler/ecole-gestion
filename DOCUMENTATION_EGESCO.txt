@@ -1,0 +1,851 @@
+================================================================================
+                    DOCUMENTATION COMPLÈTE - SYSTÈME DE GESTION SCOLAIRE EGESCO
+================================================================================
+
+📋 TABLE DES MATIÈRES
+================================================================================
+
+1. PRÉSENTATION GÉNÉRALE
+2. ARCHITECTURE TECHNIQUE
+3. MODULES PRINCIPAUX
+4. MODULES ADMINISTRATIFS
+5. MODULES PÉDAGOGIQUES
+6. MODULES FINANCIERS
+7. MODULES DE RAPPORTAGE
+8. PORTAL PARENT
+9. FONCTIONNALITÉS AVANCÉES
+10. SÉCURITÉ ET PERMISSIONS
+11. EXPORTS ET RAPPORTS
+12. CONFIGURATION ET MAINTENANCE
+
+================================================================================
+1. PRÉSENTATION GÉNÉRALE
+================================================================================
+
+EGESCO est un système de gestion scolaire complet développé avec Laravel 10, 
+conçu pour gérer tous les aspects d'un établissement scolaire moderne. 
+L'application couvre la gestion des étudiants, des enseignants, des classes, 
+des notes, des paiements, et bien plus encore.
+
+🎯 OBJECTIFS PRINCIPAUX :
+- Centraliser la gestion administrative et pédagogique
+- Automatiser les processus de scolarité
+- Faciliter la communication avec les parents
+- Générer des rapports détaillés
+- Optimiser la traçabilité des données
+
+🏗️ ARCHITECTURE :
+- Framework : Laravel 10 (PHP 8.2+)
+- Base de données : MySQL/MariaDB
+- Frontend : Bootstrap 5 + Blade Templates
+- Authentification : Laravel Auth
+- PDF : DomPDF
+- Export : CSV natif
+
+================================================================================
+2. ARCHITECTURE TECHNIQUE
+================================================================================
+
+📁 STRUCTURE DES DOSSIERS :
+
+app/
+├── Http/Controllers/          # Contrôleurs de l'application
+│   ├── Admin/                # Contrôleurs administrateur
+│   ├── Api/                  # API REST
+│   └── [Modules]             # Contrôleurs des modules
+├── Models/                   # Modèles Eloquent
+├── Services/                 # Services métier
+└── Middleware/               # Middleware de sécurité
+
+resources/views/              # Templates Blade
+├── admin/                   # Vues administrateur
+├── auth/                    # Authentification
+├── dashboard/               # Tableau de bord
+├── [modules]/              # Vues des modules
+└── layouts/                # Layouts communs
+
+database/
+├── migrations/              # Migrations de base de données
+├── seeders/                # Données de test
+└── factories/              # Factories pour les tests
+
+public/
+├── css/                    # Styles personnalisés
+├── js/                     # JavaScript
+├── images/                 # Images et logos
+└── uploads/                # Fichiers uploadés
+
+================================================================================
+3. MODULES PRINCIPAUX
+================================================================================
+
+🏠 DASHBOARD (Tableau de Bord)
+================================================================================
+Fichier : app/Http/Controllers/DashboardController.php
+Vue : resources/views/dashboard/index.blade.php
+
+FONCTIONNALITÉS :
+- Vue d'ensemble des statistiques de l'établissement
+- Métriques en temps réel (étudiants, enseignants, classes)
+- Graphiques de performance académique
+- Indicateurs financiers
+- Accès rapide aux modules principaux
+- Notifications et alertes
+
+MÉTRIQUES AFFICHÉES :
+- Nombre total d'étudiants actifs
+- Nombre d'enseignants
+- Nombre de classes
+- Revenus mensuels/annuels
+- Taux de présence
+- Performances par cycle (Collège/Lycée)
+
+EXPORTS DISPONIBLES :
+- Rapport général (PDF)
+- Rapport financier (PDF)
+- Rapport des inscriptions (PDF)
+- Export Excel des données
+
+🔐 AUTHENTIFICATION ET SÉCURITÉ
+================================================================================
+Fichier : app/Http/Controllers/AuthController.php
+Vues : resources/views/auth/
+
+FONCTIONNALITÉS :
+- Connexion sécurisée
+- Inscription des utilisateurs
+- Gestion des sessions
+- Protection CSRF
+- Middleware d'authentification
+
+SÉCURITÉ :
+- Hachage des mots de passe (bcrypt)
+- Protection contre les attaques CSRF
+- Validation des entrées utilisateur
+- Gestion des sessions sécurisées
+
+================================================================================
+4. MODULES ADMINISTRATIFS
+================================================================================
+
+👥 GESTION DES ÉTUDIANTS
+================================================================================
+Contrôleur : app/Http/Controllers/StudentController.php
+Vues : resources/views/students/
+
+FONCTIONNALITÉS PRINCIPALES :
+- Création et modification des profils étudiants
+- Gestion des informations personnelles
+- Upload et gestion des photos
+- Gestion des parents liés
+- Suivi des inscriptions
+- Historique académique
+
+INFORMATIONS GÉRÉES :
+- Données personnelles (nom, prénom, date de naissance, etc.)
+- Informations de contact
+- Photo de profil
+- Parents/tuteurs
+- Historique des inscriptions
+- Statut académique
+
+FONCTIONNALITÉS AVANCÉES :
+- Recherche et filtrage avancés
+- Filtres dynamiques (Cycle → Niveau → Classe)
+- Gestion des photos avec aperçu
+- Liens directs vers les bulletins
+- Gestion des parents depuis le profil étudiant
+
+👨‍🏫 GESTION DES ENSEIGNANTS
+================================================================================
+Contrôleur : app/Http/Controllers/TeacherController.php
+Vues : resources/views/teachers/
+
+FONCTIONNALITÉS :
+- Création et modification des profils enseignants
+- Gestion des matières enseignées
+- Attribution des classes
+- Gestion des rôles (professeur principal, etc.)
+- Suivi des performances
+
+INFORMATIONS GÉRÉES :
+- Données personnelles et professionnelles
+- Matières enseignées
+- Classes assignées
+- Rôles et responsabilités
+- Informations de contact
+
+🏫 GESTION DES CLASSES
+================================================================================
+Contrôleur : app/Http/Controllers/ClassController.php
+Vues : resources/views/classes/
+
+FONCTIONNALITÉS :
+- Création et gestion des classes
+- Attribution des enseignants
+- Gestion des séries (pour le lycée)
+- Suivi des effectifs
+- Gestion des coefficients par série
+
+CLASSES SUPPORTÉES :
+- Collège (6ème, 5ème, 4ème, 3ème)
+- Lycée (2nde, 1ère, Terminale)
+- Séries : S, L, ES, STMG, etc.
+
+FONCTIONNALITÉS SPÉCIALES :
+- Coefficients par série et matière
+- Gestion des professeurs principaux
+- Suivi des effectifs en temps réel
+- Intégration avec le système de notes
+
+👨‍👩‍👧‍👦 GESTION DES PARENTS
+================================================================================
+Contrôleur : app/Http/Controllers/ParentController.php
+Vues : resources/views/parents/
+
+FONCTIONNALITÉS :
+- Création et gestion des profils parents
+- Liaison avec les étudiants
+- Gestion des informations de contact
+- Suivi des paiements
+- Accès au portail parent
+
+INFORMATIONS GÉRÉES :
+- Données personnelles
+- Informations de contact
+- Étudiants liés
+- Historique des paiements
+- Préférences de communication
+
+📚 GESTION DES MATIÈRES
+================================================================================
+Contrôleur : app/Http/Controllers/SubjectController.php
+Vues : resources/views/subjects/
+
+FONCTIONNALITÉS :
+- Création et gestion des matières
+- Attribution par cycle (Collège/Lycée)
+- Gestion des coefficients
+- Liaison avec les enseignants
+
+MATIÈRES SUPPORTÉES :
+- Matières générales (Maths, Français, etc.)
+- Matières spécialisées par série
+- Coefficients variables selon la série
+- Intégration avec le système de notes
+
+📝 GESTION DES INSCRIPTIONS
+================================================================================
+Contrôleur : app/Http/Controllers/EnrollmentController.php
+Vues : resources/views/enrollments/
+
+FONCTIONNALITÉS :
+- Inscription des étudiants
+- Réinscription annuelle
+- Gestion des frais de scolarité
+- Suivi des statuts de paiement
+- Génération des reçus
+
+PROCESSUS D'INSCRIPTION :
+- Sélection de la classe
+- Attribution de l'année scolaire
+- Calcul automatique des frais
+- Génération du code d'inscription
+- Suivi du statut de paiement
+
+FONCTIONNALITÉS AVANCÉES :
+- Inscription en ligne (portail parent)
+- Génération de PDF (reçus, autorisations)
+- Suivi des paiements
+- Gestion des réinscriptions
+
+================================================================================
+5. MODULES PÉDAGOGIQUES
+================================================================================
+
+📊 GESTION DES NOTES
+================================================================================
+Contrôleur : app/Http/Controllers/GradeController.php
+Vues : resources/views/grades/
+
+FONCTIONNALITÉS PRINCIPALES :
+- Saisie des notes par matière et trimestre
+- Calcul automatique des moyennes
+- Gestion des coefficients par série
+- Génération des bulletins
+- Suivi des performances
+
+TYPES DE NOTES :
+- Contrôles continus
+- Devoirs surveillés
+- Examens de fin de trimestre
+- Notes de participation
+
+CALCULS AUTOMATIQUES :
+- Moyennes par matière
+- Moyennes par trimestre
+- Moyennes générales
+- Moyennes de classe
+- Coefficients par série (Lycée)
+
+BULLETINS DISPONIBLES :
+- Bulletin simple (format A4)
+- Bulletin par trimestre
+- Bulletin en cartes (vue moderne)
+- Export PDF avec logo et sceau
+
+FONCTIONNALITÉS AVANCÉES :
+- Sélection intelligente des trimestres
+- Gestion des statuts de trimestre
+- Calculs avec coefficients de série
+- Interface de modification simplifiée
+
+📈 GESTION DES PRÉSENCES
+================================================================================
+Contrôleur : app/Http/Controllers/AttendanceController.php
+Vues : resources/views/attendances/
+
+FONCTIONNALITÉS :
+- Saisie des présences par classe
+- Génération de rapports d'absence
+- Suivi des taux de présence
+- Alertes pour absences répétées
+
+TYPES DE PRÉSENCE :
+- Présent
+- Absent
+- Absent excusé
+- Retard
+
+RAPPORTS DISPONIBLES :
+- Rapport par classe
+- Rapport par étudiant
+- Statistiques globales
+- Alertes d'absence
+
+📋 GESTION DES BULLETINS
+================================================================================
+Contrôleur : app/Http/Controllers/BulletinController.php
+Vues : resources/views/bulletin/
+
+FONCTIONNALITÉS :
+- Génération des bulletins par cycle
+- Bulletins par niveau
+- Détails par classe
+- Export PDF professionnel
+
+FORMATS DE BULLETIN :
+- Bulletin simple (A4)
+- Bulletin en cartes
+- Bulletin par trimestre
+- Bulletin avec logo et sceau
+
+INFORMATIONS INCLUSES :
+- Données de l'étudiant
+- Notes par matière avec coefficients
+- Moyennes par trimestre
+- Moyenne générale
+- Appréciations
+- Signature du proviseur
+
+📅 GESTION DES EMPLOIS DU TEMPS
+================================================================================
+Contrôleur : app/Http/Controllers/ScheduleController.php
+Vues : resources/views/schedules/
+
+FONCTIONNALITÉS :
+- Création des emplois du temps
+- Attribution des matières aux créneaux
+- Gestion des salles
+- Impression des emplois du temps
+
+FONCTIONNALITÉS AVANCÉES :
+- Interface de construction intuitive
+- Gestion des conflits d'horaires
+- Impression format A4
+- Export des emplois du temps
+
+================================================================================
+6. MODULES FINANCIERS
+================================================================================
+
+💰 GESTION DES FRAIS DE SCOLARITÉ
+================================================================================
+Contrôleur : app/Http/Controllers/FeeController.php
+Vues : resources/views/fees/
+
+FONCTIONNALITÉS :
+- Définition des frais par niveau
+- Frais par classe
+- Frais d'inscription
+- Gestion des frais additionnels
+
+TYPES DE FRAIS :
+- Frais de scolarité
+- Frais d'inscription
+- Frais de transport
+- Frais de cantine
+- Frais d'uniforme
+- Autres frais
+
+CALCULS AUTOMATIQUES :
+- Total des frais par inscription
+- Solde restant dû
+- Historique des paiements
+- Génération des factures
+
+💳 GESTION DES PAIEMENTS
+================================================================================
+Contrôleur : app/Http/Controllers/PaymentController.php
+Vues : resources/views/payments/
+
+FONCTIONNALITÉS :
+- Traçabilité complète des transactions
+- Suivi des paiements par inscription
+- Génération des reçus
+- Rapports financiers
+
+TYPES DE PAIEMENT :
+- Paiement d'inscription
+- Paiement de scolarité
+- Paiement de transport
+- Paiement de cantine
+- Autres paiements
+
+MÉTHODES DE PAIEMENT :
+- Espèces
+- Virement bancaire
+- Carte bancaire
+- Moov Money
+- Airtel Money
+- Chèque
+
+INTERFACE MODERNE :
+- Tableau de traçabilité élégant
+- Filtres avancés
+- Statistiques en temps réel
+- Design responsive
+- Animations fluides
+
+🌐 PAIEMENTS EN LIGNE
+================================================================================
+Contrôleur : app/Http/Controllers/OnlinePaymentController.php
+Vues : resources/views/online-payment/
+
+FONCTIONNALITÉS :
+- Interface de paiement en ligne
+- Intégration avec les passerelles de paiement
+- Confirmation automatique
+- Génération des reçus
+
+PASSERELLES SUPPORTÉES :
+- Moov Money
+- Airtel Money
+- Cartes bancaires
+- Virements
+
+SÉCURITÉ :
+- Chiffrement des données
+- Validation des transactions
+- Logs de sécurité
+- Protection contre la fraude
+
+================================================================================
+7. MODULES DE RAPPORTAGE
+================================================================================
+
+📊 STATISTIQUES ET ANALYSES
+================================================================================
+Contrôleur : app/Http/Controllers/StatisticsController.php
+Vues : resources/views/reports/statistics.blade.php
+
+FONCTIONNALITÉS :
+- Tableau de bord analytique complet
+- Métriques détaillées par cycle
+- Analyses de performance
+- Top performers
+- Tendances temporelles
+
+MÉTRIQUES DISPONIBLES :
+- Statistiques académiques
+- Statistiques de présence
+- Statistiques financières
+- Efficacité opérationnelle
+- Santé du système
+
+EXPORTS DISPONIBLES :
+- Rapport PDF détaillé
+- Export Excel (CSV)
+- Export CSV natif
+- Graphiques interactifs
+
+INTERFACE MODERNE :
+- Design responsive
+- Couleurs professionnelles
+- Animations fluides
+- Boutons d'export fonctionnels
+- Métriques en temps réel
+
+📈 RAPPORTS DU DASHBOARD
+================================================================================
+Contrôleurs : app/Http/Controllers/DashboardController.php
+Vues : resources/views/reports/
+
+RAPPORTS DISPONIBLES :
+- Rapport général (PDF)
+- Rapport financier (PDF)
+- Rapport des inscriptions (PDF)
+- Export Excel des données
+
+CONTENU DES RAPPORTS :
+- Vue d'ensemble de l'établissement
+- Statistiques détaillées
+- Analyses financières
+- Données d'inscription
+- Graphiques et tableaux
+
+================================================================================
+8. PORTAL PARENT
+================================================================================
+
+👨‍👩‍👧‍👦 PORTAL PARENT
+================================================================================
+Contrôleur : app/Http/Controllers/ParentPortalController.php
+Vues : resources/views/parent-portal/
+
+FONCTIONNALITÉS :
+- Connexion sécurisée des parents
+- Consultation des bulletins
+- Suivi des présences
+- Paiements en ligne
+- Inscription en ligne
+
+ACCÈS PARENT :
+- Connexion avec identifiants uniques
+- Tableau de bord personnalisé
+- Accès aux informations de l'enfant
+- Historique des paiements
+- Notifications importantes
+
+INSCRIPTION EN LIGNE :
+- Formulaire d'inscription complet
+- Validation des données
+- Génération automatique des codes
+- Suivi du processus d'inscription
+
+PAIEMENTS EN LIGNE :
+- Interface de paiement sécurisée
+- Multiple méthodes de paiement
+- Confirmation automatique
+- Génération des reçus
+
+================================================================================
+9. FONCTIONNALITÉS AVANCÉES
+================================================================================
+
+🔧 GESTION DES SÉRIES (LYCÉE)
+================================================================================
+Contrôleur : app/Http/Controllers/SeriesController.php
+Vues : resources/views/series/
+
+FONCTIONNALITÉS :
+- Gestion des séries du lycée
+- Coefficients par matière et série
+- Configuration des matières par série
+- Intégration avec le système de notes
+
+SÉRIES SUPPORTÉES :
+- Série S (Scientifique)
+- Série L (Littéraire)
+- Série ES (Économique et Social)
+- Série STMG (Sciences et Technologies du Management)
+- Autres séries spécialisées
+
+COEFFICIENTS :
+- Configuration flexible des coefficients
+- Intégration automatique dans les calculs
+- Gestion par matière et série
+- Mise à jour en temps réel
+
+⚙️ ADMINISTRATION SYSTÈME
+================================================================================
+Contrôleurs : app/Http/Controllers/Admin/
+Vues : resources/views/admin/
+
+FONCTIONNALITÉS :
+- Gestion des utilisateurs
+- Configuration de l'établissement
+- Paramètres système
+- Maintenance
+- Sécurité
+
+GESTION DES UTILISATEURS :
+- Création et modification des comptes
+- Attribution des rôles
+- Gestion des permissions
+- Suivi des connexions
+
+CONFIGURATION :
+- Paramètres de l'établissement
+- Logo et sceau
+- Informations de contact
+- Configuration des années scolaires
+
+MAINTENANCE :
+- Nettoyage de la base de données
+- Sauvegarde des données
+- Logs système
+- Monitoring des performances
+
+================================================================================
+10. SÉCURITÉ ET PERMISSIONS
+================================================================================
+
+🔒 SÉCURITÉ
+================================================================================
+
+AUTHENTIFICATION :
+- Connexion sécurisée avec Laravel Auth
+- Hachage des mots de passe (bcrypt)
+- Protection CSRF
+- Gestion des sessions
+
+AUTORISATION :
+- Middleware de protection des routes
+- Vérification des permissions
+- Contrôle d'accès par rôle
+- Protection des données sensibles
+
+VALIDATION :
+- Validation côté serveur
+- Validation côté client
+- Sanitisation des entrées
+- Protection contre les injections
+
+LOGS ET AUDIT :
+- Logs de connexion
+- Logs des actions importantes
+- Traçabilité des modifications
+- Alertes de sécurité
+
+================================================================================
+11. EXPORTS ET RAPPORTS
+================================================================================
+
+📄 EXPORTS PDF
+================================================================================
+
+TECHNOLOGIE : DomPDF
+FONCTIONNALITÉS :
+- Génération de PDF professionnels
+- Intégration du logo et sceau
+- Format A4 optimisé
+- Mise en page responsive
+
+DOCUMENTS DISPONIBLES :
+- Bulletins de notes
+- Reçus de paiement
+- Rapports statistiques
+- Autorisations d'entrée
+- Emplois du temps
+
+📊 EXPORTS EXCEL/CSV
+================================================================================
+
+TECHNOLOGIE : PHP natif (fputcsv)
+FONCTIONNALITÉS :
+- Export des données en CSV
+- Compatibilité Excel
+- Encodage UTF-8
+- Séparateurs configurables
+
+DONNÉES EXPORTABLES :
+- Listes d'étudiants
+- Bulletins de notes
+- Statistiques
+- Rapports financiers
+- Données de présence
+
+================================================================================
+12. CONFIGURATION ET MAINTENANCE
+================================================================================
+
+⚙️ CONFIGURATION
+================================================================================
+
+ENVIRONNEMENT :
+- Configuration Laravel (.env)
+- Base de données MySQL/MariaDB
+- Serveur web Apache/Nginx
+- PHP 8.2+
+
+DÉPENDANCES :
+- Laravel 10
+- Bootstrap 5
+- DomPDF
+- Carbon (dates)
+- Chart.js (graphiques)
+
+MAINTENANCE :
+- Nettoyage des caches
+- Optimisation de la base de données
+- Mise à jour des dépendances
+- Sauvegarde régulière
+
+🔧 COMMANDES UTILES
+================================================================================
+
+DÉVELOPPEMENT :
+- php artisan serve (démarrer le serveur)
+- php artisan migrate (migrations)
+- php artisan db:seed (données de test)
+- php artisan cache:clear (nettoyer le cache)
+
+MAINTENANCE :
+- php artisan config:clear
+- php artisan route:clear
+- php artisan view:clear
+- php artisan storage:link
+
+================================================================================
+13. FONCTIONNALITÉS RÉCENTES ET AMÉLIORATIONS
+================================================================================
+
+🎨 INTERFACE UTILISATEUR MODERNE
+================================================================================
+
+AMÉLIORATIONS RÉCENTES :
+- Design responsive complet
+- Animations et transitions fluides
+- Couleurs professionnelles
+- Interface intuitive
+- Micro-interactions
+
+TABLEAU DES PAIEMENTS :
+- Design moderne avec ombres
+- Effets de survol élégants
+- Pagination améliorée
+- Icônes descriptives
+- Animations d'apparition
+
+STATISTIQUES :
+- Interface analytique complète
+- Métriques détaillées
+- Graphiques interactifs
+- Exports fonctionnels
+- Design cohérent
+
+🔧 OPTIMISATIONS TECHNIQUES
+================================================================================
+
+PERFORMANCE :
+- Requêtes optimisées
+- Eager loading
+- Cache intelligent
+- Pagination efficace
+- Compression des assets
+
+SÉCURITÉ :
+- Validation renforcée
+- Protection CSRF
+- Sanitisation des données
+- Logs de sécurité
+- Gestion des erreurs
+
+EXPÉRIENCE UTILISATEUR :
+- Navigation intuitive
+- Feedback visuel
+- Messages d'erreur clairs
+- Chargement optimisé
+- Interface responsive
+
+================================================================================
+14. GUIDE D'UTILISATION RAPIDE
+================================================================================
+
+🚀 DÉMARRAGE RAPIDE
+================================================================================
+
+1. CONNEXION :
+   - Accéder à /login
+   - Saisir identifiants administrateur
+   - Accéder au dashboard
+
+2. GESTION DES ÉTUDIANTS :
+   - Menu "Étudiants" → "Liste"
+   - Bouton "Ajouter" pour nouveau étudiant
+   - Filtres dynamiques disponibles
+
+3. SAISIE DES NOTES :
+   - Menu "Notes" → "Gestion"
+   - Sélectionner classe et trimestre
+   - Saisir les notes par matière
+
+4. GÉNÉRATION DES BULLETINS :
+   - Menu "Notes" → "Bulletins"
+   - Sélectionner l'étudiant
+   - Choisir le format (simple/carte)
+
+5. GESTION DES PAIEMENTS :
+   - Menu "Paiements"
+   - Consultation de la traçabilité
+   - Filtres et recherche avancés
+
+6. RAPPORTS ET STATISTIQUES :
+   - Menu "Statistiques"
+   - Consultation des métriques
+   - Exports PDF/Excel disponibles
+
+================================================================================
+15. SUPPORT ET MAINTENANCE
+================================================================================
+
+📞 SUPPORT TECHNIQUE
+================================================================================
+
+PROBLÈMES COURANTS :
+- Vérifier la connexion à la base de données
+- Nettoyer les caches Laravel
+- Vérifier les permissions des dossiers
+- Consulter les logs d'erreur
+
+MAINTENANCE RÉGULIÈRE :
+- Sauvegarde quotidienne de la base de données
+- Nettoyage des logs
+- Mise à jour des dépendances
+- Monitoring des performances
+
+LOGS IMPORTANTS :
+- storage/logs/laravel.log (erreurs générales)
+- storage/logs/payment.log (paiements)
+- storage/logs/security.log (sécurité)
+
+================================================================================
+16. CONCLUSION
+================================================================================
+
+EGESCO est un système de gestion scolaire complet et moderne qui répond aux 
+besoins des établissements scolaires contemporains. Avec ses fonctionnalités 
+avancées, son interface intuitive et sa robustesse technique, il facilite 
+la gestion quotidienne tout en offrant des outils d'analyse et de reporting 
+puissants.
+
+POINTS FORTS :
+✅ Interface moderne et responsive
+✅ Fonctionnalités complètes
+✅ Sécurité robuste
+✅ Exports et rapports avancés
+✅ Performance optimisée
+✅ Facilité d'utilisation
+
+L'application est prête pour la production et peut être déployée dans 
+n'importe quel environnement scolaire nécessitant une gestion complète 
+et professionnelle.
+
+================================================================================
+FIN DE LA DOCUMENTATION
+================================================================================
+
+Date de création : 29 Octobre 2025
+Version : 1.0
+Auteur : Système EGESCO

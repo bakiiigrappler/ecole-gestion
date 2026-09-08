@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Bulletin Annuel</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="/js/competency-bulletin-pdf.js"></script>
+</head>
+<body>
+    <h1>Test du Bulletin Annuel</h1>
+    <button onclick="testAPI()">Tester l'API</button>
+    <button onclick="testPDF()">Tester le PDF</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Test en cours...';
+            
+            try {
+                console.log('Test API pour élève 6');
+                const apiUrl = `/api/student-competency-data/6/annual?annual=true`;
+                console.log('URL API:', apiUrl);
+                
+                const response = await fetch(apiUrl);
+                console.log('Réponse HTTP:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Données reçues:', data);
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <h3>✅ API fonctionne !</h3>
+                        <p>Élève: ${data.studentData.first_name} ${data.studentData.last_name}</p>
+                        <p>Paliers: ${data.allPaliersData ? data.allPaliersData.length : 0}</p>
+                        <p>Compétences: ${data.competencies ? data.competencies.length : 0} domaines</p>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<h3>❌ Erreur API</h3><p>${data.message}</p>`;
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                resultDiv.innerHTML = `<h3>❌ Erreur</h3><p>${error.message}</p>`;
+            }
+        }
+
+        async function testPDF() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Génération PDF en cours...';
+            
+            try {
+                console.log('Test PDF pour élève 6');
+                const apiUrl = `/api/student-competency-data/6/annual?annual=true`;
+                
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                
+                if (data.success && data.allPaliersData) {
+                    console.log('Génération du bulletin annuel avec:', data.allPaliersData.length, 'paliers');
+                    await generateCompleteAnnualBulletinPDF(
+                        data.studentData,
+                        data.allPaliersData,
+                        data.competencies,
+                        data.schoolSettings
+                    );
+                    
+                    resultDiv.innerHTML = '<h3>✅ PDF généré avec succès !</h3><p>Bulletin annuel avec tous les paliers</p>';
+                } else {
+                    resultDiv.innerHTML = `<h3>❌ Erreur PDF</h3><p>Données insuffisantes</p>`;
+                }
+            } catch (error) {
+                console.error('Erreur PDF:', error);
+                resultDiv.innerHTML = `<h3>❌ Erreur PDF</h3><p>${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

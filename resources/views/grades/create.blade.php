@@ -94,7 +94,36 @@
                                                 @enderror
                                             </div>
                                             
-                                                                        <!-- Résumé de l'élève sélectionné -->
+                                            <!-- Sélection du trimestre -->
+                                            <div class="mb-3">
+                                                <label for="term" class="form-label">Trimestre <span class="text-danger">*</span></label>
+                                                <select class="form-select @error('term') is-invalid @enderror" 
+                                                        id="term" name="term" required disabled>
+                                                    <option value="">Sélectionner d'abord un élève...</option>
+                                                </select>
+                                                @error('term')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </div>
+                                            
+                                            <!-- État des trimestres de l'élève -->
+                                            <div id="studentTrimesterStatus" style="display: none;">
+                                                <div class="card bg-info bg-opacity-10 border-info mt-3">
+                                                    <div class="card-header bg-info bg-opacity-10 border-0 py-2">
+                                                        <h6 class="mb-0 text-info">
+                                                            <i class="bi bi-calendar-check me-2"></i>
+                                                            État des trimestres
+                                                        </h6>
+                                                    </div>
+                                                    <div class="card-body py-3">
+                                                        <div class="row" id="trimesterStatusContent">
+                                                            <!-- Le contenu sera généré dynamiquement -->
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Résumé de l'élève sélectionné -->
                                             <div id="selectedStudentInfo" style="display: none;">
                                 <div class="card bg-light border-0 shadow-sm mt-3">
                                     <div class="card-header bg-light border-0 py-2">
@@ -717,12 +746,19 @@ function loadStudentInfo() {
     const studentId = document.getElementById('student_id').value;
     const nextStepBtn = document.getElementById('nextStep1');
     const studentInfoDiv = document.getElementById('selectedStudentInfo');
+    const trimesterStatusDiv = document.getElementById('studentTrimesterStatus');
+    const termSelect = document.getElementById('term');
     
     if (!studentId) {
         studentInfoDiv.style.display = 'none';
+        trimesterStatusDiv.style.display = 'none';
+        termSelect.disabled = true;
         nextStepBtn.disabled = true;
         return;
     }
+    
+    // Charger les informations de l'élève et l'état des trimestres
+    loadStudentTrimesterStatus(studentId);
     
     // Afficher l'indicateur de chargement
     studentInfoDiv.innerHTML = `
@@ -811,9 +847,8 @@ function loadStudentInfo() {
                 </div>
             `;
             
-            // Afficher les informations et activer le bouton seulement maintenant
+            // Afficher les informations et laisser populateTermSelect gérer le bouton
             studentInfoDiv.style.display = 'block';
-            nextStepBtn.disabled = false;
         })
         .catch(error => {
             console.error('Erreur lors du chargement des informations de l\'élève:', error);
@@ -837,6 +872,161 @@ function loadStudentInfo() {
             studentInfoDiv.style.display = 'block';
             nextStepBtn.disabled = true;
         });
+}
+
+// Fonction pour charger l'état des trimestres d'un élève
+function loadStudentTrimesterStatus(studentId) {
+    const trimesterStatusDiv = document.getElementById('studentTrimesterStatus');
+    const termSelect = document.getElementById('term');
+    const statusContent = document.getElementById('trimesterStatusContent');
+    
+    // Afficher le chargement
+    trimesterStatusDiv.style.display = 'block';
+    statusContent.innerHTML = `
+        <div class="col-12 text-center">
+            <div class="spinner-border spinner-border-sm text-info me-2" role="status">
+                <span class="visually-hidden">Chargement...</span>
+            </div>
+            <span class="text-muted">Chargement de l'état des trimestres...</span>
+        </div>
+    `;
+    
+    // Appeler l'API pour récupérer l'état des trimestres
+    fetch(`/api/grades/student/${studentId}/trimesters`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayTrimesterStatus(data);
+                populateTermSelect(data);
+            } else {
+                throw new Error(data.message || 'Erreur lors du chargement des trimestres');
+            }
+        })
+        .catch(error => {
+            console.error('Erreur lors du chargement des trimestres:', error);
+            statusContent.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        <strong>Erreur lors du chargement des trimestres</strong>
+                        <br>
+                        <small>${error.message || 'Erreur de connexion'}</small>
+                    </div>
+                </div>
+            `;
+        });
+}
+
+// Fonction pour afficher l'état des trimestres
+function displayTrimesterStatus(data) {
+    const statusContent = document.getElementById('trimesterStatusContent');
+    const trimesterStatusDiv = document.getElementById('studentTrimesterStatus');
+    
+    let html = '';
+    
+    // Afficher un message si tous les trimestres sont complétés
+    if (data.all_completed) {
+        html = `
+            <div class="col-12">
+                <div class="alert alert-success d-flex align-items-center" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    <div>
+                        <strong>Félicitations !</strong> Tous les trimestres de ${data.student.name} sont complétés pour l'année scolaire ${data.academic_year}.
+                        <br>
+                        <small class="text-muted">Vous ne pouvez plus saisir de nouvelles notes pour cet élève.</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        // Afficher l'état de chaque trimestre
+        Object.values(data.trimesters).forEach(trimester => {
+            const statusIcon = trimester.has_grades ? 'bi-check-circle-fill' : 'bi-clock';
+            const statusClass = trimester.has_grades ? 'success' : 'warning';
+            
+            html += `
+                <div class="col-md-4 mb-3">
+                    <div class="card border-${statusClass} h-100">
+                        <div class="card-body text-center">
+                            <i class="bi ${statusIcon} text-${statusClass} fs-3 mb-2"></i>
+                            <h6 class="card-title">${trimester.name}</h6>
+                            <span class="badge bg-${statusClass} mb-2">${trimester.status_text}</span>
+                            ${trimester.has_grades ? `
+                                <div class="small text-muted">
+                                    <div>Notes: ${trimester.grades_count}</div>
+                                    <div>Moyenne: ${trimester.average_score.toFixed(2)}/20</div>
+                                </div>
+                            ` : `
+                                <div class="small text-muted">Aucune note saisie</div>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        // Afficher le prochain trimestre à traiter
+        if (data.next_trimester) {
+            html += `
+                <div class="col-12 mt-3">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Prochain trimestre à traiter:</strong> ${data.next_trimester}
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    statusContent.innerHTML = html;
+}
+
+// Fonction pour peupler le select des trimestres
+function populateTermSelect(data) {
+    const termSelect = document.getElementById('term');
+    const termSelectContainer = termSelect.closest('.mb-3');
+    const nextStepBtn = document.getElementById('nextStep1');
+    
+    if (data.all_completed) {
+        // Si tous les trimestres sont complétés, cacher complètement le select et désactiver le bouton
+        termSelectContainer.style.display = 'none';
+        if (nextStepBtn) {
+            nextStepBtn.disabled = true;
+            nextStepBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Tous les trimestres complétés';
+        }
+        return;
+    }
+    
+    // Vider le select et ne garder que les trimestres non traités
+    termSelect.innerHTML = '<option value="">Sélectionner un trimestre...</option>';
+    
+    // Ajouter seulement les trimestres non traités
+    let hasUntreatedTrimesters = false;
+    Object.values(data.trimesters).forEach(trimester => {
+        if (!trimester.has_grades) {
+            hasUntreatedTrimesters = true;
+            const isRecommended = trimester.name === data.next_trimester;
+            termSelect.innerHTML += `
+                <option value="${trimester.name}" ${isRecommended ? 'selected' : ''}>${trimester.name}${isRecommended ? ' (Recommandé)' : ''}</option>
+            `;
+        }
+    });
+    
+    if (hasUntreatedTrimesters) {
+        termSelect.disabled = false;
+        termSelectContainer.style.display = 'block';
+        if (nextStepBtn) {
+            nextStepBtn.disabled = false;
+            nextStepBtn.innerHTML = '<i class="bi bi-arrow-right me-2"></i>Étape suivante';
+        }
+    } else {
+        // Aucun trimestre non traité, cacher le select et désactiver le bouton
+        termSelectContainer.style.display = 'none';
+        if (nextStepBtn) {
+            nextStepBtn.disabled = true;
+            nextStepBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Tous les trimestres complétés';
+        }
+    }
 }
 
 // Variables globales pour la gestion des matières
@@ -1257,6 +1447,19 @@ function nextStep() {
         const studentId = studentSelect.value;
         if (!studentId) {
             alert('Veuillez sélectionner un élève');
+            return;
+        }
+        
+        // Vérifier si tous les trimestres sont complétés
+        const allCompletedAlert = document.getElementById('studentTrimesterStatus').querySelector('.alert-success');
+        if (allCompletedAlert && allCompletedAlert.textContent.includes('Tous les trimestres')) {
+            alert('Tous les trimestres de cet élève sont déjà complétés. Vous ne pouvez plus saisir de nouvelles notes.');
+            return;
+        }
+        
+        const term = document.getElementById('term').value;
+        if (!term) {
+            alert('Veuillez sélectionner un trimestre');
             return;
         }
         

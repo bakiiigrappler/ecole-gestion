@@ -1,172 +1,107 @@
 @extends('layouts.app')
 
-@section('title', 'Inscriptions en attente - Egesco')
+@section('titre', 'Dossiers en attente')
+@section('sous-titre', $pendingEnrollments->total().' inscription(s) sans élève créé')
 
-@section('breadcrumb')
-<li class="breadcrumb-item"><a href="{{ route('enrollments.index') }}">Inscriptions</a></li>
-<li class="breadcrumb-item active">En attente de création élève</li>
+@section('actions-entete')
+    <a href="{{ route('enrollments.index') }}" class="bouton-secondaire">Toutes les inscriptions</a>
+    <a href="{{ route('enrollments.create') }}" class="bouton-primaire">Nouvelle inscription</a>
 @endsection
 
-@section('content')
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-0">Inscriptions en attente</h1>
-                    <p class="text-muted">Inscriptions enregistrées qui n'ont pas encore de profil élève créé</p>
-                </div>
-                <div>
-                    <a href="{{ route('enrollments.create') }}" class="btn btn-primary">
-                        <i class="bi bi-person-plus me-2"></i>
-                        Nouvelle inscription
-                    </a>
-                </div>
-            </div>
-        </div>
+@section('contenu')
+
+@php
+    $libellesCycle = ['preprimaire' => 'Préprimaire', 'primaire' => 'Primaire', 'college' => 'Collège', 'lycee' => 'Lycée'];
+    $teintesCycle = ['preprimaire' => 'amber', 'primaire' => 'emerald', 'college' => 'sky', 'lycee' => 'violet'];
+    $franc = fn ($m) => number_format((float) $m, 0, ',', ' ').' F';
+@endphp
+
+    <div class="flex items-start gap-3 rounded-xl border border-gris-200 bg-white px-4 py-3 text-sm text-gris-600">
+        <svg class="mt-0.5 h-5 w-5 shrink-0 text-ogar-600" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/>
+        </svg>
+        <span>
+            Ces dossiers ont été déposés mais aucun élève n’a encore été créé à partir d’eux.
+            Tant que l’élève n’existe pas, l’inscription ne compte dans aucun effectif et
+            aucune note ni présence ne peut être saisie.
+        </span>
     </div>
 
-    <!-- Statistics Card -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-white" style="background: linear-gradient(135deg, #f39c12, #e67e22);">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">{{ $pendingEnrollments->total() ?? 0 }}</h4>
-                            <span>Inscriptions en attente</span>
-                        </div>
-                        <i class="bi bi-clock-history fs-1 opacity-50"></i>
-                    </div>
-                </div>
-            </div>
+    <div class="carte mt-6 overflow-hidden">
+        <div class="carte-entete">
+            <h2 class="text-sm font-semibold text-gris-900">En attente de création d’élève</h2>
+            <span class="text-xs text-gris-400">{{ $pendingEnrollments->total() }} dossier(s)</span>
         </div>
+
+        <div class="overflow-x-auto">
+            <table class="tableau">
+                <thead>
+                    <tr>
+                        <th>Candidat</th>
+                        <th>Responsable déclaré</th>
+                        <th>Classe visée</th>
+                        <th>Année</th>
+                        <th class="whitespace-nowrap">Déposé le</th>
+                        <th class="text-right">Facturé</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($pendingEnrollments as $inscription)
+                        <tr>
+                            <td>
+                                <div class="font-medium text-gris-800">
+                                    {{ $inscription->applicant_full_name ?: 'Candidat sans nom' }}
+                                </div>
+                                <div class="text-[11px] text-gris-400">
+                                    {{ $inscription->applicant_date_of_birth ? \Carbon\Carbon::parse($inscription->applicant_date_of_birth)->format('d/m/Y') : 'date de naissance inconnue' }}
+                                    @if ($inscription->applicant_gender)
+                                        &middot; {{ $inscription->applicant_gender === 'M' ? 'Garçon' : 'Fille' }}
+                                    @endif
+                                </div>
+                            </td>
+                            <td>
+                                <div class="text-gris-700">
+                                    {{ trim($inscription->parent_first_name.' '.$inscription->parent_last_name) ?: '—' }}
+                                </div>
+                                <div class="text-[11px] text-gris-400">{{ $inscription->parent_phone ?: 'aucun téléphone' }}</div>
+                            </td>
+                            <td>
+                                @if ($inscription->schoolClass)
+                                    {{ $inscription->schoolClass->name }}
+                                    <div class="text-[11px]">
+                                        <x-puce :couleur="$teintesCycle[$inscription->schoolClass->getSafeCycle()] ?? 'slate'">
+                                            {{ $libellesCycle[$inscription->schoolClass->getSafeCycle()] ?? '—' }}
+                                        </x-puce>
+                                    </div>
+                                @else
+                                    <span class="text-xs text-gris-400">—</span>
+                                @endif
+                            </td>
+                            <td class="whitespace-nowrap text-gris-600">{{ $inscription->academicYear->name ?? '—' }}</td>
+                            <td class="whitespace-nowrap text-gris-600">
+                                {{ $inscription->enrollment_date ? \Carbon\Carbon::parse($inscription->enrollment_date)->format('d/m/Y') : '—' }}
+                            </td>
+                            <td class="whitespace-nowrap text-right text-gris-700">{{ $franc($inscription->total_fees) }}</td>
+                            <td class="text-right">
+                                <div class="flex justify-end gap-1">
+                                    <a href="{{ route('enrollments.show', $inscription->id) }}" class="bouton-mini">Consulter</a>
+                                    <a href="{{ route('enrollments.create-student', $inscription->id) }}" class="bouton-mini">Créer l’élève</a>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <x-vide :colonnes="7" message="Aucun dossier n’attend la création d’un élève."/>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        @if ($pendingEnrollments->hasPages())
+            <div class="border-t border-gris-100 px-5 py-4">
+                {{ $pendingEnrollments->links() }}
+            </div>
+        @endif
     </div>
 
-    <!-- Pending Enrollments Table -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-clock-history me-2"></i>
-                        Inscriptions en attente de création élève
-                    </h5>
-                    <span class="badge bg-warning fs-6">{{ $pendingEnrollments->count() ?? 0 }} en attente</span>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead style="background: linear-gradient(135deg, #f39c12, #e67e22); color: white;">
-                                <tr>
-                                    <th class="border-0" style="width: 100px;">ID</th>
-                                    <th class="border-0" style="min-width: 200px;">Inscrit</th>
-                                    <th class="border-0" style="width: 100px;">Âge</th>
-                                    <th class="border-0" style="min-width: 180px;">Parent/Tuteur</th>
-                                    <th class="border-0" style="width: 150px;">Classe demandée</th>
-                                    <th class="border-0" style="width: 120px;">Date inscription</th>
-                                    <th class="border-0" style="width: 100px;">Statut</th>
-                                    <th class="border-0" style="width: 150px;">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($pendingEnrollments as $enrollment)
-                                <tr>
-                                    <td>
-                                        <span class="fw-bold text-primary">#{{ $enrollment->id }}</span>
-                                    </td>
-                                    <td>
-                                        <div>
-                                            <div class="fw-bold">{{ $enrollment->applicant_full_name }}</div>
-                                            <small class="text-muted">
-                                                {{ $enrollment->applicant_gender === 'male' ? 'Masculin' : 'Féminin' }} - 
-                                                Né(e) le {{ $enrollment->applicant_date_of_birth->format('d/m/Y') }}
-                                            </small>
-                                            @if($enrollment->applicant_phone)
-                                                <br><small class="text-muted">
-                                                    <i class="bi bi-telephone me-1"></i>{{ $enrollment->applicant_phone }}
-                                                </small>
-                                            @endif
-                                        </div>
-                                    </td>
-                                    <td>{{ $enrollment->applicant_age }} ans</td>
-                                    <td>
-                                        <div>
-                                            <div class="fw-bold">{{ $enrollment->parent_full_name }}</div>
-                                            <small class="text-muted">{{ $enrollment->parent_relationship_label }}</small><br>
-                                            <small class="text-muted">
-                                                <i class="bi bi-telephone me-1"></i>{{ $enrollment->parent_phone }}
-                                            </small>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div>
-                                            <span class="badge bg-info">{{ $enrollment->schoolClass->name ?? 'N/A' }}</span>
-                                            @if($enrollment->schoolClass && $enrollment->schoolClass->level)
-                                                <br><small class="text-muted">{{ $enrollment->schoolClass->level->name }}</small>
-                                            @endif
-                                        </div>
-                                    </td>
-                                    <td>{{ $enrollment->enrollment_date->format('d/m/Y') }}</td>
-                                    <td>
-                                        <span class="badge bg-warning">En attente</span>
-                                    </td>
-                                    <td>
-                                        <div class="btn-group" role="group">
-                                            <a href="{{ route('enrollments.create-student', $enrollment) }}" class="btn btn-sm btn-success" title="Créer l'élève">
-                                                <i class="bi bi-person-plus"></i>
-                                            </a>
-                                            <a href="{{ route('enrollments.show', $enrollment) }}" class="btn btn-sm btn-outline-info" title="Voir détails">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                            <a href="{{ route('enrollments.edit', $enrollment) }}" class="btn btn-sm btn-outline-warning" title="Modifier">
-                                                <i class="bi bi-pencil"></i>
-                                            </a>
-                                        </div>
-                                    </td>
-                                </tr>
-                                @empty
-                                <tr>
-                                    <td colspan="8" class="text-center py-5">
-                                        <div class="text-muted">
-                                            <i class="bi bi-inbox fs-1 d-block mb-3"></i>
-                                            <h5>Aucune inscription en attente</h5>
-                                            <p>Toutes les inscriptions ont leur profil élève créé ou sont en cours de traitement.</p>
-                                            <a href="{{ route('enrollments.create') }}" class="btn btn-primary">
-                                                <i class="bi bi-person-plus me-2"></i>
-                                                Créer une nouvelle inscription
-                                            </a>
-                                        </div>
-                                    </td>
-                                </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <!-- Pagination -->
-                @if($pendingEnrollments->hasPages())
-                <div class="card-footer bg-white border-0 py-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="text-muted small">
-                            Affichage de {{ $pendingEnrollments->firstItem() ?? 0 }} à {{ $pendingEnrollments->lastItem() ?? 0 }} sur {{ $pendingEnrollments->total() ?? 0 }} inscriptions
-                        </div>
-                        <nav aria-label="Pagination des inscriptions">
-                            {{ $pendingEnrollments->links('pagination::bootstrap-5') }}
-                        </nav>
-                    </div>
-                </div>
-                @endif
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Actions bulk (sélection multiple) pourront être ajoutées ici
-});
-</script>
-@endsection 
+@endsection

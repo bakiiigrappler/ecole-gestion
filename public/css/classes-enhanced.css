@@ -78,6 +78,7 @@
     border: none;
     position: relative;
     overflow: hidden;
+    color: white !important;
 }
 
 .card-header-gradient::before {
@@ -93,6 +94,146 @@
 
 .card-header-gradient:hover::before {
     left: 100%;
+}
+
+/* Force les couleurs des card headers */
+.card .card-header.bg-primary,
+.card-header.bg-primary {
+    background-color: #0d6efd !important;
+    background-image: none !important;
+    color: white !important;
+}
+
+.card .card-header.bg-success,
+.card-header.bg-success {
+    background-color: #198754 !important;
+    background-image: none !important;
+    color: white !important;
+}
+
+.card .card-header.bg-info,
+.card-header.bg-info {
+    background-color: #0dcaf0 !important;
+    background-image: none !important;
+    color: white !important;
+}
+
+.card .card-header.bg-warning,
+.card-header.bg-warning {
+    background-color: #ffc107 !important;
+    background-image: none !important;
+    color: #000 !important;
+}
+
+.card .card-header.bg-danger,
+.card-header.bg-danger {
+    background-color: #dc3545 !important;
+    background-image: none !important;
+    color: white !important;
+}
+
+.card .card-header.bg-secondary,
+.card-header.bg-secondary {
+    background-color: #6c757d !important;
+    background-image: none !important;
+    color: white !important;
+}
+
+.card .card-header.bg-dark,
+.card-header.bg-dark {
+    background-color: #212529 !important;
+    background-image: none !important;
+    color: white !important;
+}
+
+/* Force la couleur du texte et des icônes dans les en-têtes */
+.card-header.bg-primary h1, .card-header.bg-primary h2, .card-header.bg-primary h3,
+.card-header.bg-primary h4, .card-header.bg-primary h5, .card-header.bg-primary h6,
+.card-header.bg-success h1, .card-header.bg-success h2, .card-header.bg-success h3,
+.card-header.bg-success h4, .card-header.bg-success h5, .card-header.bg-success h6,
+.card-header.bg-info h1, .card-header.bg-info h2, .card-header.bg-info h3,
+.card-header.bg-info h4, .card-header.bg-info h5, .card-header.bg-info h6,
+.card-header.bg-danger h1, .card-header.bg-danger h2, .card-header.bg-danger h3,
+.card-header.bg-danger h4, .card-header.bg-danger h5, .card-header.bg-danger h6,
+.card-header.bg-secondary h1, .card-header.bg-secondary h2, .card-header.bg-secondary h3,
+.card-header.bg-secondary h4, .card-header.bg-secondary h5, .card-header.bg-secondary h6,
+.card-header.bg-dark h1, .card-header.bg-dark h2, .card-header.bg-dark h3,
+.card-header.bg-dark h4, .card-header.bg-dark h5, .card-header.bg-dark h6,
+.card-header-gradient h1, .card-header-gradient h2, .card-header-gradient h3,
+.card-header-gradient h4, .card-header-gradient h5, .card-header-gradient h6 {
+    color: white !important;
+}
+
+.card-header.bg-warning h1, .card-header.bg-warning h2, .card-header.bg-warning h3,
+.card-header.bg-warning h4, .card-header.bg-warning h5, .card-header.bg-warning h6 {
+    color: #000 !important;
+}
+
+.card-header.bg-primary i, .card-header.bg-success i, .card-header.bg-info i,
+.card-header.bg-danger i, .card-header.bg-secondary i, .card-header.bg-dark i,
+.card-header-gradient i {
+    color: white !important;
+}
+
+.card-header.bg-warning i {
+    color: #000 !important;
+}
+
+/* Force la couleur du texte .text-white dans les en-têtes */
+.card .card-header .text-white,
+.card .card-header.bg-primary .text-white,
+.card .card-header.bg-success .text-white,
+.card .card-header.bg-info .text-white,
+.card .card-header.bg-danger .text-white,
+.card .card-header.bg-secondary .text-white,
+.card .card-header.bg-dark .text-white,
+.card-header .text-white,
+.card-header.bg-primary .text-white,
+.card-header.bg-success .text-white,
+.card-header.bg-info .text-white,
+.card-header.bg-danger .text-white,
+.card-header.bg-secondary .text-white,
+.card-header.bg-dark .text-white,
+.card-header-gradient .text-white {
+    color: white !important;
+}
+
+/* Force la couleur des liens dans les en-têtes */
+.card-header.bg-primary a,
+.card-header.bg-success a,
+.card-header.bg-info a,
+.card-header.bg-danger a,
+.card-header.bg-secondary a,
+.card-header.bg-dark a,
+.card-header-gradient a,
+.card .card-header.bg-primary a,
+.card .card-header.bg-success a,
+.card .card-header.bg-info a,
+.card .card-header.bg-danger a,
+.card .card-header.bg-secondary a,
+.card .card-header.bg-dark a,
+.card .card-header-gradient a {
+    color: white !important;
+}
+
+.card-header.bg-warning a,
+.card .card-header.bg-warning a {
+    color: #000 !important;
+}
+
+/* Fix pour les boutons dans les en-têtes colorés */
+.card-header .btn-light,
+.card .card-header .btn-light {
+    background-color: white !important;
+    border-color: white !important;
+    color: #333 !important;
+}
+
+.card-header .btn-light:hover,
+.card .card-header .btn-light:hover {
+    background-color: #f8f9fa !important;
+    border-color: #f8f9fa !important;
+    color: #000 !important;
 }
 
 /* Styles pour les statistiques */

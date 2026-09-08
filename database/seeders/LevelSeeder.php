@@ -37,11 +37,11 @@ class LevelSeeder extends Seeder
             ['name' => '3ème', 'code' => '3EME', 'cycle' => 'college', 'order' => 12, 'description' => 'Troisième du collège'],
         ];
 
-        // Niveaux du lycée (inactifs pour l'instant)
+        // Niveaux du lycée (actifs)
         $lyceeLevels = [
-            ['name' => '2nde', 'code' => '2NDE', 'cycle' => 'lycee', 'order' => 13, 'description' => 'Seconde du lycée', 'is_active' => false],
-            ['name' => '1ère', 'code' => '1ERE', 'cycle' => 'lycee', 'order' => 14, 'description' => 'Première du lycée', 'is_active' => false],
-            ['name' => 'Terminal', 'code' => 'TERMINAL', 'cycle' => 'lycee', 'order' => 15, 'description' => 'Terminale du lycée', 'is_active' => false],
+            ['name' => '2nde', 'code' => '2NDE', 'cycle' => 'lycee', 'order' => 13, 'description' => 'Seconde du lycée', 'is_active' => true],
+            ['name' => '1ère', 'code' => '1ERE', 'cycle' => 'lycee', 'order' => 14, 'description' => 'Première du lycée', 'is_active' => true],
+            ['name' => 'Terminal', 'code' => 'TERMINAL', 'cycle' => 'lycee', 'order' => 15, 'description' => 'Terminale du lycée', 'is_active' => true],
         ];
 
         // Créer les niveaux du préprimaire
@@ -59,15 +59,15 @@ class LevelSeeder extends Seeder
             Level::create(array_merge($level, ['is_active' => true]));
         }
 
-        // Créer les niveaux du lycée (inactifs)
+        // Créer les niveaux du lycée (actifs)
         foreach ($lyceeLevels as $level) {
-            Level::create($level);
+            Level::create(array_merge($level, ['is_active' => true]));
         }
 
         $this->command->info('Niveaux créés avec succès !');
         $this->command->info('Préprimaire : PS, MS, GS');
         $this->command->info('Primaire : CP, CE1, CE2, CM1, CM2');
         $this->command->info('Collège : 6ème, 5ème, 4ème, 3ème');
-        $this->command->info('Lycée : 2nde, 1ère, Terminal (inactifs)');
+        $this->command->info('Lycée : 2nde, 1ère, Terminal (actifs)');
     }
 }

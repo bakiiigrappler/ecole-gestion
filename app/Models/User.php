@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -11,6 +12,19 @@ class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
+
+    /**
+     * Etablissement de rattachement.
+     *
+     * Volontairement sans filtre global : le scope interroge l'utilisateur
+     * connecte, et resoudre cet utilisateur passe par le modele — les deux
+     * s'appelleraient l'un l'autre a chaque requete. Le cloisonnement des
+     * comptes se fait donc explicitement, dans les controleurs qui les listent.
+     */
+    public function school(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(School::class);
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -23,6 +37,7 @@ class User extends Authenticatable
         'password',
         'matricule',
         'role',
+        'school_id',
         'is_active',
         'last_login_at',
     ];
@@ -138,6 +153,7 @@ class User extends Authenticatable
             'admin' => 'bg-warning',
             'teacher' => 'bg-info',
             'secretary' => 'bg-success',
+            'parent' => 'bg-primary',
             default => 'bg-secondary'
         };
     }
@@ -152,6 +168,7 @@ class User extends Authenticatable
             'admin' => 'bi-shield-fill',
             'teacher' => 'bi-mortarboard-fill',
             'secretary' => 'bi-clipboard-fill',
+            'parent' => 'bi-people-fill',
             default => 'bi-person-fill'
         };
     }

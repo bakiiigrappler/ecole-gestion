@@ -75,8 +75,10 @@ class SettingsController extends Controller
      */
     public function maintenance()
     {
-        if (!auth()->user()->isSuperAdmin()) {
-            abort(403, 'Accès réservé au superadmin.');
+        // L'administrateur d'un etablissement reprend l'administration que
+        // le superadmin assurait du temps de l'ecole unique.
+        if (!auth()->user()->isAdmin()) {
+            abort(403, 'Accès non autorisé.');
         }
 
         $maintenanceInfo = [
@@ -94,8 +96,10 @@ class SettingsController extends Controller
      */
     public function clearCache()
     {
-        if (!auth()->user()->isSuperAdmin()) {
-            abort(403, 'Accès réservé au superadmin.');
+        // L'administrateur d'un etablissement reprend l'administration que
+        // le superadmin assurait du temps de l'ecole unique.
+        if (!auth()->user()->isAdmin()) {
+            abort(403, 'Accès non autorisé.');
         }
 
         try {
@@ -121,8 +125,10 @@ class SettingsController extends Controller
      */
     public function optimize()
     {
-        if (!auth()->user()->isSuperAdmin()) {
-            abort(403, 'Accès réservé au superadmin.');
+        // L'administrateur d'un etablissement reprend l'administration que
+        // le superadmin assurait du temps de l'ecole unique.
+        if (!auth()->user()->isAdmin()) {
+            abort(403, 'Accès non autorisé.');
         }
 
         try {
@@ -148,8 +154,10 @@ class SettingsController extends Controller
      */
     public function backup()
     {
-        if (!auth()->user()->isSuperAdmin()) {
-            abort(403, 'Accès réservé au superadmin.');
+        // L'administrateur d'un etablissement reprend l'administration que
+        // le superadmin assurait du temps de l'ecole unique.
+        if (!auth()->user()->isAdmin()) {
+            abort(403, 'Accès non autorisé.');
         }
 
         try {
@@ -284,9 +292,11 @@ class SettingsController extends Controller
                 }
             }
 
-            return round($bytes / 1024 / 1024, 2); // en MB
+            // L'unite fait partie de la valeur : sans elle, la page affichait
+            // « 0.35 » sans qu'on sache de quoi il s'agissait.
+            return round($bytes / 1024 / 1024, 2) . ' MB';
         } catch (\Exception $e) {
-            return 0;
+            return '0 MB';
         }
     }
 
@@ -295,8 +305,10 @@ class SettingsController extends Controller
      */
     public function systemInfo()
     {
-        if (!auth()->user()->isSuperAdmin()) {
-            abort(403, 'Accès réservé au superadmin.');
+        // L'administrateur d'un etablissement reprend l'administration que
+        // le superadmin assurait du temps de l'ecole unique.
+        if (!auth()->user()->isAdmin()) {
+            abort(403, 'Accès non autorisé.');
         }
 
         $systemInfo = [
@@ -358,8 +370,10 @@ class SettingsController extends Controller
      */
     public function security()
     {
-        if (!auth()->user()->isSuperAdmin()) {
-            abort(403, 'Accès réservé au superadmin.');
+        // L'administrateur d'un etablissement reprend l'administration que
+        // le superadmin assurait du temps de l'ecole unique.
+        if (!auth()->user()->isAdmin()) {
+            abort(403, 'Accès non autorisé.');
         }
 
         $securityInfo = [
@@ -397,8 +411,10 @@ class SettingsController extends Controller
      */
     public function downloadLogs(Request $request)
     {
-        if (!auth()->user()->isSuperAdmin()) {
-            abort(403, 'Accès réservé au superadmin.');
+        // L'administrateur d'un etablissement reprend l'administration que
+        // le superadmin assurait du temps de l'ecole unique.
+        if (!auth()->user()->isAdmin()) {
+            abort(403, 'Accès non autorisé.');
         }
 
         $logType = $request->get('type', 'laravel');
@@ -416,8 +432,10 @@ class SettingsController extends Controller
      */
     public function clearLogs(Request $request)
     {
-        if (!auth()->user()->isSuperAdmin()) {
-            abort(403, 'Accès réservé au superadmin.');
+        // L'administrateur d'un etablissement reprend l'administration que
+        // le superadmin assurait du temps de l'ecole unique.
+        if (!auth()->user()->isAdmin()) {
+            abort(403, 'Accès non autorisé.');
         }
 
         try {

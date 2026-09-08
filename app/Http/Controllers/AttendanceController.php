@@ -19,11 +19,22 @@ class AttendanceController extends Controller
     public function index(Request $request)
     {
         $academicYearId = $request->get('academic_year_id');
-        
+
         // Récupérer l'année académique courante si non spécifiée
         if (!$academicYearId) {
             $currentAcademicYear = AcademicYear::where('is_current', true)->first();
             $academicYearId = $currentAcademicYear ? $currentAcademicYear->id : null;
+        }
+
+        // L'appel se fait un jour donne : c'est la date, et non la classe,
+        // qui commande la page. Elle se limite a l'annee scolaire consultee.
+        $annee = AcademicYear::find($academicYearId);
+        $jour = $request->filled('date')
+            ? Carbon::parse($request->get('date'))->startOfDay()
+            : Carbon::today();
+
+        if ($annee) {
+            $jour = $jour->max(Carbon::parse($annee->start_date))->min(Carbon::parse($annee->end_date));
         }
 
         // Récupérer toutes les classes avec le nombre d'élèves
@@ -34,14 +45,71 @@ class AttendanceController extends Controller
             }
         }])
         ->with('level')
+        // Un enseignant ne fait l'appel que dans ses classes.
+        ->when(\App\Support\PerimetreEnseignant::estEnseignant(), fn ($q) => $q
+            ->whereIn('id', \App\Support\PerimetreEnseignant::classes() ?: [0]))
         ->orderBy('name')
         ->get();
+
+        // Pointages du jour, une ligne par classe : sans cela, rien ne
+        // distinguait une classe deja appelee d'une classe oubliee.
+        $pointages = Attendance::whereDate('attendance_date', $jour)
+            ->selectRaw('class_id, status, count(distinct student_id) as effectif')
+            ->groupBy('class_id', 'status')
+            ->get()
+            ->groupBy('class_id')
+            ->map(function ($lignes) {
+                $par = $lignes->pluck('effectif', 'status');
+
+                return [
+                    'present' => (int) ($par['present'] ?? 0),
+                    'absent' => (int) ($par['absent'] ?? 0),
+                    'late' => (int) ($par['late'] ?? 0),
+                    'excused' => (int) ($par['excused'] ?? 0),
+                    'pointes' => (int) $par->sum(),
+                ];
+            });
+
+        // Qui avait cours ce jour-là : l'administration doit savoir à qui
+        // s'adresser quand l'appel n'a pas été fait.
+        $enseignantsDuJour = \App\Models\Schedule::with('teacher:id,first_name,last_name')
+            ->where('day_of_week', $jour->dayOfWeekIso)
+            ->where('type', 'course')
+            ->whereNotNull('teacher_id')
+            ->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id))
+            ->orderBy('start_time')
+            ->get()
+            ->groupBy('class_id')
+            ->map(fn ($lot) => $lot->pluck('teacher')
+                ->filter()
+                ->unique('id')
+                ->map(fn ($e) => $e->first_name.' '.$e->last_name)
+                ->values()
+                ->all());
+
+        $bilanDuJour = [
+            'classes_pointees' => $pointages->count(),
+            'present' => $pointages->sum('present'),
+            'absent' => $pointages->sum('absent'),
+            'late' => $pointages->sum('late'),
+            'excused' => $pointages->sum('excused'),
+            'pointes' => $pointages->sum('pointes'),
+        ];
 
         // Récupérer les années académiques pour le filtre
         $academicYears = AcademicYear::orderBy('name', 'desc')->get();
         $currentAcademicYear = AcademicYear::find($academicYearId);
 
-        return view('attendances.index', compact('classes', 'academicYears', 'currentAcademicYear', 'academicYearId'));
+        return view('attendances.index', compact(
+            'classes',
+            'academicYears',
+            'currentAcademicYear',
+            'academicYearId',
+            'jour',
+            'pointages',
+            'bilanDuJour',
+            'enseignantsDuJour'
+        ));
     }
 
     /**
@@ -49,6 +117,8 @@ class AttendanceController extends Controller
      */
     public function manage(Request $request, SchoolClass $class)
     {
+        $this->verifierLePerimetre($class, $request->get('date'));
+
         $academicYearId = $request->get('academic_year_id');
         
         // Récupérer l'année académique courante si non spécifiée
@@ -257,6 +327,8 @@ class AttendanceController extends Controller
      */
     public function store(Request $request, SchoolClass $class)
     {
+        $this->verifierLePerimetre($class, $request->input('attendance_date'));
+
         $request->validate([
             'attendance_date' => 'required|date',
             'attendances' => 'required|array',
@@ -294,26 +366,26 @@ class AttendanceController extends Controller
                 
                 // Vérifier s'il y a au moins une présence
                 foreach ($studentAttendances as $attendance) {
-                    if ($attendance['status'] === 'present') {
+                    if (($attendance['status'] ?? null) === 'present') {
                         $hasPresent = true;
                         
                         // Trouver la première heure d'arrivée (priorité à 07:30)
-                        if ($attendance['time_slot'] === '07:30' && $attendance['arrival_time']) {
-                            $firstArrivalTime = $attendance['arrival_time'];
+                        if (($attendance['time_slot'] ?? null) === '07:30' && ($attendance['arrival_time'] ?? null)) {
+                            $firstArrivalTime = ($attendance['arrival_time'] ?? null);
                             $firstTimeSlot = '07:30';
-                        } elseif (!$firstArrivalTime && $attendance['arrival_time']) {
-                            $firstArrivalTime = $attendance['arrival_time'];
-                            $firstTimeSlot = $attendance['time_slot'];
+                        } elseif (!$firstArrivalTime && ($attendance['arrival_time'] ?? null)) {
+                            $firstArrivalTime = ($attendance['arrival_time'] ?? null);
+                            $firstTimeSlot = $attendance['time_slot'] ?? null;
                         }
                         
                         // Récupérer la première présence enregistrée (pour calculer le retard)
-                        if (!$firstPresenceTime && $attendance['arrival_time']) {
-                            $firstPresenceTime = $attendance['arrival_time'];
+                        if (!$firstPresenceTime && ($attendance['arrival_time'] ?? null)) {
+                            $firstPresenceTime = ($attendance['arrival_time'] ?? null);
                         }
                     }
                     
                     // Vérifier les absences justifiées et non justifiées
-                    if ($attendance['status'] === 'absent') {
+                    if (($attendance['status'] ?? null) === 'absent') {
                         if ($attendance['justified'] ?? false) {
                             $hasJustifiedAbsence = true;
                         } else {
@@ -345,7 +417,7 @@ class AttendanceController extends Controller
                         // Calculer le retard
                         if ($attendanceData['status'] === 'present') {
                             // Vérifier le retard à la première heure (07:30)
-                            if ($attendanceData['time_slot'] === '07:30' && $finalArrivalTime) {
+                            if (($attendanceData['time_slot'] ?? null) === '07:30' && $finalArrivalTime) {
                                 try {
                                     $arrivalTime = Carbon::createFromFormat('H:i', $finalArrivalTime);
                                     $startTime = Carbon::createFromFormat('H:i', '07:30');
@@ -392,6 +464,13 @@ class AttendanceController extends Controller
             
             DB::commit();
             
+            // La feuille d’appel est un formulaire classique : lui renvoyer du
+            // JSON affichait un bloc de code a la place de la page.
+            if (! $request->expectsJson()) {
+                return redirect()->route('attendances.manage', ['class' => $class->id, 'date' => $attendanceDate->toDateString()])
+                    ->with('success', 'Appel enregistré.');
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Présences enregistrées avec succès'
@@ -667,26 +746,26 @@ class AttendanceController extends Controller
                 
                 // Vérifier s'il y a au moins une présence
                 foreach ($studentAttendances as $attendance) {
-                    if ($attendance['status'] === 'present') {
+                    if (($attendance['status'] ?? null) === 'present') {
                         $hasPresent = true;
                         
                         // Trouver la première heure d'arrivée (priorité à 07:30)
-                        if ($attendance['time_slot'] === '07:30' && $attendance['arrival_time']) {
-                            $firstArrivalTime = $attendance['arrival_time'];
+                        if (($attendance['time_slot'] ?? null) === '07:30' && ($attendance['arrival_time'] ?? null)) {
+                            $firstArrivalTime = ($attendance['arrival_time'] ?? null);
                             $firstTimeSlot = '07:30';
-                        } elseif (!$firstArrivalTime && $attendance['arrival_time']) {
-                            $firstArrivalTime = $attendance['arrival_time'];
-                            $firstTimeSlot = $attendance['time_slot'];
+                        } elseif (!$firstArrivalTime && ($attendance['arrival_time'] ?? null)) {
+                            $firstArrivalTime = ($attendance['arrival_time'] ?? null);
+                            $firstTimeSlot = $attendance['time_slot'] ?? null;
                         }
                         
                         // Récupérer la première présence enregistrée (pour calculer le retard)
-                        if (!$firstPresenceTime && $attendance['arrival_time']) {
-                            $firstPresenceTime = $attendance['arrival_time'];
+                        if (!$firstPresenceTime && ($attendance['arrival_time'] ?? null)) {
+                            $firstPresenceTime = ($attendance['arrival_time'] ?? null);
                         }
                     }
                     
                     // Vérifier les absences justifiées et non justifiées
-                    if ($attendance['status'] === 'absent') {
+                    if (($attendance['status'] ?? null) === 'absent') {
                         if ($attendance['justified'] ?? false) {
                             $hasJustifiedAbsence = true;
                         } else {
@@ -718,7 +797,7 @@ class AttendanceController extends Controller
                         // Calculer le retard
                         if ($attendanceData['status'] === 'present') {
                             // Vérifier le retard à la première heure (07:30)
-                            if ($attendanceData['time_slot'] === '07:30' && $finalArrivalTime) {
+                            if (($attendanceData['time_slot'] ?? null) === '07:30' && $finalArrivalTime) {
                                 try {
                                     $arrivalTime = Carbon::createFromFormat('H:i', $finalArrivalTime);
                                     $startTime = Carbon::createFromFormat('H:i', '07:30');
@@ -808,5 +887,181 @@ class AttendanceController extends Controller
                 'message' => 'Erreur lors de la suppression des présences: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Afficher les rapports de présences pour une classe
+     */
+    public function reports(Request $request, SchoolClass $class)
+    {
+        $academicYearId = $request->get('academic_year_id')
+            ?? AcademicYear::where('is_current', true)->value('id');
+
+        $academicYear = AcademicYear::find($academicYearId);
+
+        $students = $class->students()
+            ->wherePivot('academic_year_id', $academicYearId)
+            ->wherePivot('status', 'active')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+
+        // Une seule periode gouverne toute la page : melanger semaine, mois et
+        // annee dans trois blocs distincts rendait le rapport illisible.
+        $periode = in_array($request->get('periode'), ['semaine', 'mois', 'trimestre', 'annee'], true)
+            ? $request->get('periode')
+            : 'semaine';
+
+        [$debut, $fin, $libellePeriode] = $this->bornesDeLaPeriode($periode, $academicYear);
+
+        $pointages = Attendance::where('class_id', $class->id)
+            ->whereBetween('attendance_date', [$debut->toDateString(), $fin->toDateString()])
+            ->get(['student_id', 'attendance_date', 'status', 'reason']);
+
+        $compter = fn ($lot) => [
+            'present' => $lot->where('status', 'present')->count(),
+            'absent' => $lot->where('status', 'absent')->count(),
+            'late' => $lot->where('status', 'late')->count(),
+            'excused' => $lot->where('status', 'excused')->count(),
+            'total' => $lot->count(),
+        ];
+
+        $bilan = $compter($pointages);
+        $bilan['taux'] = $bilan['total'] > 0 ? round($bilan['present'] / $bilan['total'] * 100) : null;
+
+        // Jour par jour : c'est ce qui permet de voir d'un coup d'oeil quel
+        // jour a decroche, et d'ouvrir directement la feuille d'appel.
+        $parJour = $pointages
+            ->groupBy(fn ($p) => Carbon::parse($p->attendance_date)->toDateString())
+            ->map(function ($lot) use ($compter) {
+                $chiffres = $compter($lot);
+                $chiffres['taux'] = $chiffres['total'] > 0
+                    ? round($chiffres['present'] / $chiffres['total'] * 100)
+                    : null;
+
+                return $chiffres;
+            })
+            ->sortKeys();
+
+        $parEleve = $pointages->groupBy('student_id');
+
+        $assiduite = $students->map(function ($eleve) use ($parEleve, $compter) {
+            $lot = $parEleve[$eleve->id] ?? collect();
+            $chiffres = $compter($lot);
+
+            $chiffres['eleve'] = $eleve;
+            $chiffres['taux'] = $chiffres['total'] > 0
+                ? round($chiffres['present'] / $chiffres['total'] * 100)
+                : null;
+            $chiffres['motifs'] = $lot->whereIn('status', ['absent', 'excused'])
+                ->pluck('reason')
+                ->filter()
+                ->countBy()
+                ->sortDesc()
+                ->keys()
+                ->take(2)
+                ->all();
+
+            return $chiffres;
+        })
+        ->sortBy(fn ($l) => $l['taux'] ?? 101)
+        ->values();
+
+        // Ce que le rapport doit faire remonter en premier : les eleves dont
+        // l'assiduite decroche, plutot qu'un tableau a lire en entier.
+        $aSurveiller = $assiduite
+            ->filter(fn ($l) => $l['taux'] !== null && $l['taux'] < 90)
+            ->take(6)
+            ->values();
+
+        return view('attendances.reports', compact(
+            'class',
+            'academicYear',
+            'academicYearId',
+            'students',
+            'periode',
+            'libellePeriode',
+            'debut',
+            'fin',
+            'bilan',
+            'parJour',
+            'assiduite',
+            'aSurveiller'
+        ));
+    }
+
+    /**
+     * Un enseignant ne pointe que ses classes, et seulement les jours où il
+     * y a cours. Sans cette vérification, l'URL suffisait à faire l'appel
+     * d'une classe qu'il ne voit jamais.
+     */
+    private function verifierLePerimetre(SchoolClass $class, $date = null): void
+    {
+        if (! \App\Support\PerimetreEnseignant::estEnseignant()) {
+            return;
+        }
+
+        abort_unless(
+            in_array($class->id, \App\Support\PerimetreEnseignant::classes(), true),
+            403,
+            'Vous n’intervenez pas dans cette classe.'
+        );
+
+        $jour = $date ? Carbon::parse($date) : Carbon::today();
+
+        abort_unless(
+            \App\Support\PerimetreEnseignant::aCoursCeJour($class->id, $jour),
+            403,
+            'Vous n’avez pas cours dans cette classe le '.$jour->locale('fr')->isoFormat('dddd').'.'
+        );
+    }
+
+    /**
+     * Bornes de la periode demandee, jamais hors de l'annee scolaire.
+     */
+    private function bornesDeLaPeriode(string $periode, ?AcademicYear $annee): array
+    {
+        $aujourdhui = Carbon::today();
+
+        [$debut, $fin, $libelle] = match ($periode) {
+            'mois' => [
+                $aujourdhui->copy()->startOfMonth(),
+                $aujourdhui->copy()->endOfMonth(),
+                'Ce mois-ci',
+            ],
+            'trimestre' => [...$this->bornesDuTrimestre($annee, $aujourdhui), 'Ce trimestre'],
+            'annee' => [
+                $annee ? Carbon::parse($annee->start_date) : $aujourdhui->copy()->startOfYear(),
+                $annee ? Carbon::parse($annee->end_date) : $aujourdhui->copy()->endOfYear(),
+                'Cette année',
+            ],
+            default => [
+                $aujourdhui->copy()->startOfWeek(),
+                $aujourdhui->copy()->endOfWeek(),
+                'Cette semaine',
+            ],
+        };
+
+        if ($annee) {
+            $debut = $debut->max(Carbon::parse($annee->start_date));
+            $fin = $fin->min(Carbon::parse($annee->end_date));
+        }
+
+        return [$debut->startOfDay(), $fin->endOfDay(), $libelle];
+    }
+
+    /**
+     * Trimestre en cours, avec le meme decoupage que les bulletins :
+     * septembre-decembre, janvier-mars, avril-juin.
+     */
+    private function bornesDuTrimestre(?AcademicYear $annee, Carbon $jour): array
+    {
+        $an = $annee ? Carbon::parse($annee->start_date)->year : $jour->year;
+
+        return match (true) {
+            $jour->month >= 9 => [Carbon::create($an, 9, 1), Carbon::create($an, 12, 31)],
+            $jour->month <= 3 => [Carbon::create($an + 1, 1, 1), Carbon::create($an + 1, 3, 31)],
+            default => [Carbon::create($an + 1, 4, 1), Carbon::create($an + 1, 6, 30)],
+        };
     }
 }

@@ -21,7 +21,9 @@ use App\Http\Controllers\ParentPortalController;
 use App\Http\Controllers\OnlinePaymentController;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\BulletinController;
+use App\Http\Controllers\CompetencyEvaluationController;
 use App\Http\Controllers\Admin\SchoolSettingsController;
+use App\Http\Controllers\SeriesController;
 
 // Routes d'authentification (publiques)
 Route::middleware('guest')->group(function () {
@@ -123,6 +125,12 @@ Route::get('/', function () {
     return redirect()->route('dashboard');
 });
 
+// Route de test pour l'export PDF (sans authentification)
+Route::get('/test-export-pdf', [App\Http\Controllers\TestExportController::class, 'testPDF']);
+
+// Route de test pour l'export Excel (sans authentification)
+Route::get('/test-export-excel', [App\Http\Controllers\TestExcelController::class, 'testExcel']);
+
 // Routes protégées par authentification
 Route::middleware('auth')->group(function () {
     // Dashboard principal
@@ -133,6 +141,17 @@ Route::middleware('auth')->group(function () {
     
     // API pour les statistiques dynamiques
     Route::post('/api/statistics', [StatisticsController::class, 'api'])->name('api.statistics');
+    
+    // Routes d'export des statistiques
+    Route::get('/statistics/export/pdf', [StatisticsController::class, 'exportPDF'])->name('statistics.export.pdf');
+    Route::get('/statistics/export/excel', [StatisticsController::class, 'exportExcel'])->name('statistics.export.excel');
+    Route::get('/statistics/export/csv', [StatisticsController::class, 'exportCSV'])->name('statistics.export.csv');
+    
+    // Routes d'export du dashboard
+    Route::get('/dashboard/export/general', [DashboardController::class, 'exportGeneralReport'])->name('dashboard.export.general');
+    Route::get('/dashboard/export/financial', [DashboardController::class, 'exportFinancialReport'])->name('dashboard.export.financial');
+    Route::get('/dashboard/export/enrollment', [DashboardController::class, 'exportEnrollmentReport'])->name('dashboard.export.enrollment');
+    Route::get('/dashboard/export/excel', [DashboardController::class, 'exportExcel'])->name('dashboard.export.excel');
 
     // Routes pour les bulletins
     Route::get('/bulletins', [BulletinController::class, 'index'])->name('bulletins.index');
@@ -141,7 +160,49 @@ Route::middleware('auth')->group(function () {
     Route::get('/bulletins/level/{levelId}', [BulletinController::class, 'byLevel'])->name('bulletins.byLevel');
     Route::get('/bulletins/cycle/{cycle}', [BulletinController::class, 'byCycle'])->name('bulletins.byCycle');
 
-    // Routes pour la gestion des élèves
+    // Routes pour les évaluations par compétences (Primaire)
+    Route::prefix('competency-evaluations')->name('competency-evaluations.')->group(function () {
+        Route::get('/', [CompetencyEvaluationController::class, 'index'])->name('index');
+        Route::get('/create', [CompetencyEvaluationController::class, 'create'])->name('create');
+        Route::post('/', [CompetencyEvaluationController::class, 'store'])->name('store');
+        Route::post('/single-student', [CompetencyEvaluationController::class, 'storeSingleStudent'])->name('store-single-student');
+        Route::get('/{classId}/bulletins', [CompetencyEvaluationController::class, 'showBulletins'])->name('bulletins');
+        Route::get('/student/{student}/bulletin', [CompetencyEvaluationController::class, 'generateStudentBulletin'])->name('student-bulletin');
+        Route::get('/api/competencies', [CompetencyEvaluationController::class, 'getCompetenciesBySubjectArea'])->name('api.competencies');
+        Route::get('/api/student-competency-data/{studentId}/{palier}', [CompetencyEvaluationController::class, 'getStudentCompetencyData'])->name('api.student-competency-data');
+        Route::get('/api/student-passage-conditions/{studentId}', [CompetencyEvaluationController::class, 'checkStudentPassageConditions'])->name('api.student-passage-conditions');
+    });
+
+    // Routes pour les évaluations du préprimaire (Maternelle)
+    Route::prefix('pre-primary-evaluations')->name('pre-primary-evaluations.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\PrePrimaryCompetencyEvaluationController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\PrePrimaryCompetencyEvaluationController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\PrePrimaryCompetencyEvaluationController::class, 'store'])->name('store');
+        Route::get('/{classId}/bulletins', [\App\Http\Controllers\PrePrimaryCompetencyEvaluationController::class, 'showBulletins'])->name('bulletins');
+        Route::get('/student/{student}/bulletin', [\App\Http\Controllers\PrePrimaryCompetencyEvaluationController::class, 'generateStudentBulletin'])->name('student-bulletin');
+        Route::delete('/{id}', [\App\Http\Controllers\PrePrimaryCompetencyEvaluationController::class, 'destroy'])->name('destroy');
+        Route::delete('/student/destroy-all', [\App\Http\Controllers\PrePrimaryCompetencyEvaluationController::class, 'destroyStudentEvaluations'])->name('destroy-student');
+        Route::post('/reset-trimester', [\App\Http\Controllers\PrePrimaryCompetencyEvaluationController::class, 'resetTrimester'])->name('reset-trimester');
+        Route::get('/api/student-data/{studentId}', [\App\Http\Controllers\PrePrimaryCompetencyEvaluationController::class, 'getStudentData'])->name('api.student-data');
+        Route::get('/api/class-statistics/{classId}', [\App\Http\Controllers\PrePrimaryCompetencyEvaluationController::class, 'getClassStatistics'])->name('api.class-statistics');
+    });
+});
+
+// Routes API publiques pour les bulletins (sans authentification)
+Route::prefix('api')->name('api.')->group(function () {
+    Route::get('/student-competency-data/{studentId}/{palier}', [CompetencyEvaluationController::class, 'getStudentCompetencyData'])->name('student-competency-data');
+});
+
+/*
+ * Le groupe `auth` precedent se refermait juste avant ce bloc : les routes qui
+ * suivaient — eleves, enseignants, parents, classes, notes, bulletins,
+ * paiements, presences, inscriptions, administration, portail parent — etaient
+ * declarees hors de tout groupe malgre leur indentation, et repondaient donc a
+ * n'importe quel visiteur non connecte.
+ */
+Route::middleware('auth')->group(function () {
+
+// Routes pour la gestion des élèves
     Route::resource('students', StudentController::class)->names([
         'index' => 'students.index',
         'create' => 'students.create',
@@ -178,6 +239,10 @@ Route::middleware('auth')->group(function () {
     ]);
 
     // Routes pour la gestion des classes
+    // Avant la resource : sinon `/classes/{class}` capterait ces segments.
+    Route::get('/classes/proposer-nom', [ClassController::class, 'proposerNom'])->name('classes.proposerNom');
+    Route::get('/classes/series-du-niveau', [ClassController::class, 'seriesDuNiveau'])->name('classes.seriesDuNiveau');
+
     Route::resource('classes', ClassController::class)->names([
         'index' => 'classes.index',
         'create' => 'classes.create',
@@ -190,6 +255,9 @@ Route::middleware('auth')->group(function () {
     
     // Route pour gérer les élèves d'une classe
     Route::get('/classes/{class}/students', [ClassController::class, 'students'])->name('classes.students');
+
+    // La fiche de classe : liste nominative imprimable des eleves.
+    Route::get('/classes/{class}/fiche', [ClassController::class, 'fiche'])->name('classes.fiche');
     
     // Route pour gérer les professeurs d'une classe
     Route::get('/classes/{class}/teachers', [ClassController::class, 'teachers'])->name('classes.teachers');
@@ -202,6 +270,20 @@ Route::middleware('auth')->group(function () {
     
     // API pour récupérer les enseignants par niveau
     Route::get('/api/levels/{levelId}/teachers', [ClassController::class, 'getTeachersForLevel'])->name('api.level.teachers');
+
+    // Routes pour la gestion des séries
+    // Avant la resource : sinon `/series/{series}` capterait ce segment.
+    Route::get('/series/proposer-code', [SeriesController::class, 'proposerCode'])->name('series.proposerCode');
+
+    Route::resource('series', SeriesController::class)->names([
+        'index' => 'series.index',
+        'create' => 'series.create',
+        'store' => 'series.store',
+        'show' => 'series.show',
+        'edit' => 'series.edit',
+        'update' => 'series.update',
+        'destroy' => 'series.destroy',
+    ]);
 
     // Routes pour la gestion des notes
     Route::resource('grades', GradeController::class)->names([
@@ -216,6 +298,11 @@ Route::middleware('auth')->group(function () {
     
     // Route spécifique pour le bulletin d'un élève
     Route::get('/grades/student/{studentId}/bulletin', [GradeController::class, 'showBulletin'])->name('grades.bulletin');
+    Route::get('/grades/student/{studentId}/bulletin-simple', [App\Http\Controllers\SimpleGradeController::class, 'showBulletin'])->name('grades.bulletin.simple');
+    Route::get('/grades/student/{studentId}/bulletin/pdf', [GradeController::class, 'downloadBulletinPDF'])->name('grades.bulletin.pdf');
+Route::get('/grades/student/{studentId}/bulletin-carte', [GradeController::class, 'showBulletinCarte'])->name('grades.bulletin.carte');
+    Route::get('/api/grades/student/{studentId}/trimesters', [GradeController::class, 'getStudentTrimesters'])->name('api.grades.student.trimesters');
+    Route::get('/grades-simple', [App\Http\Controllers\SimpleGradesController::class, 'index'])->name('grades.simple');
     
     // Route pour supprimer toutes les notes d'un élève
     Route::delete('/grades/student/{studentId}/delete-all', [GradeController::class, 'deleteAllGradesForStudent'])->name('grades.delete-all-for-student');
@@ -223,19 +310,15 @@ Route::middleware('auth')->group(function () {
     // Route pour gérer les notes d'un élève
     Route::get('/grades/student/{studentId}/manage', [GradeController::class, 'manageStudentGrades'])->name('grades.manage-student');
 
-    // Routes pour la gestion des présences
-    Route::resource('attendances', AttendanceController::class)->names([
-        'index' => 'attendances.index',
-        'create' => 'attendances.create',
-        'store' => 'attendances.store',
-        'show' => 'attendances.show',
-        'edit' => 'attendances.edit',
-        'update' => 'attendances.update',
-        'destroy' => 'attendances.destroy',
-    ]);
+    // Routes pour la gestion des présences (définies plus bas avec plus de détails)
 
     // Routes pour la gestion des frais (ancien système) - Redirigé vers le nouveau système
     Route::get('fees', [FeeController::class, 'index'])->name('fees.index');
+
+    // Les vues fees/create, edit et show existaient sans aucune route : le
+    // module ne permettait ni de creer ni de modifier un frais.
+    Route::get('fees/create', [FeeController::class, 'create'])->name('fees.create');
+    Route::post('fees', [FeeController::class, 'store'])->name('fees.store');
 
     // Routes pour la nouvelle gestion des frais
     Route::prefix('fees')->name('fees.')->group(function () {
@@ -267,6 +350,13 @@ Route::middleware('auth')->group(function () {
         Route::post('duplicate', [App\Http\Controllers\FeeManagementController::class, 'duplicateFees'])->name('duplicate');
     });
 
+    // Apres le groupe : « fees/{fee} » capterait sinon « dashboard »,
+    // « level-fees » ou « class-fees » et tenterait de les lire comme un id.
+    Route::get('fees/{fee}', [FeeController::class, 'show'])->name('fees.show');
+    Route::get('fees/{fee}/edit', [FeeController::class, 'edit'])->name('fees.edit');
+    Route::put('fees/{fee}', [FeeController::class, 'update'])->name('fees.update');
+    Route::delete('fees/{fee}', [FeeController::class, 'destroy'])->name('fees.destroy');
+
     // Routes pour la gestion des paiements
     Route::resource('payments', PaymentController::class)->except(['create'])->names([
         'index' => 'payments.index',
@@ -286,6 +376,9 @@ Route::get('payments/{payment}/edit-modal', [PaymentController::class, 'editModa
 Route::get('payments/export', [PaymentController::class, 'export'])->name('payments.export');
 
     // Routes pour la gestion des matières
+    // Avant la resource : sinon `/subjects/{subject}` capterait ce segment.
+    Route::get('/subjects/proposer-code', [SubjectController::class, 'proposerCode'])->name('subjects.proposerCode');
+
     Route::resource('subjects', SubjectController::class)->names([
         'index' => 'subjects.index',
         'create' => 'subjects.create',
@@ -300,6 +393,11 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
     Route::get('/levels/{level}/subjects', [SubjectController::class, 'byLevel'])->name('subjects.byLevel');
 
     // Routes pour la gestion des emplois du temps
+    // Avant la resource : sinon `/schedules/{schedule}` capte « build » et
+    // « check-existing », et le binding cherche un emploi du temps nomme ainsi.
+    Route::get('/schedules/build', [ScheduleController::class, 'build'])->name('schedules.build');
+    Route::get('/schedules/check-existing', [ScheduleController::class, 'checkExisting'])->name('schedules.check-existing');
+
     Route::resource('schedules', ScheduleController::class)->names([
         'index' => 'schedules.index',
         'create' => 'schedules.create',
@@ -308,14 +406,12 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
         'edit' => 'schedules.edit',
         'destroy' => 'schedules.destroy',
     ]);
-    Route::get('/schedules/build', [ScheduleController::class, 'build'])->name('schedules.build');
-    Route::get('/schedules/check-existing', [ScheduleController::class, 'checkExisting'])->name('schedules.check-existing');
     Route::get('/schedules/{class}/print', [ScheduleController::class, 'print'])->name('schedules.print');
 
     // Routes pour la gestion des présences
     Route::get('/attendances', [App\Http\Controllers\AttendanceController::class, 'index'])->name('attendances.index');
     Route::get('/attendances/{class}/manage', [App\Http\Controllers\AttendanceController::class, 'manage'])->name('attendances.manage');
-        Route::get('/attendances/{class}/edit/{date}', [App\Http\Controllers\AttendanceController::class, 'edit'])->name('attendances.edit');
+        Route::get('/attendances/{class}/edit/{date}', [App\Http\Controllers\AttendanceController::class, 'edit'])->name('attendances.edit-date');
         Route::get('/attendances/{class}/view/{date}', [App\Http\Controllers\AttendanceController::class, 'view'])->name('attendances.view');
     Route::post('/attendances/{class}/store', [App\Http\Controllers\AttendanceController::class, 'store'])->name('attendances.store');
     Route::put('/attendances/{class}/update', [App\Http\Controllers\AttendanceController::class, 'update'])->name('attendances.update');
@@ -323,6 +419,17 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
     Route::get('/attendances/{class}/show/{date}', [App\Http\Controllers\AttendanceController::class, 'show'])->name('attendances.show');
     Route::post('/attendances/{class}/filter', [App\Http\Controllers\AttendanceController::class, 'filter'])->name('attendances.filter');
     Route::get('/attendances/{class}/reports', [App\Http\Controllers\AttendanceController::class, 'reports'])->name('attendances.reports');
+
+    /*
+     * Segments fixes declares AVANT la resource : sinon `/enrollments/{enrollment}`
+     * les capte et le binding cherche une inscription nommee « pending-students ».
+     * Les deux URL renvoyaient une erreur SQL.
+     */
+    Route::get('/enrollments/suggerer-eleves', [EnrollmentController::class, 'suggererEleves'])->name('enrollments.suggererEleves');
+    Route::get('/enrollments/rechercher-eleve', [EnrollmentController::class, 'rechercherEleve'])->name('enrollments.rechercherEleve');
+    Route::get('/enrollments/frais-du-niveau', [EnrollmentController::class, 'fraisDuNiveau'])->name('enrollments.fraisDuNiveau');
+    Route::get('/enrollments/unenrolled-students', [EnrollmentController::class, 'getUnEnrolledStudents'])->name('enrollments.unenrolled');
+    Route::get('/enrollments/pending-students', [EnrollmentController::class, 'pendingStudentCreations'])->name('enrollments.pending-students');
 
     // Routes pour la gestion des inscriptions
     Route::resource('enrollments', EnrollmentController::class)->names([
@@ -338,10 +445,8 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
     // Routes spéciales pour les réinscriptions
     Route::get('/students/{student}/re-enroll', [EnrollmentController::class, 'reEnroll'])->name('enrollments.re-enroll');
     Route::post('/students/{student}/re-enroll', [EnrollmentController::class, 'processReEnrollment'])->name('enrollments.process-re-enrollment');
-    Route::get('/enrollments/unenrolled-students', [EnrollmentController::class, 'getUnEnrolledStudents'])->name('enrollments.unenrolled');
     
     // Routes pour le nouveau workflow inscription-première
-    Route::get('/enrollments/pending-students', [EnrollmentController::class, 'pendingStudentCreations'])->name('enrollments.pending-students');
     Route::get('/enrollments/{enrollment}/create-student', [EnrollmentController::class, 'showStudentCreationForm'])->name('enrollments.create-student');
     Route::post('/enrollments/{enrollment}/create-student', [EnrollmentController::class, 'createStudentFromEnrollment'])->name('enrollments.store-student');
     Route::post('/enrollments/{enrollment}/mark-pending', [EnrollmentController::class, 'markAsPending'])->name('enrollments.mark-pending');
@@ -349,9 +454,48 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
     // Routes pour la génération de reçus
     Route::get('/enrollments/{enrollment}/receipt', [EnrollmentController::class, 'generateReceipt'])->name('enrollments.receipt');
     Route::get('/enrollments/{enrollment}/receipt/download', [EnrollmentController::class, 'downloadReceipt'])->name('enrollments.download-receipt');
+    
+    // Route pour l'autorisation d'entrée avec QR code
+    Route::get('/enrollments/{enrollment}/entry-authorization/download', [EnrollmentController::class, 'downloadEntryAuthorization'])->name('enrollments.download-entry-authorization');
+
+    // Espace de l'eleve : il n'administre rien, il consulte ce qui le concerne.
+    // Chaque rubrique a sa page : tout empiler sur une seule ne donnait ni
+    // tableau de bord ni espace de notes, seulement une page a derouler.
+    Route::controller(\App\Http\Controllers\MonEspaceController::class)->group(function () {
+        Route::get('/mon-espace', 'index')->name('mon-espace');
+        Route::get('/mon-espace/notes', 'notes')->name('mon-espace.notes');
+        Route::get('/mon-espace/emploi-du-temps', 'emploiDuTemps')->name('mon-espace.emploi-du-temps');
+        Route::get('/mon-espace/absences', 'absences')->name('mon-espace.absences');
+        Route::get('/mon-espace/paiements', 'paiements')->name('mon-espace.paiements');
+        Route::get('/mon-espace/fiche', 'fiche')->name('mon-espace.fiche');
+    });
 
     // Routes d'administration (pour admins et superadmins)
     Route::prefix('admin')->name('admin.')->group(function () {
+        // Etablissements : le superadmin en gere plusieurs. La bascule doit
+        // preceder la resource, sinon « basculer » serait pris pour un id.
+        Route::post('/schools/basculer', [\App\Http\Controllers\Admin\SchoolController::class, 'basculer'])->name('schools.basculer');
+        Route::post('/schools/{school}/toggle-status', [\App\Http\Controllers\Admin\SchoolController::class, 'toggleStatus'])->name('schools.toggle-status');
+        Route::resource('schools', \App\Http\Controllers\Admin\SchoolController::class)->except(['destroy']);
+
+        /*
+         * La plateforme : ce qui surplombe les etablissements. Reserve au
+         * super administrateur — le controleur le verifie lui-meme.
+         */
+        Route::prefix('plateforme')->name('plateforme.')->controller(\App\Http\Controllers\Admin\PlateformeController::class)->group(function () {
+            Route::get('/personnalisation', 'personnalisation')->name('personnalisation');
+            Route::post('/personnalisation', 'personnalisationSave')->name('personnalisation.save');
+            Route::post('/personnalisation/reinitialiser', 'personnalisationReset')->name('personnalisation.reset');
+
+            Route::get('/parametres', 'parametres')->name('parametres');
+            Route::post('/parametres', 'parametresSave')->name('parametres.save');
+
+            Route::get('/corbeille', 'corbeille')->name('corbeille');
+            Route::post('/corbeille/{entite}/{id}/restaurer', 'restaurer')->whereNumber('id')->name('corbeille.restaurer');
+            Route::delete('/corbeille/{entite}/{id}', 'supprimer')->whereNumber('id')->name('corbeille.supprimer');
+            Route::post('/corbeille/{entite}/vider', 'vider')->name('corbeille.vider');
+        });
+
         // Paramètres généraux (admin/superadmin)
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         
@@ -385,6 +529,12 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
         Route::get('/students/classes-by-cycle', [StudentController::class, 'getClassesByCycle'])->name('students.classesByCycle');
         Route::get('/teachers/search', [TeacherController::class, 'search'])->name('teachers.search');
         Route::get('/teachers/classes-by-cycle', [TeacherController::class, 'getClassesByCycle'])->name('teachers.classesByCycle');
+        
+        // Routes API pour les parents
+        Route::get('/parents/search', [ParentController::class, 'search'])->name('parents.search');
+        Route::post('/parents/create-and-link', [ParentController::class, 'createAndLink'])->name('parents.createAndLink');
+        Route::post('/students/{studentId}/parents/{parentId}/link', [ParentController::class, 'linkToStudent'])->name('students.parents.link');
+        Route::delete('/students/{studentId}/parents/{parentId}/unlink', [ParentController::class, 'unlinkFromStudent'])->name('students.parents.unlink');
         Route::get('/levels-by-cycle', function(\Illuminate\Http\Request $request) {
             $levels = \App\Models\Level::where('cycle', $request->cycle)
                 ->where('is_active', true)
@@ -417,6 +567,7 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
     // Routes protégées du portail parent
     Route::prefix('parent')->name('parent-portal.')->group(function () {
         Route::get('/dashboard', [ParentPortalController::class, 'dashboard'])->name('dashboard');
+        Route::get('/children', [ParentPortalController::class, 'children'])->name('children');
         Route::get('/logout', [ParentPortalController::class, 'logout'])->name('logout');
         
         // Gestion des enfants
@@ -432,4 +583,10 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
     });
 });
 
+
+// Route pour la page d'erreur de connexion à la base de données
+Route::get('/database-connection-error', function () {
+    $previousUrl = session('database_error_previous_url', '/');
+    return view('errors.database-connection', compact('previousUrl'));
+})->name('database.connection.error');
 

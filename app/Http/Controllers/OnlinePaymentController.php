@@ -360,7 +360,6 @@ class OnlinePaymentController extends Controller
                 'first_name' => $enrollment->parent_first_name,
                 'last_name' => $enrollment->parent_last_name,
                 'email' => $enrollment->parent_email,
-                'is_primary_contact' => true
             ]
         );
 

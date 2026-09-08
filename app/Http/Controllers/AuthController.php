@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use App\Models\School;
 use App\Models\User;
 use Illuminate\Validation\ValidationException;
 
@@ -23,14 +24,47 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
+        // Les élèves du lycée se connectent avec leur matricule : le champ
+        // accepte donc les deux formes d'identifiant.
         $request->validate([
-            'email' => 'required|email',
+            'email' => 'required|string',
             'password' => 'required',
         ]);
 
-        $credentials = $request->only('email', 'password');
+        $identifiant = trim($request->input('email'));
+        $champ = filter_var($identifiant, FILTER_VALIDATE_EMAIL) ? 'email' : 'matricule';
 
-        if (Auth::attempt($credentials, $request->boolean('remember'))) {
+        if (Auth::attempt([$champ => $identifiant, 'password' => $request->input('password')], $request->boolean('remember'))) {
+            $utilisateur = Auth::user();
+
+            // Un établissement fermé ne laisse plus entrer ses comptes ; le
+            // superadmin, lui, n'appartient à aucun.
+            $etablissement = $utilisateur->school_id ? School::find($utilisateur->school_id) : null;
+
+            if ($etablissement && ! $etablissement->is_active) {
+                Auth::logout();
+                $request->session()->invalidate();
+
+                throw ValidationException::withMessages([
+                    'email' => ['L’accès de votre établissement est suspendu. Rapprochez-vous de son administration.'],
+                ]);
+            }
+
+            /*
+             * Connexion fermee : le temps d'une intervention, seuls les super
+             * administrateurs entrent. Le controle vient apres l'authentification
+             * pour ne pas reveler quels comptes existent.
+             */
+            if (! \App\Support\ParametresPlateforme::actif('connexion_ouverte')
+                && $utilisateur->role !== 'superadmin') {
+                Auth::logout();
+                $request->session()->invalidate();
+
+                throw ValidationException::withMessages([
+                    'email' => ['L’accès à la plateforme est momentanément fermé. Réessayez plus tard.'],
+                ]);
+            }
+
             $request->session()->regenerate();
 
             return redirect()->intended(route('dashboard'))

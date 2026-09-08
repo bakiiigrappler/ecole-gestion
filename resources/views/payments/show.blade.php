@@ -1,965 +1,244 @@
-@if(!request()->ajax())
 @extends('layouts.app')
 
-@section('title', 'Détails du Paiement - Egesco')
+@section('titre', 'Paiement '.($payment->transaction_id ?? '#'.$payment->id))
+@section('sous-titre', number_format($payment->amount, 0, ',', ' ').' FCFA — '.optional($payment->paid_at ?? $payment->created_at)->format('d/m/Y à H:i'))
 
-@section('breadcrumb')
-<li class="breadcrumb-item"><a href="{{ route('payments.index') }}">Paiements</a></li>
-<li class="breadcrumb-item active">{{ $payment->transaction_id }}</li>
+@section('actions-entete')
+    <a href="{{ route('payments.receipt', $payment) }}" class="bouton-secondaire">Reçu</a>
+    <a href="{{ route('payments.index') }}" class="bouton-primaire">Tous les paiements</a>
 @endsection
 
-@section('content')
-<div class="container-fluid">
-@endif
+@section('contenu')
 
-<!-- Contenu du modal de détails -->
-<div class="payment-details-content">
-    <!-- Header avec informations principales -->
-    <div class="payment-header mb-4">
-        <div class="d-flex justify-content-between align-items-start">
-            <div class="payment-info">
-                <div class="d-flex align-items-center mb-2">
-                    <div class="payment-icon me-3">
-                        <i class="bi bi-credit-card-2-front"></i>
-                    </div>
+@php
+    $montant = fn ($v) => number_format((float) $v, 0, ',', ' ').' FCFA';
+
+    $libellesStatut = [
+        'pending' => 'En attente', 'processing' => 'En cours', 'completed' => 'Terminé',
+        'failed' => 'Échoué', 'cancelled' => 'Annulé', 'refunded' => 'Remboursé',
+        'partially_refunded' => 'Partiellement remboursé',
+    ];
+
+    // Classes écrites en entier : Tailwind ne compile pas une teinte interpolée.
+    $puceStatut = [
+        'completed' => 'emerald', 'processing' => 'sky', 'pending' => 'amber',
+        'failed' => 'rose', 'cancelled' => 'slate', 'refunded' => 'violet',
+        'partially_refunded' => 'violet',
+    ];
+
+    $libellesMethode = [
+        'moov_money' => 'Moov Money', 'airtel_money' => 'Airtel Money', 'card' => 'Carte bancaire',
+        'bank_transfer' => 'Virement bancaire', 'cash' => 'Espèces', 'check' => 'Chèque',
+    ];
+
+    $libellesType = [
+        'enrollment' => 'Inscription', 're_enrollment' => 'Réinscription', 'tuition' => 'Frais de scolarité',
+        'transport' => 'Transport', 'canteen' => 'Cantine', 'uniform' => 'Uniforme', 'other' => 'Autre',
+    ];
+
+    $inscription = $payment->enrollment;
+    $eleve = $payment->student ?? optional($inscription)->student;
+    $remboursements = $payment->refunds ?? collect();
+    $enAttente = in_array($payment->status, ['pending', 'processing'], true);
+@endphp
+
+    <div class="grid gap-4 lg:grid-cols-3">
+
+        {{-- ------------------------------------------------------------
+             La transaction
+             ------------------------------------------------------------ --}}
+        <div class="lg:col-span-2">
+            <div class="carte p-5">
+                <div class="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                        <h4 class="mb-1 text-dark">{{ $payment->transaction_id }}</h4>
-                        <p class="text-muted mb-0">
-                            @if($payment->created_at)
-                                Créé le {{ $payment->created_at->format('d/m/Y à H:i') }}
-                            @else
-                                Date de création non disponible
-                            @endif
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-gris-500">Montant</p>
+                        <p class="mt-0.5 text-3xl font-bold text-gris-900">{{ $montant($payment->amount) }}</p>
+                        <div class="mt-2 flex flex-wrap items-center gap-2">
+                            <x-puce :couleur="$puceStatut[$payment->status] ?? 'slate'">
+                                {{ $libellesStatut[$payment->status] ?? $payment->status }}
+                            </x-puce>
+                            <x-puce couleur="sky">{{ $libellesType[$payment->payment_type] ?? $payment->payment_type }}</x-puce>
+                        </div>
+                    </div>
+
+                    <div class="text-right">
+                        <p class="text-[11px] uppercase tracking-wide text-gris-400">Référence</p>
+                        <p class="font-mono text-sm font-semibold text-gris-800">
+                            {{ $payment->transaction_id ?? '#'.$payment->id }}
                         </p>
                     </div>
                 </div>
-                <div class="payment-amount">
-                    <span class="amount-value">{{ $payment->formatted_amount }}</span>
-                    <span class="status-badge {{ $payment->status_badge_class }}">
-                        {{ $payment->status_label }}
-                    </span>
-                </div>
-            </div>
-            <div class="payment-actions">
-                <a href="{{ route('payments.edit', $payment) }}" class="btn btn-outline-primary btn-sm me-2">
-                    <i class="bi bi-pencil me-1"></i>Modifier
-                </a>
-                @if($payment->isPending())
-                    <form method="POST" action="{{ route('payments.complete', $payment) }}" class="d-inline me-2">
-                        @csrf
-                        <button type="submit" class="btn btn-success btn-sm" 
-                                onclick="return confirm('Finaliser ce paiement ?')">
-                            <i class="bi bi-check me-1"></i>Finaliser
-                        </button>
-                    </form>
-                    <form method="POST" action="{{ route('payments.cancel', $payment) }}" class="d-inline">
-                        @csrf
-                        <button type="submit" class="btn btn-danger btn-sm" 
-                                onclick="return confirm('Annuler ce paiement ?')">
-                            <i class="bi bi-x me-1"></i>Annuler
-                        </button>
-                    </form>
-                @endif
-            </div>
-        </div>
-    </div>
 
-    <div class="row">
-        <!-- Informations principales -->
-        <div class="col-lg-8">
-            <!-- Détails du paiement -->
-            <div class="card payment-card mb-4">
-                <div class="card-header">
-                    <h6 class="card-title mb-0">
-                        <i class="bi bi-info-circle me-2"></i>Détails du Paiement
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="row g-4">
-                        <div class="col-md-6">
-                            <div class="info-item">
-                                <label class="info-label">Type de Paiement</label>
-                                <div class="info-value">
-                                    <span class="badge bg-primary">{{ $payment->payment_type_label }}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="info-item">
-                                <label class="info-label">Méthode de Paiement</label>
-                                <div class="info-value">
-                                    <span class="badge bg-secondary">{{ $payment->payment_method_label }}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="info-item">
-                                <label class="info-label">Numéro de Reçu</label>
-                                <div class="info-value">
-                                    @if($payment->receipt_number)
-                                        <code class="text-primary">{{ $payment->receipt_number }}</code>
-                                    @else
-                                        <span class="text-muted">Non généré</span>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="info-item">
-                                <label class="info-label">Date de Paiement</label>
-                                <div class="info-value">
-                                    @if($payment->paid_at)
-                                        <span class="text-success">{{ $payment->paid_at->format('d/m/Y à H:i') }}</span>
-                                    @else
-                                        <span class="text-muted">Non payé</span>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Informations du payeur -->
-            <div class="card payment-card mb-4">
-                <div class="card-header">
-                    <h6 class="card-title mb-0">
-                        <i class="bi bi-person me-2"></i>Informations du Payeur
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="row g-4">
-                        <div class="col-md-4">
-                            <div class="info-item">
-                                <label class="info-label">Nom complet</label>
-                                <div class="info-value">{{ $payment->payer_name }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="info-item">
-                                <label class="info-label">Téléphone</label>
-                                <div class="info-value">
-                                    <a href="tel:{{ $payment->payer_phone }}" class="text-decoration-none">
-                                        {{ $payment->payer_phone }}
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="info-item">
-                                <label class="info-label">Email</label>
-                                <div class="info-value">
-                                    @if($payment->payer_email)
-                                        <a href="mailto:{{ $payment->payer_email }}" class="text-decoration-none">
-                                            {{ $payment->payer_email }}
-                                        </a>
-                                    @else
-                                        <span class="text-muted">Non renseigné</span>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Informations de l'étudiant -->
-            @if($payment->student)
-                <div class="card payment-card mb-4">
-                    <div class="card-header">
-                        <h6 class="card-title mb-0">
-                            <i class="bi bi-person-badge me-2"></i>Étudiant Associé
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-flex align-items-center">
-                            <div class="student-avatar me-3">
-                                {{ substr($payment->student->first_name, 0, 1) }}{{ substr($payment->student->last_name, 0, 1) }}
-                            </div>
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1">{{ $payment->student->first_name }} {{ $payment->student->last_name }}</h6>
-                                @if($payment->enrollment && $payment->enrollment->schoolClass)
-                                    <p class="text-muted mb-0">{{ $payment->enrollment->schoolClass->name }}</p>
-                                @endif
-                            </div>
-                            @if($payment->enrollment)
-                                <div class="text-end">
-                                    <small class="text-muted d-block">Année Académique</small>
-                                    <span class="badge bg-info">{{ $payment->enrollment->academicYear->name ?? 'N/A' }}</span>
-                                </div>
-                            @endif
-                        </div>
-                    </div>
-                </div>
-            @endif
-
-            <!-- Informations techniques -->
-            @if($payment->gateway_transaction_id || $payment->gateway_response)
-                <div class="card payment-card mb-4">
-                    <div class="card-header">
-                        <h6 class="card-title mb-0">
-                            <i class="bi bi-gear me-2"></i>Informations Techniques
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        @if($payment->gateway_transaction_id)
-                            <div class="info-item mb-3">
-                                <label class="info-label">ID Transaction Passerelle</label>
-                                <div class="info-value">
-                                    <code class="bg-light p-2 rounded d-block">{{ $payment->gateway_transaction_id }}</code>
-                                </div>
-                            </div>
-                        @endif
-                        @if($payment->gateway_response)
-                            <div class="info-item">
-                                <label class="info-label">Réponse Passerelle</label>
-                                <div class="info-value">
-                                    <pre class="bg-light p-3 rounded"><code>{{ json_encode($payment->gateway_response, JSON_PRETTY_PRINT) }}</code></pre>
-                                </div>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-            @endif
-
-            <!-- Notes -->
-            @if($payment->notes)
-                <div class="card payment-card mb-4">
-                    <div class="card-header">
-                        <h6 class="card-title mb-0">
-                            <i class="bi bi-sticky me-2"></i>Notes
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <p class="mb-0">{{ $payment->notes }}</p>
-                    </div>
-                </div>
-            @endif
-        </div>
-
-        <!-- Sidebar -->
-        <div class="col-lg-4">
-            <!-- Actions rapides -->
-            <div class="card payment-card mb-4">
-                <div class="card-header">
-                    <h6 class="card-title mb-0">
-                        <i class="bi bi-lightning me-2"></i>Actions Rapides
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <a href="{{ route('payments.edit', $payment) }}" class="btn btn-outline-primary">
-                            <i class="bi bi-pencil me-2"></i>Modifier le Paiement
-                        </a>
-                        @if($payment->canBeRefunded())
-                            <button class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#refundModal">
-                                <i class="bi bi-arrow-counterclockwise me-2"></i>Créer un Remboursement
-                            </button>
-                        @endif
-                        <a href="{{ route('payments.receipt', $payment) }}" target="_blank" class="btn btn-outline-info">
-                            <i class="bi bi-printer me-2"></i>Imprimer le Reçu
-                        </a>
-                        <a href="{{ route('payments.index') }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-arrow-left me-2"></i>Retour à la Liste
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Historique des remboursements -->
-            @if($payment->refunds && $payment->refunds->count() > 0)
-                <div class="card payment-card">
-                    <div class="card-header">
-                        <h6 class="card-title mb-0">
-                            <i class="bi bi-arrow-counterclockwise me-2"></i>Remboursements
-                            <span class="badge bg-secondary ms-2">{{ $payment->refunds->count() }}</span>
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        @foreach($payment->refunds as $refund)
-                            <div class="refund-item">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <div>
-                                        <small class="text-muted">{{ $refund->refund_id }}</small>
-                                        <p class="mb-0 fw-semibold">{{ $refund->formatted_amount }}</p>
-                                    </div>
-                                    <span class="badge {{ $refund->status_badge_class }}">{{ $refund->status_label }}</span>
-                                </div>
-                                @if($refund->reason)
-                                    <small class="text-muted">{{ $refund->reason }}</small>
-                                @endif
-                            </div>
-                            @if(!$loop->last)
-                                <hr class="my-3">
-                            @endif
-                        @endforeach
-                    </div>
-                </div>
-            @endif
-        </div>
-    </div>
-</div> <!-- Fin payment-details-content -->
-
-@if(!request()->ajax())
-</div> <!-- Fin container-fluid -->
-
-<!-- Modal de remboursement -->
-@if($payment->canBeRefunded())
-<div class="modal fade" id="refundModal" tabindex="-1" aria-labelledby="refundModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content refund-modal">
-            <div class="modal-header">
-                <div class="d-flex align-items-center">
-                    <div class="refund-icon me-3">
-                        <i class="bi bi-arrow-counterclockwise"></i>
+                <dl class="mt-5 grid grid-cols-2 gap-x-8 gap-y-3 border-t border-gris-100 pt-4 text-sm sm:grid-cols-3">
+                    <div>
+                        <dt class="text-[11px] uppercase tracking-wide text-gris-400">Méthode</dt>
+                        <dd class="font-medium text-gris-800">
+                            {{ $libellesMethode[$payment->payment_method] ?? $payment->payment_method ?? '—' }}
+                        </dd>
                     </div>
                     <div>
-                        <h5 class="modal-title mb-0" id="refundModalLabel">Créer un Remboursement</h5>
-                        <small class="text-muted">Transaction : {{ $payment->transaction_id }}</small>
+                        <dt class="text-[11px] uppercase tracking-wide text-gris-400">Payé le</dt>
+                        <dd class="font-medium text-gris-800">
+                            {{ optional($payment->paid_at)->format('d/m/Y à H:i') ?? '—' }}
+                        </dd>
                     </div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="POST" action="{{ route('payments.refund', $payment) }}" id="refundForm">
-                @csrf
-                <div class="modal-body">
-                    <!-- Informations du paiement -->
-                    <div class="refund-payment-info mb-4">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <div class="info-item">
-                                    <label class="info-label">Montant Original</label>
-                                    <div class="info-value h5 text-success">{{ $payment->formatted_amount }}</div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="info-item">
-                                    <label class="info-label">Montant Remboursable</label>
-                                    <div class="info-value h5 text-warning">{{ number_format($payment->refundable_amount, 0, ',', ' ') }} FCFA</div>
-                                </div>
-                            </div>
+                    <div>
+                        <dt class="text-[11px] uppercase tracking-wide text-gris-400">Enregistré le</dt>
+                        <dd class="font-medium text-gris-800">
+                            {{ optional($payment->created_at)->format('d/m/Y à H:i') }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] uppercase tracking-wide text-gris-400">Payeur</dt>
+                        <dd class="font-medium text-gris-800">{{ $payment->payer_name ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] uppercase tracking-wide text-gris-400">Téléphone</dt>
+                        <dd class="font-medium text-gris-800">{{ $payment->payer_phone ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-[11px] uppercase tracking-wide text-gris-400">Courriel</dt>
+                        <dd class="truncate font-medium text-gris-800">{{ $payment->payer_email ?? '—' }}</dd>
+                    </div>
+                    @if ($payment->paymentGateway ?? null)
+                        <div>
+                            <dt class="text-[11px] uppercase tracking-wide text-gris-400">Plateforme</dt>
+                            <dd class="font-medium text-gris-800">{{ $payment->paymentGateway->name }}</dd>
                         </div>
-                    </div>
+                    @endif
+                    @if ($payment->gateway_transaction_id)
+                        <div class="sm:col-span-2">
+                            <dt class="text-[11px] uppercase tracking-wide text-gris-400">Référence plateforme</dt>
+                            <dd class="truncate font-mono text-[11px] text-gris-700">{{ $payment->gateway_transaction_id }}</dd>
+                        </div>
+                    @endif
+                </dl>
 
-                    <!-- Formulaire de remboursement -->
-                    <div class="refund-form">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="refundAmount" class="form-label fw-semibold">
-                                        <i class="bi bi-currency-exchange me-1"></i>Montant à rembourser (FCFA)
-                                    </label>
-                                    <div class="input-group">
-                                        <input type="number" 
-                                               class="form-control form-control-lg @error('amount') is-invalid @enderror" 
-                                               id="refundAmount" 
-                                               name="amount" 
-                                               max="{{ $payment->refundable_amount }}" 
-                                               min="0" 
-                                               step="0.01" 
-                                               required
-                                               placeholder="0.00">
-                                        <span class="input-group-text">FCFA</span>
-                                    </div>
-                                    @error('amount')
-                                        <div class="invalid-feedback">{{ $message }}</div>
-                                    @enderror
-                                    <div class="form-text">
-                                        <i class="bi bi-info-circle me-1"></i>
-                                        Montant maximum : <strong>{{ number_format($payment->refundable_amount, 0, ',', ' ') }} FCFA</strong>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label for="refundReason" class="form-label fw-semibold">
-                                        <i class="bi bi-chat-text me-1"></i>Raison du remboursement
-                                    </label>
-                                    <select class="form-select form-select-lg @error('reason') is-invalid @enderror" 
-                                            id="refundReason" 
-                                            name="reason" 
-                                            required>
-                                        <option value="">Sélectionner une raison</option>
-                                        <option value="Annulation de service">Annulation de service</option>
-                                        <option value="Erreur de facturation">Erreur de facturation</option>
-                                        <option value="Demande du client">Demande du client</option>
-                                        <option value="Problème technique">Problème technique</option>
-                                        <option value="Autre">Autre</option>
-                                    </select>
-                                    @error('reason')
-                                        <div class="invalid-feedback">{{ $message }}</div>
-                                    @enderror
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group mt-3">
-                            <label for="refundNotes" class="form-label fw-semibold">
-                                <i class="bi bi-sticky me-1"></i>Notes supplémentaires (optionnel)
-                            </label>
-                            <textarea class="form-control @error('notes') is-invalid @enderror" 
-                                      id="refundNotes" 
-                                      name="notes" 
-                                      rows="3" 
-                                      placeholder="Ajoutez des détails sur le remboursement..."></textarea>
-                            @error('notes')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                @if ($payment->notes)
+                    <div class="mt-4 rounded-lg bg-gris-50 p-3 text-sm text-gris-600">
+                        {{ $payment->notes }}
+                    </div>
+                @endif
+            </div>
+
+            {{-- Remboursements --}}
+            @if ($remboursements->isNotEmpty())
+                <div class="carte mt-4 overflow-hidden">
+                    <div class="carte-entete">
+                        <h2 class="text-sm font-semibold text-gris-900">Remboursements</h2>
+                        <span class="text-xs text-gris-400">{{ $remboursements->count() }}</span>
+                    </div>
+                    <table class="tableau">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Motif</th>
+                                <th class="text-right">Montant</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($remboursements as $remboursement)
+                                <tr>
+                                    <td class="text-gris-600">{{ optional($remboursement->created_at)->format('d/m/Y') }}</td>
+                                    <td class="text-gris-700">{{ $remboursement->reason ?? '—' }}</td>
+                                    <td class="text-right font-semibold text-corail-700">
+                                        {{ $montant($remboursement->amount) }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+
+        {{-- ------------------------------------------------------------
+             L'élève, l'inscription, les actions
+             ------------------------------------------------------------ --}}
+        <div class="space-y-4">
+            <div class="carte p-5">
+                <h2 class="mb-3 text-sm font-semibold text-gris-900">Élève</h2>
+
+                @if ($eleve)
+                    <div class="flex items-center gap-3">
+                        <x-avatar :nom="$eleve->full_name ?? ($eleve->first_name.' '.$eleve->last_name)"
+                                  :photo="$eleve->photo ?? null" class="h-11 w-11 shrink-0 text-xs"/>
+                        <div class="min-w-0">
+                            <a href="{{ route('students.show', $eleve->id) }}"
+                               class="block truncate font-medium text-gris-800 hover:text-ogar-700 hover:underline">
+                                {{ $eleve->first_name }} {{ $eleve->last_name }}
+                            </a>
+                            <div class="font-mono text-[11px] text-gris-400">{{ $eleve->student_id }}</div>
                         </div>
                     </div>
+                @else
+                    <p class="text-sm text-gris-400">Aucun élève rattaché à cette transaction.</p>
+                @endif
+
+                @if ($inscription)
+                    <dl class="mt-4 space-y-2 border-t border-gris-100 pt-3 text-sm">
+                        <div class="flex justify-between gap-2">
+                            <dt class="text-gris-500">Classe</dt>
+                            <dd class="font-medium text-gris-800">{{ $inscription->schoolClass->name ?? '—' }}</dd>
+                        </div>
+                        <div class="flex justify-between gap-2">
+                            <dt class="text-gris-500">Année</dt>
+                            <dd class="font-medium text-gris-800">{{ $inscription->academicYear->name ?? '—' }}</dd>
+                        </div>
+                        <div class="flex justify-between gap-2">
+                            <dt class="text-gris-500">Frais dus</dt>
+                            <dd class="font-medium text-gris-800">{{ $montant($inscription->total_fees) }}</dd>
+                        </div>
+                        <div class="flex justify-between gap-2">
+                            <dt class="text-gris-500">Déjà payé</dt>
+                            <dd class="font-medium text-emerald-700">{{ $montant($inscription->amount_paid) }}</dd>
+                        </div>
+                        @php($reste = max(0, (float) $inscription->total_fees - (float) $inscription->amount_paid))
+                        <div class="flex justify-between gap-2 border-t border-gris-100 pt-2">
+                            <dt class="font-medium text-gris-700">Reste dû</dt>
+                            <dd class="font-semibold {{ $reste > 0 ? 'text-corail-700' : 'text-emerald-700' }}">
+                                {{ $montant($reste) }}
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <a href="{{ route('enrollments.show', $inscription) }}"
+                       class="bouton-secondaire mt-4 w-full justify-center">Voir l’inscription</a>
+                @endif
+            </div>
+
+            {{-- Actions : seules celles que le contrôleur accepte réellement --}}
+            <div class="carte p-5">
+                <h2 class="mb-3 text-sm font-semibold text-gris-900">Actions</h2>
+
+                <div class="space-y-2">
+                    <a href="{{ route('payments.receipt', $payment) }}" class="bouton-secondaire w-full justify-center">
+                        Imprimer le reçu
+                    </a>
+
+                    @if ($enAttente)
+                        <form method="POST" action="{{ route('payments.complete', $payment) }}">
+                            @csrf
+                            <button type="submit" class="bouton-primaire w-full justify-center">
+                                Marquer comme terminé
+                            </button>
+                        </form>
+
+                        <form method="POST" action="{{ route('payments.cancel', $payment) }}"
+                              onsubmit="return confirm('Annuler ce paiement ?')">
+                            @csrf
+                            <button type="submit" class="bouton-danger w-full justify-center">
+                                Annuler le paiement
+                            </button>
+                        </form>
+                    @else
+                        <p class="text-[11px] leading-relaxed text-gris-400">
+                            Seuls les paiements en attente peuvent être terminés ou annulés.
+                        </p>
+                    @endif
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                        <i class="bi bi-x-circle me-1"></i>Annuler
-                    </button>
-                    <button type="submit" class="btn btn-warning btn-lg">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i>Créer le Remboursement
-                    </button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
-</div>
-@endif
 
-<style>
-/* Styles pour le modal de détails de paiement */
-.payment-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 2rem;
-    border-radius: 12px;
-    margin-bottom: 2rem;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-}
-
-.payment-icon {
-    width: 60px;
-    height: 60px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    backdrop-filter: blur(10px);
-}
-
-.payment-amount {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-top: 1rem;
-}
-
-.amount-value {
-    font-size: 2rem;
-    font-weight: 700;
-    color: white;
-}
-
-.status-badge {
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-    font-size: 0.875rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.payment-card {
-    border: none;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-    transition: all 0.3s ease;
-    overflow: hidden;
-}
-
-.payment-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-}
-
-.payment-card .card-header {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border-bottom: 1px solid #e9ecef;
-    padding: 1.25rem 1.5rem;
-}
-
-.payment-card .card-title {
-    color: #495057;
-    font-weight: 600;
-    font-size: 1rem;
-}
-
-.payment-card .card-body {
-    padding: 1.5rem;
-}
-
-.info-item {
-    margin-bottom: 1.5rem;
-}
-
-.info-label {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #6c757d;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 0.5rem;
-    display: block;
-}
-
-.info-value {
-    font-size: 1rem;
-    color: #212529;
-    font-weight: 500;
-}
-
-.student-avatar {
-    width: 50px;
-    height: 50px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 1.1rem;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-}
-
-.refund-item {
-    padding: 1rem 0;
-}
-
-.refund-item:not(:last-child) {
-    border-bottom: 1px solid #f1f3f4;
-}
-
-/* Badges personnalisés */
-.badge {
-    font-size: 0.75rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 6px;
-    font-weight: 600;
-}
-
-.badge.bg-success {
-    background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
-}
-
-.badge.bg-warning {
-    background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%) !important;
-    color: #212529 !important;
-}
-
-.badge.bg-danger {
-    background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%) !important;
-}
-
-.badge.bg-info {
-    background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%) !important;
-}
-
-.badge.bg-primary {
-    background: linear-gradient(135deg, #007bff 0%, #6610f2 100%) !important;
-}
-
-.badge.bg-secondary {
-    background: linear-gradient(135deg, #6c757d 0%, #495057 100%) !important;
-}
-
-/* Boutons personnalisés */
-.btn {
-    border-radius: 8px;
-    font-weight: 500;
-    padding: 0.75rem 1.5rem;
-    transition: all 0.3s ease;
-}
-
-.btn-outline-primary {
-    border: 2px solid #007bff;
-    color: #007bff;
-}
-
-.btn-outline-primary:hover {
-    background: linear-gradient(135deg, #007bff 0%, #6610f2 100%);
-    border-color: transparent;
-    transform: translateY(-1px);
-}
-
-.btn-outline-warning {
-    border: 2px solid #ffc107;
-    color: #ffc107;
-}
-
-.btn-outline-warning:hover {
-    background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
-    border-color: transparent;
-    color: #212529;
-    transform: translateY(-1px);
-}
-
-.btn-outline-info {
-    border: 2px solid #17a2b8;
-    color: #17a2b8;
-}
-
-.btn-outline-info:hover {
-    background: linear-gradient(135deg, #17a2b8 0%, #6f42c1 100%);
-    border-color: transparent;
-    transform: translateY(-1px);
-}
-
-.btn-outline-secondary {
-    border: 2px solid #6c757d;
-    color: #6c757d;
-}
-
-.btn-outline-secondary:hover {
-    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
-    border-color: transparent;
-    transform: translateY(-1px);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .payment-header {
-        padding: 1.5rem;
-    }
-    
-    .payment-amount {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.5rem;
-    }
-    
-    .amount-value {
-        font-size: 1.5rem;
-    }
-    
-    .payment-actions {
-        margin-top: 1rem;
-    }
-    
-    .payment-actions .btn {
-        margin-bottom: 0.5rem;
-    }
-}
-
-/* Styles d'impression */
-@media print {
-    .btn, .modal, .payment-actions {
-        display: none !important;
-    }
-    
-    .payment-header {
-        background: #f8f9fa !important;
-        color: #212529 !important;
-        border: 2px solid #dee2e6;
-    }
-    
-    .payment-card {
-        box-shadow: none !important;
-        border: 1px solid #dee2e6 !important;
-    }
-}
-
-/* Animation d'entrée */
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.payment-card {
-    animation: fadeInUp 0.6s ease-out;
-}
-
-.payment-card:nth-child(2) {
-    animation-delay: 0.1s;
-}
-
-.payment-card:nth-child(3) {
-    animation-delay: 0.2s;
-}
-
-.payment-card:nth-child(4) {
-    animation-delay: 0.3s;
-}
-
-/* Styles pour le modal de remboursement */
-.refund-modal {
-    border: none;
-    border-radius: 16px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-}
-
-.refund-modal .modal-header {
-    background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
-    color: white;
-    border-radius: 16px 16px 0 0;
-    padding: 1.5rem 2rem;
-    border-bottom: none;
-}
-
-.refund-icon {
-    width: 50px;
-    height: 50px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.25rem;
-    backdrop-filter: blur(10px);
-}
-
-.refund-payment-info {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    padding: 1.5rem;
-    border-radius: 12px;
-    border: 1px solid #dee2e6;
-}
-
-.refund-form .form-group {
-    margin-bottom: 1.5rem;
-}
-
-.refund-form .form-label {
-    color: #495057;
-    font-size: 0.95rem;
-    margin-bottom: 0.75rem;
-}
-
-.refund-form .form-control,
-.refund-form .form-select {
-    border: 2px solid #e9ecef;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-    font-size: 1rem;
-    transition: all 0.3s ease;
-}
-
-.refund-form .form-control:focus,
-.refund-form .form-select:focus {
-    border-color: #ffc107;
-    box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
-}
-
-.refund-form .input-group-text {
-    background: #f8f9fa;
-    border: 2px solid #e9ecef;
-    border-left: none;
-    color: #6c757d;
-    font-weight: 600;
-}
-
-.refund-form .form-text {
-    color: #6c757d;
-    font-size: 0.875rem;
-    margin-top: 0.5rem;
-}
-
-.refund-modal .modal-footer {
-    background: #f8f9fa;
-    border-top: 1px solid #dee2e6;
-    padding: 1.5rem 2rem;
-    border-radius: 0 0 16px 16px;
-}
-
-.refund-modal .btn-warning {
-    background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
-    border: none;
-    color: #212529;
-    font-weight: 600;
-    padding: 0.75rem 2rem;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-}
-
-.refund-modal .btn-warning:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(255, 193, 7, 0.4);
-}
-
-.refund-modal .btn-outline-secondary {
-    border: 2px solid #6c757d;
-    color: #6c757d;
-    font-weight: 500;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    transition: all 0.3s ease;
-}
-
-.refund-modal .btn-outline-secondary:hover {
-    background: #6c757d;
-    border-color: #6c757d;
-    transform: translateY(-1px);
-}
-
-/* Animation pour le modal */
-@keyframes modalSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-50px) scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-.refund-modal {
-    animation: modalSlideIn 0.3s ease-out;
-}
-
-/* Responsive pour le modal */
-@media (max-width: 768px) {
-    .refund-modal .modal-header,
-    .refund-modal .modal-footer {
-        padding: 1rem 1.5rem;
-    }
-    
-    .refund-modal .modal-body {
-        padding: 1.5rem;
-    }
-    
-    .refund-payment-info {
-        padding: 1rem;
-    }
-}
-</style>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Gestion du modal de remboursement
-    const refundModal = document.getElementById('refundModal');
-    const refundForm = document.getElementById('refundForm');
-    const refundAmountInput = document.getElementById('refundAmount');
-    const refundReasonSelect = document.getElementById('refundReason');
-    const maxAmount = {{ $payment->refundable_amount }};
-    
-    if (refundModal && refundForm) {
-        // Validation en temps réel du montant
-        refundAmountInput.addEventListener('input', function() {
-            const amount = parseFloat(this.value);
-            const maxAmountValue = parseFloat(maxAmount);
-            
-            if (amount > maxAmountValue) {
-                this.setCustomValidity(`Le montant ne peut pas dépasser ${maxAmountValue.toLocaleString()} FCFA`);
-                this.classList.add('is-invalid');
-            } else if (amount <= 0) {
-                this.setCustomValidity('Le montant doit être supérieur à 0');
-                this.classList.add('is-invalid');
-            } else {
-                this.setCustomValidity('');
-                this.classList.remove('is-invalid');
-            }
-        });
-        
-        // Validation du formulaire avant soumission
-        refundForm.addEventListener('submit', function(e) {
-            const amount = parseFloat(refundAmountInput.value);
-            const reason = refundReasonSelect.value;
-            
-            if (!amount || amount <= 0) {
-                e.preventDefault();
-                showAlert('Veuillez saisir un montant valide', 'error');
-                return;
-            }
-            
-            if (amount > maxAmount) {
-                e.preventDefault();
-                showAlert(`Le montant ne peut pas dépasser ${maxAmount.toLocaleString()} FCFA`, 'error');
-                return;
-            }
-            
-            if (!reason) {
-                e.preventDefault();
-                showAlert('Veuillez sélectionner une raison pour le remboursement', 'error');
-                return;
-            }
-            
-            // Confirmation avant soumission
-            if (!confirm(`Êtes-vous sûr de vouloir créer un remboursement de ${amount.toLocaleString()} FCFA ?`)) {
-                e.preventDefault();
-                return;
-            }
-            
-            // Afficher un indicateur de chargement
-            const submitBtn = this.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Création en cours...';
-            submitBtn.disabled = true;
-        });
-        
-        // Réinitialiser le formulaire quand le modal se ferme
-        refundModal.addEventListener('hidden.bs.modal', function() {
-            refundForm.reset();
-            refundAmountInput.classList.remove('is-invalid');
-            refundReasonSelect.classList.remove('is-invalid');
-            
-            // Réactiver le bouton de soumission
-            const submitBtn = refundForm.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="bi bi-arrow-counterclockwise me-1"></i>Créer le Remboursement';
-            }
-        });
-    }
-    
-    // Fonction pour afficher des alertes
-    function showAlert(message, type = 'info') {
-        // Supprimer les alertes existantes
-        const existingAlerts = document.querySelectorAll('.alert-temporary');
-        existingAlerts.forEach(alert => alert.remove());
-        
-        // Créer la nouvelle alerte
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show alert-temporary`;
-        alertDiv.style.position = 'fixed';
-        alertDiv.style.top = '20px';
-        alertDiv.style.right = '20px';
-        alertDiv.style.zIndex = '9999';
-        alertDiv.style.minWidth = '300px';
-        
-        alertDiv.innerHTML = `
-            <i class="bi bi-${type === 'error' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        document.body.appendChild(alertDiv);
-        
-        // Supprimer automatiquement après 5 secondes
-        setTimeout(() => {
-            if (alertDiv.parentNode) {
-                alertDiv.remove();
-            }
-        }, 5000);
-    }
-    
-    // Animation d'entrée pour les cartes
-    const cards = document.querySelectorAll('.payment-card');
-    cards.forEach((card, index) => {
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(20px)';
-        
-        setTimeout(() => {
-            card.style.transition = 'all 0.6s ease-out';
-            card.style.opacity = '1';
-            card.style.transform = 'translateY(0)';
-        }, index * 100);
-    });
-});
-</script>
 @endsection
-@endif

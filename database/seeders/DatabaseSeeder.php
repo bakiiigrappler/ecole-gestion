@@ -12,10 +12,17 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            AdminSuperAdminSeeder::class,
-            AdminUserSeeder::class,
+            // Referentiel de l'etablissement, requis par le reste de la chaine
+            SchoolSettingsSeeder::class,
+
+            // Comptes : un par role, pour parcourir chaque profil
+            ComptesDemoSeeder::class,
+
             LevelSeeder::class,
-            SubjectSeeder::class,
+            SeriesSeeder::class,
+            // SubjectSeeder est obsolete : il insere subjects.level_id, colonne supprimee
+            // par la migration 2025_08_27_122409 au profit de cycle/series.
+            GabonSubjectsSeeder::class,
             AcademicYearSeeder::class,
             ClassSeeder::class,
             TeacherSeeder::class,
@@ -23,7 +30,25 @@ class DatabaseSeeder extends Seeder
             StudentSeeder::class,
             EnrollmentSeeder::class,
             FeeSeeder::class,
-            AttendanceSeeder::class,
+            PaymentGatewaySeeder::class,
+
+            // Rattachement enseignant/matiere, emplois du temps puis appel
+            // quotidien : dans cet ordre, les absences du bulletin peuvent
+            // etre rattachees a une discipline via l'emploi du temps.
+            EnseignantMatiereSeeder::class,
+            EmploiDuTempsSeeder::class,
+            PresenceSeeder::class,
+
+            // Referentiels de competences puis evaluations : le primaire et le
+            // preprimaire s'evaluent ainsi, pas par notes chiffrees.
+            CompetencySeeder::class,
+            PrePrimaryCompetencySeeder::class,
+            EvaluationsCompetencesSeeder::class,
+            EvaluationsPreprimaireSeeder::class,
+
+            // Liens parent-eleve, frais chiffres, paiements et notes : sans eux
+            // le tableau de bord et les statistiques restent a zero.
+            DonneesDemoSeeder::class,
         ]);
     }
 }

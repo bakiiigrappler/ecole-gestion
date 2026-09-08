@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Détails de l\'Étudiant - ' . $student->first_name . ' ' . $student->last_name)
+@section('title', isset($grade) ? 'Détails de la note' : 'Détails de l\'Étudiant - ' . $student->first_name . ' ' . $student->last_name)
 
 @section('head')
 <style>
@@ -427,11 +427,9 @@
      width: 60px;
      height: 60px;
      margin-right: 15px;
-     border: 1px solid black;
      display: flex;
      align-items: center;
      justify-content: center;
-     background: white;
 }
 
 .republic-seal img {
@@ -782,8 +780,6 @@
 .official-seal-right {
      width: 60px;
      height: 60px;
-     border: 2px solid black;
-     border-radius: 50%;
      margin: 0 auto;
      display: flex;
      align-items: center;
@@ -853,11 +849,8 @@
 
  /* Amélioration des sceaux */
  .republic-seal,
- .gabon-logo,
- .official-seal-left,
- .official-seal-right {
+ .gabon-logo {
      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-     border: 2px solid #333 !important;
  }
 
  /* Amélioration du code-barre */
@@ -991,6 +984,46 @@
     .student-header {
         padding: 25px 15px;
     }
+}
+
+/* Spinner overlay global (comme dans bulletins.blade.php) */
+.spinner-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.spinner-overlay .spinner-content {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.spinner-overlay .spinner-border {
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 15px;
+}
+
+.spinner-overlay .spinner-text {
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.spinner-overlay .spinner-subtext {
+    font-size: 14px;
+    color: #666;
 }
 
 </style>
@@ -1144,9 +1177,6 @@
     </a>
         <button onclick="generatePDF()" class="btn btn-warning">
         <i class="fas fa-download"></i> Télécharger PDF
-    </button>
-        <button onclick="printPDF()" class="btn btn-secondary">
-         <i class="fas fa-print"></i> Imprimer PDF
      </button>
 </div>
 </div>
@@ -1166,16 +1196,14 @@
     <div class="bulletin-header">
         <div class="header-left">
             <div class="school-logo">
-                                @if($schoolSettings && $schoolSettings->school_logo)
-                                    <img src="{{ $schoolSettings->logo_url }}" alt="Logo {{ $schoolSettings->school_name }}" style="max-height: 60px; max-width: 80px;">
+                                @if(isset($schoolSettings) && $schoolSettings->school_logo)
+                                    <img src="{{ $schoolSettings->logo_url }}" alt="Logo {{ $schoolName }}" style="max-height: 60px; max-width: 80px;">
                                 @else
-                <div class="gabon-logo">
-                    <div class="logo-placeholder">LOGO<br>ÉCOLE</div>
-                </div>
+                                    <img src="{{ asset('images/logo-ecole.svg') }}" alt="Logo École" style="max-height: 60px; max-width: 80px;">
                                 @endif
             </div>
             <div class="school-info">
-                                <div class="school-line">{{ $schoolSettings->school_name ?? 'Lycée XXXXX' }}</div>
+                                <div class="school-line">{{ $schoolName ?? 'Établissement Scolaire' }}</div>
                                 <div class="contact-line">{{ $schoolSettings->school_bp ?? 'BP: 6' }}, Téléphone: {{ $schoolSettings->school_phone ?? '06037499' }}</div>
             </div>
         </div>
@@ -1199,11 +1227,9 @@
             <div class="republic-seal">
                                 @if($schoolSettings && $schoolSettings->school_seal)
                                     <img src="{{ $schoolSettings->seal_url }}" alt="Sceau {{ $schoolSettings->school_name }}" style="max-height: 60px; max-width: 80px;">
-                                @elseif(file_exists(public_path('sceau-221128112237.png')))
-                    <img src="{{ asset('sceau-221128112237.png') }}" alt="Sceau République Gabonaise">
-                @else
-                    <div class="seal-placeholder">SCEAU<br>RÉPUBLIQUE<br>GABONAISE</div>
-                @endif
+                                @else
+                                    <img src="{{ asset('images/sceau-221128112237.png') }}" alt="Sceau République Gabonaise" style="max-height: 60px; max-width: 80px;">
+                                @endif
             </div>
             <div class="year-info">
                 <div class="ministry-line">Ministère de l'Education Nationale</div>
@@ -1452,9 +1478,6 @@
                  <button onclick="printPDF()" class="btn btn-info">
                      <i class="fas fa-print"></i> Imprimer PDF
                  </button>
-                 <button onclick="printHTML()" class="btn btn-warning">
-                     <i class="fas fa-print"></i> Imprimer HTML
-                 </button>
              </div>
          </div>
      </div>
@@ -1463,6 +1486,7 @@
 <!-- Scripts pour PDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <script>
  // Fonction pour afficher le bulletin dans le modal
@@ -1471,421 +1495,332 @@
      modal.show();
  }
  
-function generatePDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('p', 'mm', 'a4');
-    
-    // Configuration exacte comme le modal
-    const pageWidth = doc.internal.pageSize.width;
-    const pageHeight = doc.internal.pageSize.height;
-    const margin = 10;
-    let yPos = margin;
-    
-    // Bordure de page exacte comme le modal (2px solid #333)
-    doc.setDrawColor(51, 51, 51);
-    doc.setLineWidth(2);
-    doc.rect(margin, margin, pageWidth - 2 * margin, pageHeight - 2 * margin);
-    
-    // HEADER EXACT COMME LE MODAL
-    yPos = margin + 5;
-    
-    // Fond gris comme le modal (#f9f9f9)
-    doc.setFillColor(249, 249, 249);
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 25, 'F');
-    
-    // Logo de l'école (vraie image)
-    const schoolLogo = document.querySelector('.school-logo img');
-    if (schoolLogo && schoolLogo.src) {
-        try {
-            doc.addImage(schoolLogo.src, 'JPEG', margin + 8, yPos + 2, 20, 20);
-        } catch (e) {
-            // Fallback si l'image ne peut pas être chargée
-            doc.setFillColor(255, 255, 255);
-            doc.rect(margin + 8, yPos + 2, 20, 20, 'FD');
-            doc.setFontSize(6);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(0, 0, 0);
-            doc.text('LOGO', margin + 18, yPos + 8, { align: 'center' });
-            doc.text('ÉCOLE', margin + 18, yPos + 12, { align: 'center' });
-        }
-    } else {
-        doc.setFillColor(255, 255, 255);
-        doc.rect(margin + 8, yPos + 2, 20, 20, 'FD');
-        doc.setFontSize(6);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 0, 0);
-        doc.text('LOGO', margin + 18, yPos + 8, { align: 'center' });
-        doc.text('ÉCOLE', margin + 18, yPos + 12, { align: 'center' });
+// Fonction pour générer le HTML du bulletin avec les mêmes styles que le modal
+function generateBulletinHTML() {
+    // Récupérer le contenu du modal d'aperçu
+    const bulletinContent = document.querySelector('.bulletin-page');
+    if (!bulletinContent) {
+        console.error('Contenu du bulletin non trouvé');
+        return '';
     }
     
-    // Informations de l'école exactes comme le modal
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    doc.text('{{ $schoolSettings->school_name ?? "Lycée XXXXX" }}', margin + 35, yPos + 8);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text('{{ $schoolSettings->school_bp ?? "BP: 6" }}, Téléphone: {{ $schoolSettings->school_phone ?? "06037499" }}', margin + 35, yPos + 14);
+    // Cloner le contenu pour éviter de modifier l'original
+    const clonedContent = bulletinContent.cloneNode(true);
     
-    // Titre centré exact comme le modal
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    const bulletinTitle = document.querySelector('.bulletin-title').textContent;
-    doc.text(bulletinTitle, pageWidth / 2, yPos + 20, { align: 'center' });
+    // Ajuster les styles pour l'impression PDF
+    clonedContent.style.transform = 'none'; // Enlever le scale(0.8)
+    clonedContent.style.marginBottom = '0';
+    clonedContent.style.width = '210mm';
+    clonedContent.style.minHeight = '297mm';
     
-    // Sceau République Gabonaise (vraie image)
-    const republicSeal = document.querySelector('.republic-seal img');
-    if (republicSeal && republicSeal.src) {
-        try {
-            doc.addImage(republicSeal.src, 'JPEG', pageWidth - margin - 25, yPos + 2, 20, 20);
-        } catch (e) {
-            // Fallback si l'image ne peut pas être chargée
-            doc.setFillColor(255, 255, 255);
-            doc.rect(pageWidth - margin - 25, yPos + 2, 20, 20, 'FD');
-            doc.setFontSize(5);
-            doc.setFont('helvetica', 'bold');
-            doc.setTextColor(0, 0, 0);
-            doc.text('SCEAU', pageWidth - margin - 15, yPos + 8, { align: 'center' });
-            doc.text('RÉPUBLIQUE', pageWidth - margin - 15, yPos + 11, { align: 'center' });
-            doc.text('GABONAISE', pageWidth - margin - 15, yPos + 14, { align: 'center' });
+    return clonedContent.outerHTML;
+}
+
+// Fonction pour générer le PDF avec html2canvas (comme dans bulletins.blade.php)
+async function generatePDF() {
+    let button = null;
+    let originalText = '';
+    
+    try {
+        // Afficher le spinner overlay
+        showSpinnerOverlay('Génération du PDF en cours...', 'Récupération des données du bulletin');
+        
+        // Afficher un indicateur de chargement sur le bouton
+        if (event && event.target) {
+            button = event.target;
+            originalText = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Génération...';
+            button.disabled = true;
         }
-    } else {
-        doc.setFillColor(255, 255, 255);
-        doc.rect(pageWidth - margin - 25, yPos + 2, 20, 20, 'FD');
-        doc.setFontSize(5);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 0, 0);
-        doc.text('SCEAU', pageWidth - margin - 15, yPos + 8, { align: 'center' });
-        doc.text('RÉPUBLIQUE', pageWidth - margin - 15, yPos + 11, { align: 'center' });
-        doc.text('GABONAISE', pageWidth - margin - 15, yPos + 14, { align: 'center' });
-    }
-    
-    // Ministère et année scolaire exacts comme le modal
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    doc.text('Ministère de l\'Education Nationale', pageWidth - margin - 5, yPos + 5, { align: 'right' });
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    const yearText = document.querySelector('.year-line').textContent;
-    doc.text(yearText, pageWidth - margin - 5, yPos + 11, { align: 'right' });
-    
-    yPos += 30;
-    
-    // SECTION ÉTUDIANT EXACTE COMME LE MODAL (tableau avec bordures)
-    // Fond gris comme le modal (#f8f8f8)
-    doc.setFillColor(248, 248, 248);
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 30, 'F');
-    
-    // Bordures noires comme le modal
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(1);
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 30, 'D');
-    
-    // Photo de l'élève (vraie image) - taille exacte comme le modal (80x100px)
-    const studentPhoto = document.querySelector('.photo-cell img');
-    if (studentPhoto && studentPhoto.src) {
-        try {
-            doc.addImage(studentPhoto.src, 'JPEG', margin + 8, yPos + 3, 22, 24);
-        } catch (e) {
-            // Fallback si l'image ne peut pas être chargée
-            doc.setFillColor(255, 255, 255);
-            doc.rect(margin + 8, yPos + 3, 22, 24, 'FD');
-            doc.setFontSize(6);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(100, 100, 100);
-            doc.text('Photo', margin + 19, yPos + 12, { align: 'center' });
-            doc.text('de', margin + 19, yPos + 15, { align: 'center' });
-            doc.text('l\'élève', margin + 19, yPos + 18, { align: 'center' });
+
+        // Vérifier que jsPDF et html2canvas sont disponibles
+        if (typeof window.jspdf === 'undefined') {
+            throw new Error('jsPDF n\'est pas chargé. Veuillez recharger la page.');
         }
-    } else {
-        doc.setFillColor(255, 255, 255);
-        doc.rect(margin + 8, yPos + 3, 22, 24, 'FD');
-        doc.setFontSize(6);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 100, 100);
-        doc.text('Photo', margin + 19, yPos + 12, { align: 'center' });
-        doc.text('de', margin + 19, yPos + 15, { align: 'center' });
-        doc.text('l\'élève', margin + 19, yPos + 18, { align: 'center' });
-    }
-    
-    // Nom et informations de l'élève exactes comme le modal
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    const studentName = document.querySelector('.name-cell strong').textContent;
-    doc.text(studentName, margin + 35, yPos + 8);
-    
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    // Récupérer les informations depuis les cellules HTML exactement comme dans le modal
-    const infoCells = document.querySelectorAll('.info-cell');
-    if (infoCells.length >= 3) {
-        doc.text(infoCells[0].textContent.trim(), margin + 35, yPos + 15);
-        doc.text(infoCells[1].textContent.trim(), margin + 35, yPos + 20);
-        doc.text(infoCells[2].textContent.trim(), margin + 35, yPos + 25);
-    }
-    
-    yPos += 35;
-    
-    // TABLEAU EXACT COMME LE MODAL
-    const tableHeaders = [
-        'DISCIPLINES',
-        'MOYENNE\nApprenant',
-        'MOYENNE\nClasse',
-        'COEF',
-        'NOTE X\nCOEF',
-        'RANG',
-        'ABSENCES',
-        'Appréciation',
-        'Professeur'
-    ];
-    
-    // Récupérer les données du tableau HTML exactement comme affiché
-    const tableData = [];
-    document.querySelectorAll('.grades-table tbody tr:not(.totals-row)').forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length >= 9) {
-            tableData.push([
-                cells[0].textContent.trim(),
-                cells[1].textContent.trim(),
-                cells[2].textContent.trim(),
-                cells[3].textContent.trim(),
-                cells[4].textContent.trim(),
-                cells[5].textContent.trim(),
-                cells[6].textContent.trim(),
-                cells[7].textContent.trim(),
-                cells[8].textContent.trim()
-            ]);
+        
+        if (typeof html2canvas === 'undefined') {
+            throw new Error('html2canvas n\'est pas chargé. Veuillez recharger la page.');
         }
-    });
-    
-    // Ligne totaux
-    const totalsRow = document.querySelector('.grades-table .totals-row');
-    if (totalsRow) {
-        const cells = totalsRow.querySelectorAll('td');
-        if (cells.length >= 6) {
-            tableData.push([
-                cells[0].textContent.trim(),
-                cells[1].textContent.trim(),
-                cells[2].textContent.trim(),
-                cells[3].textContent.trim(),
-                cells[4].textContent.trim(),
-                cells[5].textContent.trim(),
-                cells[6].textContent.trim(),
-                cells[7] ? cells[7].textContent.trim() : '',
-                cells[8] ? cells[8].textContent.trim() : ''
-            ]);
+
+        // Mettre à jour le spinner
+        showSpinnerOverlay('Création du PDF...', 'Conversion HTML vers PDF avec html2canvas');
+        
+        // Générer le PDF à partir de l'aperçu HTML du modal
+        await generatePDFFromHTML();
+        
+        // Message de succès
+        showNotification('PDF généré avec succès !', 'success');
+
+    } catch (error) {
+        console.error('Erreur lors de la génération du PDF:', error);
+        showNotification('Erreur lors de la génération du PDF: ' + error.message, 'error');
+    } finally {
+        // Masquer le spinner overlay
+        hideSpinnerOverlay();
+        
+        // Restaurer le bouton si disponible
+        if (button && originalText) {
+            button.innerHTML = originalText;
+            button.disabled = false;
         }
     }
-    
-    // Tableau avec style exact comme le modal
-    doc.autoTable({
-        startY: yPos,
-        head: [tableHeaders],
-        body: tableData,
-        theme: 'grid',
-        styles: {
-            fontSize: 9, // Exact comme le modal
-            cellPadding: 3, // Exact comme le modal
-            lineColor: [221, 221, 221], // #ddd comme le modal
-            lineWidth: 1, // Exact comme le modal
-            halign: 'center',
-            valign: 'middle'
-        },
-        headStyles: {
-            fillColor: [144, 238, 144], // linear-gradient(135deg, #90EE90 0%, #7CFC00 100%) comme le modal
-            textColor: [44, 62, 80], // #2c3e50 comme le modal
-            fontStyle: 'bold',
-            fontSize: 8, // Exact comme le modal
-            lineHeight: 1.2 // Exact comme le modal
-        },
-        columnStyles: {
-            0: { cellWidth: 25, halign: 'left' }, // subject-cell comme le modal
-            1: { cellWidth: 18 },
-            2: { cellWidth: 18 },
-            3: { cellWidth: 12 },
-            4: { cellWidth: 18 },
-            5: { cellWidth: 12 },
-            6: { cellWidth: 16 },
-            7: { cellWidth: 20 },
-            8: { cellWidth: 30 }
-        }
-    });
-    
-    yPos = doc.lastAutoTable.finalY + 5;
-    
-    // MOYENNE TRIMESTRIELLE EXACTE COMME LE MODAL
-    doc.setFontSize(11); // Exact comme le modal
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    const moyenneText = document.querySelector('.moyenne-trimestre').textContent;
-    doc.text(moyenneText, pageWidth / 2, yPos + 5, { align: 'center' });
-    
-    yPos += 15;
-    
-    // PROFIL DE LA CLASSE ET BILAN EXACTS COMME LE MODAL
-    const sectionWidth = (pageWidth - 2 * margin - 15) / 2;
-    
-    // Profil de la classe - style exact comme le modal
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    doc.text('PROFIL DE LA CLASSE', margin + 5 + sectionWidth/2, yPos + 8, { align: 'center' });
-    
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    const profilItems = [
-        ['Forte moyenne trim', '{{ $classProfile["meilleure_note"] ?? "N/C" }}'],
-        ['Faible moyenne trim', '{{ $classProfile["plus_basse_note"] ?? "N/C" }}'],
-        ['Moyenne de la classe', '{{ $classProfile["moyenne_classe"] ?? "N/C" }}'],
-        ['PROFESSEUR', 'PROFESSEUR PRINCIPAL'],
-        ['PRINCIPAL', '{{ $principalTeacherName }}']
-    ];
-    
-    let profilY = yPos + 12;
-    profilItems.forEach(item => {
-        doc.text(item[0], margin + 8, profilY);
-        doc.text(item[1], margin + sectionWidth - 8, profilY, { align: 'right' });
-        profilY += 3;
-    });
-    
-    // Bilan
-    const bilanX = margin + sectionWidth + 10;
-    doc.rect(bilanX, yPos, sectionWidth, 30, 'D');
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('BILAN', bilanX + sectionWidth/2, yPos + 6, { align: 'center' });
-    
-    // Récupérer les données du bilan depuis l'aperçu HTML
-    const bilanData = [];
-    document.querySelectorAll('.bilan-table tbody tr').forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length >= 3) {
-            bilanData.push([
-                cells[0].textContent.trim(),
-                cells[1].textContent.trim(),
-                cells[2].textContent.trim()
-            ]);
-        }
-    });
-    
-    doc.autoTable({
-        startY: yPos + 9,
-        head: [['Moyenne', 'Apprenant', 'Classe Rang']],
-        body: bilanData,
-        theme: 'grid',
-        styles: {
-            fontSize: 5,
-            cellPadding: 1
-        },
-        headStyles: {
-            fillColor: [144, 238, 144],
-            textColor: [0, 0, 0],
-            fontStyle: 'bold'
-        },
-        margin: { left: bilanX + 2, right: margin + 5 },
-        tableWidth: sectionWidth - 4
-    });
-    
-    yPos += 40;
-    
-    // DÉCISION DU CONSEIL DE CLASSE
-    doc.rect(margin + 5, yPos, pageWidth - 2 * margin - 10, 20, 'D');
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('DECISION DU CONSEIL DE CLASSE', pageWidth / 2, yPos + 6, { align: 'center' });
-    
-    // Récupérer les données de décision depuis l'aperçu HTML
-    const decisionItems = document.querySelectorAll('.decision-items span');
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    
-    if (decisionItems.length >= 3) {
-        doc.text(decisionItems[0].textContent.trim(), margin + 20, yPos + 12);
-        doc.text(decisionItems[1].textContent.trim(), pageWidth / 2, yPos + 12, { align: 'center' });
-        doc.text(decisionItems[2].textContent.trim(), pageWidth - margin - 40, yPos + 12);
+}
+
+// Fonction pour générer le PDF à partir de l'aperçu HTML avec html2canvas
+async function generatePDFFromHTML() {
+    try {
+        // Créer un conteneur temporaire pour le bulletin
+        const tempContainer = document.createElement('div');
+        tempContainer.style.position = 'absolute';
+        tempContainer.style.left = '-9999px';
+        tempContainer.style.top = '-9999px';
+        tempContainer.style.width = '210mm'; // A4 width
+        tempContainer.style.backgroundColor = 'white';
+        tempContainer.style.padding = '0';
+        tempContainer.style.margin = '0';
+        tempContainer.style.fontFamily = 'Arial, sans-serif';
+        tempContainer.style.boxSizing = 'border-box';
+        document.body.appendChild(tempContainer);
+
+        // Générer le HTML du bulletin avec les mêmes styles que le modal
+        const bulletinHTML = generateBulletinHTML();
+        tempContainer.innerHTML = bulletinHTML;
+
+        // Attendre que le contenu soit rendu
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Capturer le contenu avec html2canvas
+        const canvas = await html2canvas(tempContainer, {
+            scale: 2, // Haute qualité
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            width: tempContainer.scrollWidth,
+            height: tempContainer.scrollHeight
+        });
+
+        // Supprimer le conteneur temporaire
+        document.body.removeChild(tempContainer);
+
+        // Créer le PDF avec jsPDF en format portrait
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        
+        // Ajouter un cadre gris fin autour de la page
+        const margin = 5; // 5mm de marge
+        pdf.setDrawColor(200, 200, 200); // Couleur gris clair
+        pdf.setLineWidth(0.5); // Ligne fine
+        pdf.rect(margin, margin, pdf.internal.pageSize.getWidth() - 2 * margin, pdf.internal.pageSize.getHeight() - 2 * margin);
+        
+        // Calculer les dimensions pour ajuster l'image au PDF avec marge
+        const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
+        const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        
+        // Calculer le ratio pour que l'image prenne la page avec marge
+        const availableWidth = pdfWidth - 2 * margin;
+        const availableHeight = pdfHeight - 2 * margin;
+        const ratio = Math.min(availableWidth / (canvasWidth * 0.264583), availableHeight / (canvasHeight * 0.264583));
+        const imgWidth = canvasWidth * 0.264583 * ratio;
+        const imgHeight = canvasHeight * 0.264583 * ratio;
+        
+        // Centrer l'image sur la page avec marge
+        const x = (pdfWidth - imgWidth) / 2;
+        const y = (pdfHeight - imgHeight) / 2;
+        
+        // Ajouter l'image au PDF (prend la page avec marge)
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, imgWidth, imgHeight);
+        
+        // Télécharger le PDF
+        const fileName = `bulletin_${studentData.first_name}_${studentData.last_name}_${new Date().toISOString().split('T')[0]}.pdf`;
+        pdf.save(fileName);
+
+    } catch (error) {
+        console.error('Erreur lors de la génération du PDF avec html2canvas:', error);
+        throw error;
     }
-    
-    // Badge Admis(e)
-    const admissionBadge = document.querySelector('.admission-badge');
-    if (admissionBadge) {
-        doc.setFillColor(0, 0, 0);
-        doc.rect(pageWidth / 2 - 12, yPos + 14, 24, 5, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
-        doc.text(admissionBadge.textContent.trim(), pageWidth / 2, yPos + 17, { align: 'center' });
-        doc.setTextColor(0, 0, 0);
-    }
-    
-    yPos += 25;
-    
-    // FOOTER EXACT COMME LE MODAL
-    doc.setDrawColor(0, 0, 0);
-    doc.setLineWidth(1);
-    doc.line(margin + 5, yPos, pageWidth - margin - 5, yPos);
-    yPos += 5;
-    
-    // Code-barre à gauche (vraie image) - exact comme le modal
-    const barcodeImg = document.querySelector('.barcode-section img');
-    if (barcodeImg && barcodeImg.src) {
-        try {
-            doc.addImage(barcodeImg.src, 'PNG', margin + 5, yPos, 50, 15);
-        } catch (e) {
-            // Fallback si l'image ne peut pas être chargée
-            doc.rect(margin + 5, yPos + 3, 40, 8, 'D');
-            doc.text('||||||||||||||||||||||||||||||||', margin + 25, yPos + 7, { align: 'center' });
-        }
-    } else {
-        doc.rect(margin + 5, yPos + 3, 40, 8, 'D');
-        doc.text('||||||||||||||||||||||||||||||||', margin + 25, yPos + 7, { align: 'center' });
-    }
-    
-    // Matricule bulletin exact comme le modal
-    const bulletinCode = document.querySelector('.bulletin-code');
-    if (bulletinCode) {
-        doc.setFontSize(10); // Exact comme le modal
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 0, 0);
-        doc.text(bulletinCode.textContent.trim(), margin + 25, yPos + 18, { align: 'center' });
-    }
-    
-    // Conseil de classe au centre exact comme le modal
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
-    doc.text('* Conseil de Classe', pageWidth / 2, yPos + 8, { align: 'center' });
-    
-    // Signature à droite exacte comme le modal
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
-    doc.text('Le Proviseur,', pageWidth - margin - 5, yPos + 8, { align: 'right' });
-    
-    // Zone pour le cachet exacte comme le modal
-    doc.setFillColor(255, 255, 255);
-    doc.rect(pageWidth - margin - 25, yPos + 12, 20, 15, 'FD');
-    doc.setDrawColor(0, 0, 0);
-    doc.rect(pageWidth - margin - 25, yPos + 12, 20, 15, 'D');
-    
-    // Date de décision exacte comme le modal
-    const decisionDate = document.querySelector('.decision-date');
-    if (decisionDate) {
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(0, 0, 0);
-        doc.text(decisionDate.textContent.trim(), pageWidth / 2, yPos + 20, { align: 'center' });
-    }
-    
-    // Sauvegarder le PDF avec nom amélioré
-    const fileName = `bulletin_${studentData.first_name}_${studentData.last_name}_${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(fileName);
 }
 
 function printPDF() {
-    // Utiliser la même fonction que generatePDF mais pour l'impression
-    generatePDF();
+    let button = null;
+    let originalText = '';
+    
+    try {
+        // Afficher le spinner overlay
+        showSpinnerOverlay('Préparation de l\'impression...', 'Génération du PDF pour impression');
+        
+        // Afficher un indicateur de chargement sur le bouton
+        if (event && event.target) {
+            button = event.target;
+            originalText = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Préparation...';
+            button.disabled = true;
+        }
+
+        // Vérifier que jsPDF et html2canvas sont disponibles
+        if (typeof window.jspdf === 'undefined') {
+            throw new Error('jsPDF n\'est pas chargé. Veuillez recharger la page.');
+        }
+        
+        if (typeof html2canvas === 'undefined') {
+            throw new Error('html2canvas n\'est pas chargé. Veuillez recharger la page.');
+        }
+
+        // Mettre à jour le spinner
+        showSpinnerOverlay('Génération du PDF...', 'Conversion HTML vers PDF pour impression');
+        
+        // Générer le PDF et l'ouvrir directement pour impression
+        generatePDFForPrint();
+        
+        // Message de succès
+        showNotification('PDF prêt pour impression !', 'success');
+
+    } catch (error) {
+        console.error('Erreur lors de la préparation de l\'impression:', error);
+        showNotification('Erreur lors de la préparation de l\'impression: ' + error.message, 'error');
+    } finally {
+        // Masquer le spinner overlay
+        hideSpinnerOverlay();
+        
+        // Restaurer le bouton si disponible
+        if (button && originalText) {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    }
+}
+
+// Fonction pour générer le PDF et l'ouvrir directement pour impression
+async function generatePDFForPrint() {
+    try {
+        // Créer un conteneur temporaire pour le bulletin
+        const tempContainer = document.createElement('div');
+        tempContainer.style.position = 'absolute';
+        tempContainer.style.left = '-9999px';
+        tempContainer.style.top = '-9999px';
+        tempContainer.style.width = '210mm'; // A4 width
+        tempContainer.style.backgroundColor = 'white';
+        tempContainer.style.padding = '0';
+        tempContainer.style.margin = '0';
+        tempContainer.style.fontFamily = 'Arial, sans-serif';
+        tempContainer.style.boxSizing = 'border-box';
+        document.body.appendChild(tempContainer);
+
+        // Générer le HTML du bulletin avec les mêmes styles que le modal
+        const bulletinHTML = generateBulletinHTML();
+        tempContainer.innerHTML = bulletinHTML;
+
+        // Attendre que le contenu soit rendu
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Capturer le contenu avec html2canvas
+        const canvas = await html2canvas(tempContainer, {
+            scale: 2, // Haute qualité
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            width: tempContainer.scrollWidth,
+            height: tempContainer.scrollHeight
+        });
+
+        // Supprimer le conteneur temporaire
+        document.body.removeChild(tempContainer);
+
+        // Créer le PDF avec jsPDF en format portrait
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        
+        // Ajouter un cadre gris fin autour de la page
+        const margin = 5; // 5mm de marge
+        pdf.setDrawColor(200, 200, 200); // Couleur gris clair
+        pdf.setLineWidth(0.5); // Ligne fine
+        pdf.rect(margin, margin, pdf.internal.pageSize.getWidth() - 2 * margin, pdf.internal.pageSize.getHeight() - 2 * margin);
+        
+        // Calculer les dimensions pour ajuster l'image au PDF avec marge
+        const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
+        const pdfHeight = pdf.internal.pageSize.getHeight(); // 297mm
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        
+        // Calculer le ratio pour que l'image prenne la page avec marge
+        const availableWidth = pdfWidth - 2 * margin;
+        const availableHeight = pdfHeight - 2 * margin;
+        const ratio = Math.min(availableWidth / (canvasWidth * 0.264583), availableHeight / (canvasHeight * 0.264583));
+        const imgWidth = canvasWidth * 0.264583 * ratio;
+        const imgHeight = canvasHeight * 0.264583 * ratio;
+        
+        // Centrer l'image sur la page avec marge
+        const x = (pdfWidth - imgWidth) / 2;
+        const y = (pdfHeight - imgHeight) / 2;
+        
+        // Ajouter l'image au PDF (prend la page avec marge)
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, imgWidth, imgHeight);
+        
+        // Ouvrir le PDF directement dans une nouvelle fenêtre pour impression
+        const pdfDataUri = pdf.output('datauristring');
+        const printWindow = window.open(pdfDataUri, '_blank');
+        
+        // Attendre que le PDF soit chargé puis déclencher l'impression
+        if (printWindow) {
+            printWindow.onload = function() {
+                setTimeout(() => {
+                    printWindow.print();
+                }, 500); // Petit délai pour s'assurer que le PDF est chargé
+            };
+        }
+
+    } catch (error) {
+        console.error('Erreur lors de la génération du PDF pour impression:', error);
+        throw error;
+    }
+}
+
+// Fonction pour afficher les notifications (comme dans bulletins.blade.php)
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Supprimer automatiquement après 5 secondes
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+        }
+    }, 5000);
+}
+
+// Fonctions pour gérer le spinner overlay global (comme dans bulletins.blade.php)
+function showSpinnerOverlay(text, subtext = '') {
+    hideSpinnerOverlay();
+    
+    const overlay = document.createElement('div');
+    overlay.className = 'spinner-overlay';
+    overlay.id = 'globalSpinnerOverlay';
+    overlay.innerHTML = `
+        <div class="spinner-content">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Chargement...</span>
+            </div>
+            <div class="spinner-text">${text}</div>
+            ${subtext ? `<div class="spinner-subtext">${subtext}</div>` : ''}
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+}
+
+function hideSpinnerOverlay() {
+    const overlay = document.getElementById('globalSpinnerOverlay');
+    if (overlay) {
+        overlay.remove();
+    }
 }
 
 function printHTML() {
@@ -1973,6 +1908,12 @@ function printHTML() {
  let principalTeacher = null;
  let conduiteNote = null;
  let conduiteComments = '';
+ let gradesData = [];
+ let cumulativeScore = 0;
+ let cumulativePercentage = 0;
+ let term = '3ème TRIMESTRE';
+ let academicYear = '2024-2025';
+ let classInfo = {};
 
  // Fonction pour parser JSON avec gestion d'erreur
  function safeJsonParse(elementId, defaultValue = null) {
@@ -2025,10 +1966,33 @@ function printHTML() {
      studentInfo = safeJsonParse('student-info', {});
      principalTeacher = safeJsonParse('principal-teacher', 'N/C');
      
+     // Initialiser les données pour le PDF
+     if (studentData && studentData.id) {
+         classInfo = {
+             name: 'N/C',
+             level: 'N/C',
+             students_count: 0
+         };
+         
+         // Récupérer les données des notes si disponibles
+         cumulativeScore = 0;
+         cumulativePercentage = 0;
+         
+         // Déterminer le trimestre actuel
+         term = '3ème TRIMESTRE';
+         academicYear = '2024-2025';
+     }
+     
      console.log('Données chargées:', {
          studentData: studentData,
          studentInfo: studentInfo,
-         principalTeacher: principalTeacher
+         principalTeacher: principalTeacher,
+         gradesData: gradesData,
+         cumulativeScore: cumulativeScore,
+         cumulativePercentage: cumulativePercentage,
+         term: term,
+         academicYear: academicYear,
+         classInfo: classInfo
      });
      
      // Charger la note de conduite existante
@@ -2142,5 +2106,24 @@ function printHTML() {
          }
      }
  }
+
+// Vérifier que jsPDF et html2canvas sont chargés (comme dans bulletins.blade.php)
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof window.jspdf !== 'undefined') {
+        console.log('✅ jsPDF chargé avec succès');
+        window.jsPDFLoaded = true;
+    } else {
+        console.error('❌ jsPDF non chargé');
+        window.jsPDFLoaded = false;
+    }
+    
+    if (typeof html2canvas !== 'undefined') {
+        console.log('✅ html2canvas chargé avec succès');
+        window.html2canvasLoaded = true;
+    } else {
+        console.error('❌ html2canvas non chargé');
+        window.html2canvasLoaded = false;
+    }
+});
  </script>
 @endsection

@@ -33,10 +33,10 @@
                     <!-- En-tête de l'établissement -->
                     <div class="text-center mb-4 border-bottom pb-3">
                         @if($schoolSettings && $schoolSettings->school_logo)
-                            <img src="{{ $schoolSettings->logo_url }}" alt="Logo {{ $schoolSettings->school_name }}" class="mb-2" style="max-height: 60px;">
+                            <img src="{{ $schoolSettings->logo_url }}" alt="Logo {{ $schoolName }}" class="mb-2" style="max-height: 60px;">
                         @endif
-                        <h2 class="text-primary mb-1">{{ $schoolSettings->school_name ?? 'Egesco' }}</h2>
-                        <p class="mb-1">{{ $schoolSettings->school_type ?? 'Système de Gestion Scolaire' }}</p>
+                        <h2 class="text-primary mb-1">{{ $schoolName ?? 'Établissement Scolaire' }}</h2>
+                        <p class="mb-1">{{ $schoolSettings->city ?? 'Libreville' }}, {{ $schoolSettings->country ?? 'Gabon' }}</p>
                         <p class="mb-1 text-muted">{{ $schoolSettings->city ?? 'Libreville' }}, {{ $schoolSettings->country ?? 'Gabon' }}</p>
                         <p class="mb-0 text-muted">Tél: {{ $schoolSettings->school_phone ?? '+241 XX XX XX XX' }} | Email: {{ $schoolSettings->school_email ?? 'contact@Egesco.ga' }}</p>
                     </div>
@@ -46,7 +46,7 @@
                         <div class="col-md-6">
                             <h4 class="text-success mb-3">REÇU D'INSCRIPTION</h4>
                             <p><strong>Numéro :</strong> {{ $enrollment->receipt_number }}</p>
-                            <p><strong>Date :</strong> {{ $enrollment->enrollment_date->format('d/m/Y') }}</p>
+                            <p><strong>Date :</strong> {{ $enrollment->enrollment_date?->format('d/m/Y') ?? '—' }}</p>
                             <p><strong>Année scolaire :</strong> {{ $enrollment->academicYear->name ?? 'N/A' }}</p>
                         </div>
                         <div class="col-md-6 text-end">
@@ -54,7 +54,7 @@
                                 <h5 class="text-primary mb-2">Statut de paiement</h5>
                                 {!! $enrollment->payment_status_badge !!}
                                 @if($enrollment->payment_due_date)
-                                    <br><small class="text-muted">Échéance : {{ $enrollment->payment_due_date->format('d/m/Y') }}</small>
+                                    <br><small class="text-muted">Échéance : {{ $enrollment->payment_due_date?->format('d/m/Y') ?? '—' }}</small>
                                 @endif
                             </div>
                         </div>
@@ -65,16 +65,16 @@
                         <div class="col-md-6">
                             <h5 class="text-info border-bottom pb-2">Informations de l'inscrit</h5>
                             <p class="mb-1"><strong>Nom complet :</strong> {{ $enrollment->applicant_full_name }}</p>
-                            <p class="mb-1"><strong>Date de naissance :</strong> {{ $enrollment->applicant_date_of_birth->format('d/m/Y') }}</p>
-                            <p class="mb-1"><strong>Âge :</strong> {{ $enrollment->applicant_age }} ans</p>
-                            <p class="mb-1"><strong>Sexe :</strong> {{ $enrollment->applicant_gender === 'male' ? 'Masculin' : 'Féminin' }}</p>
-                            @if($enrollment->applicant_phone)
-                                <p class="mb-1"><strong>Téléphone :</strong> {{ $enrollment->applicant_phone }}</p>
+                            <p class="mb-1"><strong>Date de naissance :</strong> {{ $enrollment->identite_naissance?->format('d/m/Y') ?? '—' }}</p>
+                            <p class="mb-1"><strong>Âge :</strong> {{ $enrollment->applicant_age !== null ? $enrollment->applicant_age.' ans' : '—' }}</p>
+                            <p class="mb-1"><strong>Sexe :</strong> {{ $enrollment->identite_sexe === 'male' ? 'Masculin' : ($enrollment->identite_sexe ? 'Féminin' : '—') }}</p>
+                            @if($enrollment->identite_telephone)
+                                <p class="mb-1"><strong>Téléphone :</strong> {{ $enrollment->identite_telephone }}</p>
                             @endif
-                            @if($enrollment->applicant_email)
-                                <p class="mb-1"><strong>Email :</strong> {{ $enrollment->applicant_email }}</p>
+                            @if($enrollment->identite_courriel)
+                                <p class="mb-1"><strong>Email :</strong> {{ $enrollment->identite_courriel }}</p>
                             @endif
-                            <p class="mb-0"><strong>Adresse :</strong> {{ $enrollment->applicant_address }}</p>
+                            <p class="mb-0"><strong>Adresse :</strong> {{ $enrollment->identite_adresse ?: '—' }}</p>
                         </div>
                         <div class="col-md-6">
                             <h5 class="text-info border-bottom pb-2">Parent/Tuteur responsable</h5>
@@ -183,7 +183,7 @@
                             @if($enrollment->balance_due > 0)
                                 <li class="text-warning"><strong>Solde restant à régler : {{ $enrollment->formatted_balance_due }}</strong></li>
                                 @if($enrollment->payment_due_date)
-                                    <li class="text-warning">Date limite de paiement : {{ $enrollment->payment_due_date->format('d/m/Y') }}</li>
+                                    <li class="text-warning">Date limite de paiement : {{ $enrollment->payment_due_date?->format('d/m/Y') ?? '—' }}</li>
                                 @endif
                             @endif
                             <li>En cas de questions, contactez l'administration</li>

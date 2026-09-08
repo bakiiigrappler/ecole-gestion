@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+
+use App\Models\Concerns\AppartientAUnEtablissement;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Carbon\Carbon;
 
 class Attendance extends Model
 {
+    use AppartientAUnEtablissement;
+
     protected $fillable = [
         'student_id',
         'class_id',

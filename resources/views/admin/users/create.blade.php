@@ -15,6 +15,7 @@
     --success-green: #059669;
     --warning-orange: #d97706;
     --danger-red: #dc2626;
+    --info-cyan: #0891b2;
     --gray-neutral: #6b7280;
 }
 

@@ -104,7 +104,7 @@
                                             </div>
                                         </div>
                                         
-                                        @if($teacher->specialization)
+                                        @if($teacher->specialization && !in_array($teacher->cycle, ['preprimaire', 'primaire']))
                                             <div class="mb-2">
                                                 <small class="text-muted">
                                                     <i class="bi bi-book me-1"></i>
@@ -159,7 +159,12 @@
             </div>
         </div>
 
-        <!-- Formulaire d'ajout de professeurs -->
+        <!-- Formulaire d'ajout de professeurs (masqué pour primaire/pré-primaire) -->
+        @php
+            $isPrimaryLevel = in_array($class->getSafeCycle(), ['preprimaire', 'primaire']);
+        @endphp
+        
+        @if(!$isPrimaryLevel)
         <div class="col-lg-4">
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-success text-white">
@@ -188,7 +193,7 @@
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <span>
                                                     <strong>{{ $teacher->first_name }} {{ $teacher->last_name }}</strong>
-                                                    @if($teacher->specialization)
+                                                    @if($teacher->specialization && !in_array($teacher->cycle, ['preprimaire', 'primaire']))
                                                         <br><small class="text-muted">{{ $teacher->specialization }}</small>
                                                     @endif
                                                 </span>
@@ -211,6 +216,33 @@
                     </form>
                 </div>
             </div>
+        @else
+        <!-- Message informatif pour primaire/pré-primaire -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Gestion des Enseignants
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-lightbulb me-2"></i>
+                        <strong>Cycle {{ ucfirst($class->getSafeCycle()) }}</strong>
+                    </div>
+                    <p class="text-muted">
+                        Au niveau <strong>{{ ucfirst($class->getSafeCycle()) }}</strong>, 
+                        une classe ne peut avoir qu'un seul enseignant généraliste.
+                    </p>
+                    <p class="text-muted">
+                        Pour modifier l'enseignant de cette classe, utilisez le bouton 
+                        <strong>"Retirer"</strong> ci-contre, puis créez une nouvelle classe 
+                        avec le nouvel enseignant.
+                    </p>
+                </div>
+            </div>
+        @endif
 
             <!-- Informations -->
             <div class="card shadow-sm border-0 mt-3">
@@ -221,24 +253,41 @@
                     </h6>
                 </div>
                 <div class="card-body">
-                    <ul class="list-unstyled mb-0">
-                        <li class="mb-2">
-                            <i class="bi bi-star-fill text-warning me-2"></i>
-                            <strong>Professeur Principal:</strong> Responsable de la classe
-                        </li>
-                        <li class="mb-2">
-                            <i class="bi bi-person-check text-info me-2"></i>
-                            <strong>Enseignants:</strong> Professeurs spécialisés par matière
-                        </li>
-                        <li class="mb-2">
-                            <i class="bi bi-exclamation-triangle text-warning me-2"></i>
-                            <strong>Règle importante:</strong> Un seul professeur principal par classe
-                        </li>
-                        <li class="mb-2">
-                            <i class="bi bi-info-circle text-info me-2"></i>
-                            <strong>Note:</strong> Une fois un professeur principal défini, les autres ne peuvent plus être promus
-                        </li>
-                    </ul>
+                    @if($isPrimaryLevel)
+                        <ul class="list-unstyled mb-0">
+                            <li class="mb-2">
+                                <i class="bi bi-person-circle text-primary me-2"></i>
+                                <strong>Enseignant unique:</strong> Un seul enseignant généraliste par classe
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-book text-info me-2"></i>
+                                <strong>Matières:</strong> Toutes les matières enseignées par le même professeur
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                                <strong>Règle importante:</strong> Impossible d'ajouter plusieurs enseignants
+                            </li>
+                        </ul>
+                    @else
+                        <ul class="list-unstyled mb-0">
+                            <li class="mb-2">
+                                <i class="bi bi-star-fill text-warning me-2"></i>
+                                <strong>Professeur Principal:</strong> Responsable de la classe
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-person-check text-info me-2"></i>
+                                <strong>Enseignants:</strong> Professeurs spécialisés par matière
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                                <strong>Règle importante:</strong> Un seul professeur principal par classe
+                            </li>
+                            <li class="mb-2">
+                                <i class="bi bi-info-circle text-info me-2"></i>
+                                <strong>Note:</strong> Une fois un professeur principal défini, les autres ne peuvent plus être promus
+                            </li>
+                        </ul>
+                    @endif
                 </div>
             </div>
         </div>

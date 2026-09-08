@@ -1,244 +1,218 @@
 @extends('layouts.app')
 
-@section('title', 'Modifier le Paiement - Egesco')
+@section('titre', 'Modifier le paiement')
+@section('sous-titre', ($payment->transaction_id ?? '#'.$payment->id).' — '.number_format($payment->amount, 0, ',', ' ').' FCFA')
 
-@section('breadcrumb')
-<li class="breadcrumb-item"><a href="{{ route('payments.index') }}">Paiements</a></li>
-<li class="breadcrumb-item active">Modifier</li>
+@section('actions-entete')
+    <a href="{{ route('payments.show', $payment) }}" class="bouton-secondaire">Annuler</a>
 @endsection
 
-@section('content')
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
+@section('contenu')
+
+@php
+    $statutsModifiables = [
+        'pending' => 'En attente',
+        'completed' => 'Terminé',
+        'failed' => 'Échoué',
+        'cancelled' => 'Annulé',
+        'refunded' => 'Remboursé',
+    ];
+@endphp
+
+<form method="POST" action="{{ route('payments.update', $payment) }}" class="grid gap-6 lg:grid-cols-3">
+    @csrf
+    @method('PUT')
+
+    <div class="space-y-4 lg:col-span-2">
+
+        {{-- ------------------------------------------------------------
+             À quelle inscription ce paiement se rapporte
+             ------------------------------------------------------------ --}}
+        <div class="carte overflow-hidden">
+            <div class="carte-entete">
+                <h2 class="text-sm font-semibold text-gris-900">Inscription concernée</h2>
+            </div>
+
+            <div class="p-5">
+                <label for="enrollment_id" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                    Élève et classe <span class="text-corail-600">*</span>
+                </label>
+                <select name="enrollment_id" id="enrollment_id" required class="champ w-full text-sm">
+                    @foreach ($enrollments as $inscription)
+                        <option value="{{ $inscription->id }}"
+                                @selected(old('enrollment_id', $payment->enrollment_id) == $inscription->id)>
+                            {{ optional($inscription->student)->first_name }} {{ optional($inscription->student)->last_name }}
+                            — {{ optional($inscription->schoolClass)->name ?? 'Sans classe' }}
+                            ({{ optional($inscription->academicYear)->name }})
+                        </option>
+                    @endforeach
+                </select>
+                @error('enrollment_id')
+                    <p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>
+                @enderror
+                <p class="mt-1 text-[11px] text-gris-400">
+                    Changer d’inscription réaffecte le paiement à un autre élève.
+                </p>
+            </div>
+        </div>
+
+        {{-- ------------------------------------------------------------
+             La transaction
+             ------------------------------------------------------------ --}}
+        <div class="carte overflow-hidden">
+            <div class="carte-entete">
+                <h2 class="text-sm font-semibold text-gris-900">Transaction</h2>
+            </div>
+
+            <div class="grid gap-4 p-5 md:grid-cols-3">
                 <div>
-                    <h1 class="h3 mb-0">Modifier le Paiement</h1>
-                    <p class="text-muted">Modifiez les informations du paiement #{{ $payment->transaction_id }}</p>
+                    <label for="amount" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                        Montant (FCFA) <span class="text-corail-600">*</span>
+                    </label>
+                    <input type="number" name="amount" id="amount" min="0" step="1" required
+                           value="{{ old('amount', (int) $payment->amount) }}" class="champ w-full text-sm">
+                    @error('amount')
+                        <p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>
+                    @enderror
                 </div>
+
                 <div>
-                    <a href="{{ route('payments.index') }}" class="btn btn-secondary">
-                        <i class="bi bi-arrow-left me-2"></i>
-                        Retour
-                    </a>
+                    <label for="payment_method" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                        Méthode <span class="text-corail-600">*</span>
+                    </label>
+                    <select name="payment_method" id="payment_method" required class="champ w-full text-sm">
+                        @foreach ($paymentMethods as $cle => $libelle)
+                            <option value="{{ $cle }}" @selected(old('payment_method', $payment->payment_method) === $cle)>
+                                {{ $libelle }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label for="payment_type" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                        Type <span class="text-corail-600">*</span>
+                    </label>
+                    <select name="payment_type" id="payment_type" required class="champ w-full text-sm">
+                        @foreach ($paymentTypes as $cle => $libelle)
+                            <option value="{{ $cle }}" @selected(old('payment_type', $payment->payment_type) === $cle)>
+                                {{ $libelle }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div>
+                    <label for="status" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                        Statut <span class="text-corail-600">*</span>
+                    </label>
+                    {{-- Le contrôleur n'accepte que ces cinq valeurs. --}}
+                    <select name="status" id="status" required class="champ w-full text-sm">
+                        @foreach ($statutsModifiables as $cle => $libelle)
+                            <option value="{{ $cle }}" @selected(old('status', $payment->status) === $cle)>
+                                {{ $libelle }}
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('status')
+                        <p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div class="md:col-span-2">
+                    <label for="paid_at" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                        Date de paiement
+                    </label>
+                    <input type="datetime-local" name="paid_at" id="paid_at"
+                           value="{{ old('paid_at', optional($payment->paid_at)->format('Y-m-d\TH:i')) }}"
+                           class="champ w-full text-sm">
+                    <p class="mt-1 text-[11px] text-gris-400">Laisser vide si le paiement n’est pas encore encaissé.</p>
+                </div>
+            </div>
+        </div>
+
+        {{-- ------------------------------------------------------------
+             Le payeur
+             ------------------------------------------------------------ --}}
+        <div class="carte overflow-hidden">
+            <div class="carte-entete">
+                <h2 class="text-sm font-semibold text-gris-900">Payeur</h2>
+            </div>
+
+            <div class="grid gap-4 p-5 md:grid-cols-3">
+                <div>
+                    <label for="payer_name" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                        Nom <span class="text-corail-600">*</span>
+                    </label>
+                    <input type="text" name="payer_name" id="payer_name" required
+                           value="{{ old('payer_name', $payment->payer_name) }}" class="champ w-full text-sm">
+                    @error('payer_name')
+                        <p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div>
+                    <label for="payer_phone" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                        Téléphone <span class="text-corail-600">*</span>
+                    </label>
+                    <input type="text" name="payer_phone" id="payer_phone" required
+                           value="{{ old('payer_phone', $payment->payer_phone) }}" class="champ w-full text-sm">
+                    @error('payer_phone')
+                        <p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div>
+                    <label for="payer_email" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                        Courriel
+                    </label>
+                    <input type="email" name="payer_email" id="payer_email"
+                           value="{{ old('payer_email', $payment->payer_email) }}" class="champ w-full text-sm">
+                    @error('payer_email')
+                        <p class="mt-1 text-[11px] text-corail-600">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <div class="md:col-span-3">
+                    <label for="notes" class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gris-500">
+                        Notes
+                    </label>
+                    <textarea name="notes" id="notes" rows="3" class="champ w-full text-sm">{{ old('notes', $payment->notes) }}</textarea>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Current Payment Info Card -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-info">
-                <div class="card-header bg-info text-white">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-info-circle me-2"></i>
-                        Informations actuelles
-                    </h5>
+    {{-- ----------------------------------------------------------------
+         Rappel de la transaction et enregistrement
+         ---------------------------------------------------------------- --}}
+    <div class="space-y-4">
+        <div class="carte p-5">
+            <h2 class="mb-3 text-sm font-semibold text-gris-900">Transaction d’origine</h2>
+
+            <dl class="space-y-2 text-sm">
+                <div class="flex justify-between gap-2">
+                    <dt class="text-gris-500">Référence</dt>
+                    <dd class="font-mono text-[11px] font-medium text-gris-800">
+                        {{ $payment->transaction_id ?? '#'.$payment->id }}
+                    </dd>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <strong>Transaction ID:</strong><br>
-                            <span class="text-muted">{{ $payment->transaction_id }}</span>
-                        </div>
-                        <div class="col-md-3">
-                            <strong>Montant:</strong><br>
-                            <span class="text-success fw-bold">{{ number_format($payment->amount, 0, ',', ' ') }} FCFA</span>
-                        </div>
-                        <div class="col-md-3">
-                            <strong>Date:</strong><br>
-                            <span class="text-muted">
-                                @if($payment->paid_at)
-                                    {{ $payment->paid_at->format('d/m/Y') }}
-                                @elseif($payment->created_at)
-                                    {{ $payment->created_at->format('d/m/Y') }}
-                                @else
-                                    Non disponible
-                                @endif
-                            </span>
-                        </div>
-                        <div class="col-md-3">
-                            <strong>Statut:</strong><br>
-                            <span class="badge bg-success">Terminé</span>
-                        </div>
-                    </div>
+                <div class="flex justify-between gap-2">
+                    <dt class="text-gris-500">Montant</dt>
+                    <dd class="font-medium text-gris-800">{{ number_format($payment->amount, 0, ',', ' ') }} FCFA</dd>
                 </div>
+                <div class="flex justify-between gap-2">
+                    <dt class="text-gris-500">Enregistré le</dt>
+                    <dd class="font-medium text-gris-800">{{ optional($payment->created_at)->format('d/m/Y') }}</dd>
+                </div>
+            </dl>
+
+            <div class="mt-5 space-y-2">
+                <button type="submit" class="bouton-primaire w-full justify-center">Enregistrer</button>
+                <a href="{{ route('payments.show', $payment) }}" class="bouton-secondaire w-full justify-center">Annuler</a>
             </div>
         </div>
     </div>
+</form>
 
-    <!-- Form Card -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-pencil-square me-2"></i>
-                        Modifier les informations
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <form action="{{ route('payments.update', $payment->id) }}" method="POST" id="editPaymentForm">
-                        @csrf
-                        @method('PUT')
-                        
-                        <div class="row">
-                            <!-- Inscription -->
-                            <div class="col-md-6 mb-3">
-                                <label for="enrollment_id" class="form-label">Inscription <span class="text-danger">*</span></label>
-                                <select class="form-select @error('enrollment_id') is-invalid @enderror" 
-                                        id="enrollment_id" name="enrollment_id" required>
-                                    <option value="">Sélectionner une inscription</option>
-                                    @foreach($enrollments as $enrollment)
-                                        <option value="{{ $enrollment->id }}" {{ old('enrollment_id', $payment->enrollment_id) == $enrollment->id ? 'selected' : '' }}>
-                                            {{ $enrollment->student->first_name }} {{ $enrollment->student->last_name }} 
-                                            - {{ $enrollment->schoolClass->name }} ({{ $enrollment->academicYear->name }})
-                                        </option>
-                                    @endforeach
-                                </select>
-                                @error('enrollment_id')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-
-                            <!-- Montant -->
-                            <div class="col-md-6 mb-3">
-                                <label for="amount" class="form-label">Montant (FCFA) <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control @error('amount') is-invalid @enderror" 
-                                       id="amount" name="amount" value="{{ old('amount', $payment->amount) }}" 
-                                       min="0" step="0.01" required>
-                                @error('amount')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <!-- Date de paiement -->
-                            <div class="col-md-6 mb-3">
-                                <label for="paid_at" class="form-label">Date de paiement <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control @error('paid_at') is-invalid @enderror" 
-                                       id="paid_at" name="paid_at" 
-                                       value="{{ old('paid_at', $payment->paid_at ? $payment->paid_at->format('Y-m-d') : '') }}">
-                                @error('paid_at')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-
-                            <!-- Méthode de paiement -->
-                            <div class="col-md-6 mb-3">
-                                <label for="payment_method" class="form-label">Méthode de paiement <span class="text-danger">*</span></label>
-                                <select class="form-select @error('payment_method') is-invalid @enderror" 
-                                        id="payment_method" name="payment_method" required>
-                                    <option value="">Sélectionner une méthode</option>
-                                    @foreach($paymentMethods as $value => $label)
-                                        <option value="{{ $value }}" {{ old('payment_method', $payment->payment_method) == $value ? 'selected' : '' }}>
-                                            {{ $label }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                @error('payment_method')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
-
-                        <!-- Transaction ID -->
-                        <div class="mb-3">
-                            <label for="transaction_id" class="form-label">Transaction ID</label>
-                            <input type="text" class="form-control @error('transaction_id') is-invalid @enderror" 
-                                   id="transaction_id" name="transaction_id" value="{{ old('transaction_id', $payment->transaction_id) }}" readonly>
-                            @error('transaction_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                            <div class="form-text">L'ID de transaction ne peut pas être modifié</div>
-                        </div>
-
-                        <!-- Notes -->
-                        <div class="mb-3">
-                            <label for="notes" class="form-label">Notes</label>
-                            <textarea class="form-control @error('notes') is-invalid @enderror" 
-                                      id="notes" name="notes" rows="3">{{ old('notes', $payment->notes) }}</textarea>
-                            @error('notes')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <!-- Submit Buttons -->
-                        <div class="d-flex justify-content-end gap-2">
-                            <a href="{{ route('payments.index') }}" class="btn btn-secondary">
-                                Annuler
-                            </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-check-circle me-2"></i>
-                                Mettre à jour
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Toast Container -->
-<div class="toast-container position-fixed bottom-0 end-0 p-3">
-    <div id="successToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="toast-header bg-success text-white">
-            <i class="bi bi-check-circle me-2"></i>
-            <strong class="me-auto">Succès</strong>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-        </div>
-        <div class="toast-body">
-            Paiement mis à jour avec succès !
-        </div>
-    </div>
-</div>
-
-@endsection
-
-@section('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialiser Choices.js pour les selects
-    if (typeof Choices !== 'undefined') {
-        new Choices('#enrollment_id', {
-            searchEnabled: true,
-            itemSelectText: '',
-            placeholder: true,
-            placeholderValue: 'Sélectionner une inscription'
-        });
-        
-        new Choices('#payment_method', {
-            searchEnabled: false,
-            itemSelectText: ''
-        });
-    }
-
-    // Validation côté client
-    const form = document.getElementById('editPaymentForm');
-    const amountInput = document.getElementById('amount');
-
-    form.addEventListener('submit', function(e) {
-        if (!form.checkValidity()) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        
-        form.classList.add('was-validated');
-    });
-
-    // Validation du montant
-    amountInput.addEventListener('input', function() {
-        const value = parseFloat(this.value);
-        if (value < 0) {
-            this.setCustomValidity('Le montant ne peut pas être négatif');
-        } else {
-            this.setCustomValidity('');
-        }
-    });
-});
-</script>
 @endsection

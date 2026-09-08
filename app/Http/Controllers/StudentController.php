@@ -18,89 +18,182 @@ class StudentController extends Controller
      */
     public function index(Request $request)
     {
-        // Charger les paramètres de l'établissement
-        $schoolSettings = \App\Models\SchoolSettings::getSettings();
-        
-        $query = Student::query();
-        
-        // Recherche textuelle
-        if ($request->has('search') && $request->search) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('student_id', 'like', "%{$search}%");
+        $query = Student::query()
+            ->with([
+                // Inscription en cours : une seule, avec sa classe et son niveau.
+                'enrollments' => function ($q) {
+                    $q->where('status', 'active')
+                      ->with(['schoolClass.level', 'academicYear'])
+                      ->latest()
+                      ->limit(1);
+                },
+                'parents:id,first_name,last_name',
+            ]);
+
+        /*
+         * Un enseignant ne voit que les élèves de ses classes, et il les lit
+         * classe par classe : une liste alphabétique de 724 noms, ou même de
+         * 111, ne lui sert à rien. Sa page est donc une autre page.
+         */
+        if (\App\Support\PerimetreEnseignant::estEnseignant()) {
+            return $this->mesEleves($request);
+        }
+
+        // --- Recherche textuelle : nom, prénom ou matricule -----------------
+        if ($terme = trim((string) $request->input('search'))) {
+            $motif = '%'.mb_strtolower($terme).'%';
+
+            $query->where(function ($q) use ($motif) {
+                $q->whereRaw('LOWER(first_name) LIKE ?', [$motif])
+                  ->orWhereRaw('LOWER(last_name) LIKE ?', [$motif])
+                  ->orWhereRaw('LOWER(student_id) LIKE ?', [$motif])
+                  // Retrouver un eleve par son numero ou son courriel.
+                  ->orWhereRaw('LOWER(phone) LIKE ?', [$motif])
+                  ->orWhereRaw('LOWER(email) LIKE ?', [$motif]);
             });
         }
-        
-        // Filtres
-        if ($request->has('cycle') && $request->cycle) {
-            $query->whereHas('enrollments.schoolClass.levelData', function($q) use ($request) {
-                $q->where('cycle', $request->cycle);
+
+        // --- Filtres portés par l'élève lui-même ---------------------------
+        if ($statut = $request->input('status')) {
+            $query->where('status', $statut);
+        }
+
+        if ($statutActuel = $request->input('current_status')) {
+            $query->where('current_status', $statutActuel);
+        }
+
+        // --- Filtres portés par l'inscription de l'année en cours ----------
+        $inscriptionActive = fn ($q) => $q->where('status', 'active');
+
+        if ($cycle = $request->input('cycle')) {
+            $query->whereHas('enrollments', function ($q) use ($cycle, $inscriptionActive) {
+                $inscriptionActive($q)->whereHas('schoolClass.level', fn ($n) => $n->where('cycle', $cycle));
             });
         }
-        
-        if ($request->has('level') && $request->level) {
-            $query->whereHas('enrollments.schoolClass', function($q) use ($request) {
-                $q->where('level_id', $request->level);
+
+        if ($niveau = $request->input('level')) {
+            $query->whereHas('enrollments', function ($q) use ($niveau, $inscriptionActive) {
+                $inscriptionActive($q)->whereHas('schoolClass', fn ($c) => $c->where('level_id', $niveau));
             });
         }
-        
-        if ($request->has('class') && $request->class) {
-            $query->whereHas('enrollments.schoolClass', function($q) use ($request) {
-                $q->where('id', $request->class);
+
+        if ($classe = $request->input('class')) {
+            $query->whereHas('enrollments', function ($q) use ($classe, $inscriptionActive) {
+                $inscriptionActive($q)->where('class_id', $classe);
             });
         }
-        
-        if ($request->has('status') && $request->status) {
-            $query->where('status', $request->status);
+
+        if ($typeInscription = $request->input('student_status')) {
+            $query->whereHas('enrollments', function ($q) use ($typeInscription, $inscriptionActive) {
+                $inscriptionActive($q)->where('student_status', $typeInscription);
+            });
         }
-        
-        $students = $query->with([
-                              'enrollments.schoolClass.levelData', 
-                              'enrollments.schoolClass', 
-                              'parents'
-                          ])
-                          ->orderBy('created_at', 'desc')
-                          ->paginate(15);
-        
-        // Données pour les filtres
-        $levels = Level::active()->orderBy('order')->get();
-        $classes = SchoolClass::with('level')->active()->get();
-        
-        // Statistiques
-        $totalStudents = Student::count();
-        $activeStudents = Student::where('status', 'active')->count();
-        $newThisMonth = Student::whereMonth('enrollment_date', now()->month)
-                             ->whereYear('enrollment_date', now()->year)
-                             ->count();
-        
-        // Statistiques par cycle
-        $studentsByCycle = [
-            'preprimaire' => Student::whereHas('enrollments.schoolClass.levelData', function($q) {
-                $q->where('cycle', 'preprimaire');
-            })->count(),
-            'primaire' => Student::whereHas('enrollments.schoolClass.levelData', function($q) {
-                $q->where('cycle', 'primaire');
-            })->count(),
-            'college' => Student::whereHas('enrollments.schoolClass.levelData', function($q) {
-                $q->where('cycle', 'college');
-            })->count(),
-            'lycee' => Student::whereHas('enrollments.schoolClass.levelData', function($q) {
-                $q->where('cycle', 'lycee');
-            })->count(),
+
+        // Inscrit ou non pour l'année scolaire en cours.
+        if ($etatInscription = $request->input('enrollment_status')) {
+            $anneeCourante = AcademicYear::where('is_current', true)->value('id');
+
+            $surAnneeCourante = function ($q) use ($anneeCourante) {
+                $q->where('status', 'active');
+
+                if ($anneeCourante) {
+                    $q->where('academic_year_id', $anneeCourante);
+                }
+            };
+
+            $etatInscription === 'enrolled'
+                ? $query->whereHas('enrollments', $surAnneeCourante)
+                : $query->whereDoesntHave('enrollments', $surAnneeCourante);
+        }
+
+        // --- Pagination : 10 lignes par page, filtres conservés -------------
+        // Taille de page : celle demandee si elle est permise, sinon celle
+        // reglee pour la plateforme.
+        $parPage = \App\Support\ParametresPlateforme::pagination($request->input('per_page'));
+
+        $students = $query->orderBy('created_at', 'desc')
+            ->paginate($parPage)
+            ->withQueryString();
+
+        // --- Données des listes déroulantes --------------------------------
+        $levels = Level::select('id', 'name', 'code', 'cycle')->active()->orderBy('order')->get();
+        $classes = SchoolClass::select('id', 'name', 'level_id')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        // --- Statistiques ---------------------------------------------------
+        $studentsByCurrentStatus = [
+            'actifs' => Student::where('status', 'active')->count(),
+            'anciens' => Student::where('status', 'inactive')->count(),
+            'avec_redoublement' => Student::where('total_redoublements', '>', 0)->count(),
         ];
-        
+
         return view('students.index', compact(
-            'students', 
-            'levels', 
+            'students',
+            'levels',
             'classes',
-            'totalStudents',
-            'activeStudents', 
-            'newThisMonth',
-            'studentsByCycle',
-            'schoolSettings'
+            'studentsByCurrentStatus'
         ));
+    }
+
+    /**
+     * « Mes élèves » : la liste d'un enseignant, groupée par classe.
+     *
+     * Un enseignant ne cherche pas un élève dans un annuaire : il ouvre une
+     * classe. La page présente donc un onglet par classe, l'effectif en
+     * regard, et sur chaque onglet la liste nominative de cette classe-là.
+     */
+    private function mesEleves(Request $request)
+    {
+        $perimetre = \App\Support\PerimetreEnseignant::class;
+        $enseignant = $perimetre::enseignant();
+        $sesClasses = $perimetre::classes();
+
+        $classes = SchoolClass::with('level')
+            ->whereIn('id', $sesClasses ?: [0])
+            ->orderBy('name')
+            ->get();
+
+        // La classe ouverte : celle demandée, sinon la première.
+        $ouverte = $request->input('class');
+        $ouverte = $classes->contains('id', (int) $ouverte) ? (int) $ouverte : $classes->first()?->id;
+
+        $terme = trim((string) $request->input('search'));
+
+        $eleves = Student::query()
+            ->whereHas('enrollments', fn ($q) => $q
+                ->where('status', 'active')
+                ->whereIn('class_id', $sesClasses ?: [0]))
+            ->with([
+                'enrollments' => fn ($q) => $q
+                    ->where('status', 'active')
+                    ->whereIn('class_id', $sesClasses ?: [0])
+                    ->latest()
+                    ->limit(1),
+                'parents:id,first_name,last_name,phone',
+            ])
+            ->when($terme !== '', function ($q) use ($terme) {
+                $motif = '%'.mb_strtolower($terme).'%';
+
+                $q->where(function ($w) use ($motif) {
+                    $w->whereRaw('LOWER(first_name) LIKE ?', [$motif])
+                      ->orWhereRaw('LOWER(last_name) LIKE ?', [$motif])
+                      ->orWhereRaw('LOWER(student_id) LIKE ?', [$motif]);
+                });
+            })
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get()
+            ->groupBy(fn ($eleve) => $eleve->enrollments->first()?->class_id);
+
+        return view('students.mes-eleves', [
+            'enseignant' => $enseignant,
+            'classes' => $classes,
+            'eleves' => $eleves,
+            'ouverte' => $ouverte,
+            'terme' => $terme,
+        ]);
     }
 
     /**
@@ -110,9 +203,77 @@ class StudentController extends Controller
     {
         $levels = Level::active()->orderBy('order')->get();
         $classes = SchoolClass::with('level')->where('is_active', true)->get();
-        $academicYears = AcademicYear::where('status', 'active')->get();
+        // Toutes les annees, la plus recente d'abord : le formulaire met en
+        // avant l'annee en cours mais permet d'inscrire sur une autre.
+        $academicYears = AcademicYear::orderByDesc('is_current')->orderByDesc('name')->get();
         
-        return view('students.create', compact('levels', 'classes', 'academicYears'));
+        // Apercu du matricule a venir : lecture seule, sans effet de bord.
+        $prochainMatricule = Student::generateStudentId();
+
+        // Responsables deja connus : on rattache plutot que de ressaisir.
+        $parents = \App\Models\ParentModel::withCount('students')
+            ->orderBy('last_name')->orderBy('first_name')->get();
+
+        return view('students.create', compact(
+            'levels', 'classes', 'academicYears', 'prochainMatricule', 'parents'
+        ));
+    }
+
+    /**
+     * Rattache les responsables legaux saisis a la creation d'un eleve.
+     *
+     * Chaque ligne designe soit un parent deja connu, soit une fiche a creer.
+     * Le lien de parente et les autorisations sont portes par le pivot : ils
+     * decrivent la relation a CET enfant, pas la personne.
+     */
+    private function rattacherLesResponsables(Student $student, array $responsables): void
+    {
+        $liens = [];
+
+        foreach ($responsables as $responsable) {
+            if (($responsable['mode'] ?? null) === 'nouveau') {
+                $parent = \App\Models\ParentModel::create([
+                    'first_name' => $responsable['first_name'],
+                    'last_name' => $responsable['last_name'],
+                    'gender' => $responsable['gender'],
+                    'phone' => $responsable['phone'],
+                    'address' => $student->address,
+                ]);
+
+                $parentId = $parent->id;
+            } else {
+                $parentId = $responsable['parent_id'] ?? null;
+            }
+
+            if (! $parentId) {
+                continue;
+            }
+
+            $liens[$parentId] = [
+                'relationship_type' => $responsable['relationship_type'],
+                'is_primary_contact' => (bool) ($responsable['is_primary_contact'] ?? false),
+                'lives_with_student' => (bool) ($responsable['lives_with_student'] ?? false),
+                'can_pickup' => (bool) ($responsable['can_pickup'] ?? false),
+            ];
+        }
+
+        if ($liens) {
+            $student->parents()->sync($liens);
+        }
+    }
+
+    /**
+     * Display the specified resource (student details page)
+     */
+    public function show(Student $student)
+    {
+        $student->load([
+            'parents',
+            'enrollments.schoolClass.level',
+            'enrollments.academicYear'
+        ]);
+        
+        return view('students.show', compact('student'));
     }
 
     /**
@@ -204,18 +365,45 @@ class StudentController extends Controller
             'gender' => 'required|in:male,female',
             'place_of_birth' => 'nullable|string|max:255',
             'address' => 'required|string',
+            'phone' => 'nullable|string|max:30',
+            'email' => 'nullable|email|max:255',
             'emergency_contact' => 'nullable|string|max:255',
             'medical_conditions' => 'nullable|string',
+            // Une inaptitude sans motif n'est pas exploitable par l'equipe :
+            // la base le refuse aussi, par contrainte.
+            'fitness_status' => 'nullable|in:apte,inapte',
+            'unfitness_reason' => 'nullable|required_if:fitness_status,inapte|string|max:1000',
             'enrollment_date' => 'required|date',
             'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'status' => 'nullable|in:active,inactive,graduated,transferred',
             
-            // Informations pour l'inscription optionnelle
+            // Inscription facultative : si la case est cochee, l'annee et la
+            // classe deviennent obligatoires. Sans required_if, un champ non
+            // transmis creait l'eleve sans inscription et sans le signaler.
             'create_enrollment' => 'nullable|string|in:on',
-            'academic_year_id' => 'nullable|exists:academic_years,id',
-            'class_id' => 'nullable|exists:classes,id',
-            
-
+            'academic_year_id' => 'required_if:create_enrollment,on|nullable|exists:academic_years,id',
+            'class_id' => 'required_if:create_enrollment,on|nullable|exists:classes,id',
+            // Responsables legaux, facultatifs : soit un parent deja connu,
+            // soit une fiche creee au vol.
+            'responsables' => 'nullable|array',
+            'responsables.*.mode' => 'required|in:existant,nouveau',
+            'responsables.*.parent_id' => 'required_if:responsables.*.mode,existant|nullable|exists:parents,id',
+            'responsables.*.first_name' => 'required_if:responsables.*.mode,nouveau|nullable|string|max:255',
+            'responsables.*.last_name' => 'required_if:responsables.*.mode,nouveau|nullable|string|max:255',
+            'responsables.*.gender' => 'required_if:responsables.*.mode,nouveau|nullable|in:male,female',
+            'responsables.*.phone' => 'required_if:responsables.*.mode,nouveau|nullable|string|max:255',
+            'responsables.*.relationship_type' => 'required|in:father,mother,guardian,other',
+            'responsables.*.is_primary_contact' => 'nullable|boolean',
+            'responsables.*.lives_with_student' => 'nullable|boolean',
+            'responsables.*.can_pickup' => 'nullable|boolean',
+        ], [
+            'academic_year_id.required_if' => 'Choisissez une année scolaire pour inscrire l’élève.',
+            'class_id.required_if' => 'Choisissez une classe pour inscrire l’élève.',
+            'responsables.*.parent_id.required_if' => 'Choisissez un responsable dans la liste.',
+            'responsables.*.first_name.required_if' => 'Le prénom du responsable est obligatoire.',
+            'responsables.*.last_name.required_if' => 'Le nom du responsable est obligatoire.',
+            'responsables.*.gender.required_if' => 'Le sexe du responsable est obligatoire.',
+            'responsables.*.phone.required_if' => 'Le téléphone du responsable est obligatoire.',
         ]);
 
         // Générer automatiquement le matricule - toujours obligatoire
@@ -242,8 +430,13 @@ class StudentController extends Controller
             // Créer l'élève
             $student = Student::create($validated);
 
+            // Rattacher les responsables légaux saisis dans le formulaire.
+            $this->rattacherLesResponsables($student, $validated['responsables'] ?? []);
+
             // Créer l'inscription si demandée (checkbox cochée = "on")
-            if ($validated['create_enrollment'] === 'on' && !empty($validated['academic_year_id']) && !empty($validated['class_id'])) {
+            $hasEnrollment = isset($validated['create_enrollment']) && $validated['create_enrollment'] === 'on' && !empty($validated['academic_year_id']) && !empty($validated['class_id']);
+            
+            if ($hasEnrollment) {
                 $enrollmentData = [
                     'student_id' => $student->id,
                     'academic_year_id' => $validated['academic_year_id'],
@@ -260,7 +453,7 @@ class StudentController extends Controller
             DB::commit();
 
             $successMessage = 'Élève ajouté avec succès!' . 
-                           ($validated['create_enrollment'] === 'on' ? ' Inscription créée.' : '') .
+                           ($hasEnrollment ? ' Inscription créée.' : '') .
                            ' Matricule généré: ' . $student->student_id;
 
             Log::info('Élève créé avec succès', [
@@ -283,7 +476,7 @@ class StudentController extends Controller
                         'date_of_birth' => $student->date_of_birth->format('d/m/Y'),
                         'age' => $student->age,
                         'gender' => $student->gender,
-                        'enrollment_created' => $validated['create_enrollment'] === 'on'
+                        'enrollment_created' => $hasEnrollment ?? false
                     ]
                 ]);
             }
@@ -339,12 +532,25 @@ class StudentController extends Controller
             'gender' => 'required|in:male,female',
             'place_of_birth' => 'nullable|string|max:255',
             'address' => 'required|string',
+            'phone' => 'nullable|string|max:30',
+            'email' => 'nullable|email|max:255',
             'emergency_contact' => 'nullable|string|max:255',
             'medical_conditions' => 'nullable|string',
+            // Une inaptitude sans motif n'est pas exploitable par l'equipe :
+            // la base le refuse aussi, par contrainte.
+            'fitness_status' => 'nullable|in:apte,inapte',
+            'unfitness_reason' => 'nullable|required_if:fitness_status,inapte|string|max:1000',
             'enrollment_date' => 'required|date',
             'status' => 'required|in:active,inactive,graduated,transferred',
             'photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ], [
+            'unfitness_reason.required_if' => 'Précisez le motif de l’inaptitude.',
         ]);
+
+        // Repasser « apte » doit effacer le motif, sinon il survit a l'ecran.
+        if (($validated['fitness_status'] ?? 'apte') !== 'inapte') {
+            $validated['unfitness_reason'] = null;
+        }
 
         try {
             // Handle photo upload avec débogage
@@ -381,16 +587,23 @@ class StudentController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Student $student)
+    public function destroy(Request $request, Student $student)
     {
         try {
-            // Supprimer la photo associée si elle existe
-            if ($student->photo && Storage::disk('public')->exists($student->photo)) {
-                Storage::disk('public')->delete($student->photo);
-            }
-            
-            // Supprimer l'étudiant (les relations seront supprimées automatiquement grâce aux contraintes de clé étrangère)
+            /*
+             * Mise en corbeille, pas destruction : la fiche reste restaurable
+             * depuis la plateforme. La photo n'est donc pas effacee ici — une
+             * fiche restauree reviendrait sans elle. Elle part avec la
+             * suppression definitive, dans le modele.
+             */
             $student->delete();
+
+            // La liste supprime via un formulaire classique ; l'API et les
+            // anciens appels fetch attendent toujours du JSON.
+            if (! $request->expectsJson()) {
+                return redirect()->route('students.index')
+                    ->with('success', 'L’élève est placé en corbeille. Il reste restaurable.');
+            }
 
             return response()->json([
                 'success' => true,
@@ -398,6 +611,11 @@ class StudentController extends Controller
             ]);
             
         } catch (\Exception $e) {
+            if (! $request->expectsJson()) {
+                return redirect()->route('students.index')
+                    ->with('error', 'Erreur lors de la suppression : '.$e->getMessage());
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de la suppression : ' . $e->getMessage()
@@ -461,12 +679,38 @@ class StudentController extends Controller
     public function getClassesByLevel(Request $request)
     {
         $levelId = $request->level_id;
+        $academicYearId = $request->academic_year_id;
+        
+        // Si pas d'année académique spécifiée, utiliser l'année en cours
+        if (!$academicYearId) {
+            $currentYear = \App\Models\AcademicYear::where('is_current', true)->first();
+            $academicYearId = $currentYear ? $currentYear->id : null;
+        }
+        
         $classes = SchoolClass::where('is_active', true)
             ->where('level_id', $levelId)
             ->orderBy('name')
             ->get(['id', 'name', 'capacity']);
         
-        return response()->json($classes);
+        // Ajouter les informations de capacité pour chaque classe
+        $classesWithCapacity = $classes->map(function($class) use ($academicYearId) {
+            $enrolledCount = $class->getEnrolledStudentsCount($academicYearId);
+            $availablePlaces = $class->getAvailablePlaces($academicYearId);
+            $occupationPercentage = $class->getOccupationPercentage($academicYearId);
+            
+            return [
+                'id' => $class->id,
+                'name' => $class->name,
+                'capacity' => $class->capacity,
+                'enrolled_count' => $enrolledCount,
+                'available_places' => $availablePlaces,
+                'occupation_percentage' => $occupationPercentage,
+                'is_full' => $availablePlaces <= 0,
+                'display_name' => $class->name . ' (' . $availablePlaces . '/' . $class->capacity . ' places)'
+            ];
+        });
+        
+        return response()->json($classesWithCapacity);
     }
 
     /**

@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
 @import 'tailwindcss';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
@@ -6,6 +7,389 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+        'Helvetica Neue', Arial, sans-serif;
+
+    /* ------------------------------------------------------------------
+       Charte OGAR Assurances
+       Bleu #1C75BC · Orange #F7941E · Rouge #EF4023 · Gris #6D6E71
+       ------------------------------------------------------------------ */
+
+    /* Bleu institutionnel — couleur primaire */
+    --color-ogar-50: #eff7fd;
+    --color-ogar-100: #ddeefa;
+    --color-ogar-200: #b4ddf5;
+    --color-ogar-300: #7fc4ec;
+    --color-ogar-400: #43a7e0;
+    --color-ogar-500: #1c8bd0;
+    --color-ogar-600: #1c75bc;
+    --color-ogar-700: #185e99;
+    --color-ogar-800: #1a4f7e;
+    --color-ogar-900: #1b4369;
+    --color-ogar-950: #122b46;
+
+    /* Orange — accent chaud */
+    --color-soleil-50: #fff8ed;
+    --color-soleil-100: #ffefd4;
+    --color-soleil-200: #ffdba8;
+    --color-soleil-300: #ffc071;
+    --color-soleil-400: #fda238;
+    --color-soleil-500: #f7941e;
+    --color-soleil-600: #e6740c;
+    --color-soleil-700: #bf560c;
+    --color-soleil-800: #984411;
+    --color-soleil-900: #7a3a12;
+
+    /* Rouge — alertes et refus */
+    --color-corail-50: #fef4f2;
+    --color-corail-100: #ffe5e1;
+    --color-corail-200: #ffcfc8;
+    --color-corail-300: #ffada1;
+    --color-corail-400: #fd7d6a;
+    --color-corail-500: #f45338;
+    --color-corail-600: #ef4023;
+    --color-corail-700: #c02a12;
+    --color-corail-800: #9f2613;
+    --color-corail-900: #842617;
+
+    /* Gris du logotype — textes et surfaces neutres */
+    --color-gris-50: #f7f7f8;
+    --color-gris-100: #ececed;
+    --color-gris-200: #d8d9da;
+    --color-gris-300: #b9babc;
+    --color-gris-400: #939497;
+    --color-gris-500: #6d6e71;
+    --color-gris-600: #5a5b5e;
+    --color-gris-700: #4a4b4d;
+    --color-gris-800: #3f4042;
+    --color-gris-900: #37383a;
+    --color-gris-950: #212223;
+
+    /* Bleu nuit — menu lateral et fonds sombres */
+    --color-ardoise-700: #1d4269;
+    --color-ardoise-800: #16324d;
+    --color-ardoise-900: #102438;
+    --color-ardoise-950: #0a1826;
+}
+
+@layer components {
+    .champ {
+        @apply w-full rounded-lg border border-gris-300 bg-white px-3 py-2 text-sm text-gris-900
+               shadow-sm transition placeholder:text-gris-400
+               focus:border-ogar-600 focus:outline-none focus:ring-2 focus:ring-ogar-600/25
+               disabled:cursor-not-allowed disabled:bg-gris-100;
+    }
+
+    .etiquette {
+        @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-gris-500;
+    }
+
+    .bouton-primaire {
+        @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5
+               text-sm font-semibold transition-colors duration-200
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ogar-600
+               focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50
+               bg-ogar-600 text-white hover:bg-ogar-700;
+    }
+
+    .bouton-secondaire {
+        @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5
+               text-sm font-semibold transition-colors duration-200
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ogar-600
+               focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50
+               border border-gris-300 bg-white text-gris-700 hover:bg-gris-50;
+    }
+
+    .bouton-accent {
+        @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5
+               text-sm font-semibold transition-colors duration-200
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-soleil-500
+               focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50
+               bg-soleil-500 text-white hover:bg-soleil-600;
+    }
+
+    .bouton-danger {
+        @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5
+               text-sm font-semibold transition-colors duration-200
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-corail-600
+               focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50
+               bg-corail-600 text-white hover:bg-corail-700;
+    }
+
+    /* Variante compacte : actions en fin de ligne de tableau */
+    .bouton-mini {
+        @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg
+               border border-gris-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gris-700
+               transition-colors duration-200 hover:bg-gris-50
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ogar-600;
+    }
+
+    .carte {
+        @apply rounded-xl border border-gris-200 bg-white shadow-sm;
+    }
+
+    .carte-entete {
+        @apply flex items-center justify-between gap-3 border-b border-gris-200 px-5 py-3;
+    }
+
+    .puce {
+        @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+    }
+
+    .tableau {
+        @apply min-w-full divide-y divide-gris-200 text-sm;
+    }
+
+    .tableau thead th {
+        @apply bg-gris-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gris-500;
+    }
+
+    .tableau tbody td {
+        @apply px-4 py-3 text-gris-700;
+    }
+
+    .tableau tbody tr {
+        @apply border-b border-gris-100 transition-colors hover:bg-ogar-50/60;
+    }
+
+    /* Onglets de navigation interne a une fiche */
+    .onglet {
+        @apply cursor-pointer whitespace-nowrap border-b-2 px-1 pb-3 text-sm font-semibold transition-colors;
+    }
+
+    .onglet-actif {
+        @apply border-ogar-600 text-ogar-700;
+    }
+
+    .onglet-inactif {
+        @apply border-transparent text-gris-500 hover:border-gris-300 hover:text-gris-700;
+    }
+}
+
+/* ----------------------------------------------------------------------
+   Animations de la page de connexion
+   Toutes desactivees si l'utilisateur demande a reduire les animations.
+   ---------------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+    @keyframes ogar-flottement {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-9px); }
+    }
+
+    @keyframes ogar-pulsation {
+        0%, 100% { opacity: 0.35; transform: scale(1); }
+        50% { opacity: 0.7; transform: scale(1.06); }
+    }
+
+    @keyframes ogar-apparition {
+        from { opacity: 0; transform: translateY(14px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .scene-flottante { animation: ogar-flottement 7s ease-in-out infinite; }
+    .halo-pulse { animation: ogar-pulsation 6s ease-in-out infinite; }
+
+    /* ------------------------------------------------------------------
+       Voile de chargement des listes : la toque de l'embleme s'anime le
+       temps de la requete, plutot qu'un blanc sans explication.
+       ------------------------------------------------------------------ */
+    @keyframes ogar-toque-flotte {
+        0%, 100% { transform: translateY(0) rotate(-2deg); }
+        50%      { transform: translateY(-6px) rotate(2deg); }
+    }
+
+    @keyframes ogar-gland-balance {
+        0%, 100% { transform: rotate(-8deg); }
+        50%      { transform: rotate(10deg); }
+    }
+
+    @keyframes ogar-anneau-tourne {
+        to { transform: rotate(360deg); }
+    }
+
+    @keyframes ogar-voile-apparait {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+
+    .toque-flotte {
+        transform-box: fill-box;
+        transform-origin: 50% 60%;
+        animation: ogar-toque-flotte 1.6s ease-in-out infinite;
+    }
+
+    .gland-balance {
+        transform-box: fill-box;
+        transform-origin: top center;
+        animation: ogar-gland-balance 1.2s ease-in-out infinite;
+    }
+
+    .anneau-tourne {
+        transform-origin: center;
+        animation: ogar-anneau-tourne 1.1s linear infinite;
+    }
+
+    .voile-chargement { animation: ogar-voile-apparait 0.18s ease-out both; }
+
+    /* ------------------------------------------------------------------
+       Mascotte : le hibou lettre. Chaque pose active ses propres
+       animations, toutes construites sur le meme dessin.
+       ------------------------------------------------------------------ */
+    @keyframes hibou-clignement {
+        0%, 90%, 100% { transform: scaleY(0); }
+        93%, 96%      { transform: scaleY(1); }
+    }
+
+    @keyframes hibou-aile-gauche {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(-24deg); }
+    }
+
+    @keyframes hibou-aile-droite {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(24deg); }
+    }
+
+    @keyframes hibou-flotte {
+        0%, 100% { transform: translateY(0); }
+        50%      { transform: translateY(-5px); }
+    }
+
+    @keyframes hibou-saut {
+        0%, 100% { transform: translateY(0) scale(1); }
+        35%      { transform: translateY(-10px) scale(1.04); }
+        60%      { transform: translateY(0) scale(0.98); }
+    }
+
+    @keyframes hibou-gland {
+        0%, 100% { transform: rotate(-6deg); }
+        50%      { transform: rotate(6deg); }
+    }
+
+    @keyframes hibou-etoile {
+        0%, 100% { opacity: 0; transform: scale(0.6); }
+        50%      { opacity: 1; transform: scale(1); }
+    }
+
+    .hibou-paupiere {
+        transform-box: fill-box;
+        transform-origin: center top;
+        animation: hibou-clignement 5s ease-in-out infinite;
+    }
+
+    .hibou-aile-g,
+    .hibou-aile-d {
+        transform-box: fill-box;
+        transform-origin: top center;
+    }
+
+    .hibou--chargement .hibou-aile-g { animation: hibou-aile-gauche 0.45s ease-in-out infinite alternate; }
+    .hibou--chargement .hibou-aile-d { animation: hibou-aile-droite 0.45s ease-in-out infinite alternate; }
+    .hibou--chargement .hibou-corps  { animation: hibou-flotte 0.9s ease-in-out infinite; }
+
+    .hibou--repos .hibou-corps { animation: hibou-flotte 4s ease-in-out infinite; }
+
+    /* Le gland de la toque suit le mouvement : un accessoire immobile sur un
+       corps qui bouge trahit le dessin. */
+    .hibou-gland {
+        transform-box: fill-box;
+        transform-origin: top center;
+    }
+
+    .hibou--repos .hibou-gland      { animation: hibou-gland 4s ease-in-out infinite; }
+    .hibou--chargement .hibou-gland { animation: hibou-gland 0.9s ease-in-out infinite; }
+    .hibou--succes .hibou-gland     { animation: hibou-gland 1.1s ease-in-out infinite; }
+
+    .hibou--succes .hibou-corps { animation: hibou-saut 1.1s ease-in-out infinite; }
+    .hibou--succes .hibou-etoile {
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: hibou-etoile 1.1s ease-in-out infinite;
+    }
+    .hibou--succes .hibou-etoile--2 { animation-delay: 0.25s; }
+    .hibou--succes .hibou-etoile--3 { animation-delay: 0.5s; }
+
+    .entree-douce { animation: ogar-apparition 0.5s ease-out both; }
+    .entree-douce--2 { animation-delay: 0.08s; }
+    .entree-douce--3 { animation-delay: 0.16s; }
+    .entree-douce--4 { animation-delay: 0.24s; }
+}
+
+/* Impression : le menu et l'entete n'ont pas leur place sur le papier */
+@media print {
+    .sans-impression { display: none !important; }
+}
+
+/* Mouvement reduit : le voile de chargement reste, l'animation s'arrete */
+@media (prefers-reduced-motion: reduce) {
+    .toque-flotte,
+    .gland-balance,
+    .anneau-tourne,
+    .scene-flottante,
+    .halo-pulse,
+    .hibou-paupiere,
+    .hibou-corps,
+    .hibou-aile-g,
+    .hibou-aile-d,
+    .hibou-etoile { animation: none; }
+}
+
+/* ------------------------------------------------------------------
+   Défilement discret
+
+   La barre de défilement native tranchait sur le fond sombre du menu.
+   Ici elle reste invisible au repos, apparaît en translucide au survol,
+   et deux ombres internes signalent qu'il reste du contenu au-dessus ou
+   en dessous. Ces ombres sont portées par des dégradés en
+   `background-attachment: local` : elles se retirent d'elles-mêmes quand
+   on atteint le bord, sans une ligne de JavaScript.
+   ------------------------------------------------------------------ */
+@layer components {
+    .defilement-discret {
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+        overscroll-behavior: contain;
+        transition: scrollbar-color 300ms ease;
+    }
+
+    .defilement-discret:hover,
+    .defilement-discret:focus-within {
+        scrollbar-color: rgb(255 255 255 / 0.2) transparent;
+    }
+
+    .defilement-discret::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .defilement-discret::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .defilement-discret::-webkit-scrollbar-thumb {
+        background-color: transparent;
+        border-radius: 9999px;
+        transition: background-color 300ms ease;
+    }
+
+    .defilement-discret:hover::-webkit-scrollbar-thumb,
+    .defilement-discret:focus-within::-webkit-scrollbar-thumb {
+        background-color: rgb(255 255 255 / 0.2);
+    }
+
+    .defilement-discret::-webkit-scrollbar-thumb:hover {
+        background-color: rgb(255 255 255 / 0.35);
+    }
+
+    /* Ombres de défilement, sur le fond du menu latéral. */
+    .defilement-discret--sombre {
+        background-image:
+            linear-gradient(to bottom, var(--color-ardoise-900) 40%, transparent),
+            linear-gradient(to top, var(--color-ardoise-900) 40%, transparent),
+            linear-gradient(to bottom, rgb(0 0 0 / 0.28), transparent),
+            linear-gradient(to top, rgb(0 0 0 / 0.28), transparent);
+        background-position: 0 0, 0 100%, 0 0, 0 100%;
+        background-repeat: no-repeat;
+        background-size: 100% 32px, 100% 32px, 100% 14px, 100% 14px;
+        background-attachment: local, local, scroll, scroll;
+    }
 }

@@ -1,437 +1,388 @@
 @extends('layouts.app')
 
-@section('title', 'Tableau de bord - Egesco')
+@section('titre', 'Tableau de bord')
+@section('sous-titre', 'Vue d\'ensemble de l\'établissement — année ' . ($currentYear->name ?? '—'))
 
-@section('content')
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-0 text-gray-800">Tableau de bord</h1>
-                    <p class="text-muted">Vue d'ensemble de votre établissement scolaire</p>
-                </div>
-                <div>
-                    <span class="badge bg-success fs-6">
-                        <i class="bi bi-calendar3 me-1"></i>
-                        Année scolaire 2024-2025
-                    </span>
-                </div>
-            </div>
+@section('actions-entete')
+    <div x-data="{ ouvert: false }" class="relative">
+        <button @click="ouvert = ! ouvert" class="bouton-secondaire">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+            </svg>
+            <span class="hidden sm:inline">Rapports</span>
+        </button>
+
+        <div x-show="ouvert" x-cloak @click.outside="ouvert = false"
+             class="absolute right-0 z-30 mt-2 w-64 overflow-hidden rounded-xl border border-gris-200 bg-white py-1 shadow-lg">
+            @foreach ([
+                ['route' => 'dashboard.export.general',    'libelle' => 'Rapport général (PDF)'],
+                ['route' => 'dashboard.export.financial',  'libelle' => 'Rapport financier (PDF)'],
+                ['route' => 'dashboard.export.enrollment', 'libelle' => 'Rapport inscriptions (PDF)'],
+            ] as $rapport)
+                <a href="{{ route($rapport['route']) }}" target="_blank"
+                   class="block cursor-pointer px-4 py-2 text-sm text-gris-700 hover:bg-gris-50">{{ $rapport['libelle'] }}</a>
+            @endforeach
+            <div class="my-1 border-t border-gris-100"></div>
+            <a href="{{ route('dashboard.export.excel') }}" target="_blank"
+               class="block cursor-pointer px-4 py-2 text-sm text-gris-700 hover:bg-gris-50">Exporter en Excel</a>
         </div>
     </div>
-
-    <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stats-card h-100">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-uppercase mb-1">Total Élèves</div>
-                            <div class="h4 mb-0 font-weight-bold">{{ $totalStudents ?? 0 }}</div>
-                            <div class="text-xs mt-1">
-                                <span class="text-success"><i class="bi bi-arrow-up"></i> +12%</span> depuis le mois dernier
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="bi bi-people stats-icon"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stats-card h-100" style="background: linear-gradient(135deg, #27ae60, #2ecc71);">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-uppercase mb-1">Enseignants</div>
-                            <div class="h4 mb-0 font-weight-bold">{{ $totalTeachers ?? 0 }}</div>
-                            <div class="text-xs mt-1">
-                                <span class="text-light"><i class="bi bi-check-circle"></i> Tous actifs</span>
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="bi bi-person-workspace stats-icon"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stats-card h-100" style="background: linear-gradient(135deg, #f39c12, #e67e22);">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-uppercase mb-1">Classes</div>
-                            <div class="h4 mb-0 font-weight-bold">{{ $totalClasses ?? 0 }}</div>
-                            <div class="text-xs mt-1">
-                                <span class="text-light"><i class="bi bi-door-open"></i> Préprimaire & Primaire</span>
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="bi bi-building stats-icon"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="card stats-card h-100" style="background: linear-gradient(135deg, #9b59b6, #8e44ad);">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-uppercase mb-1">Revenus du mois</div>
-                            <div class="h4 mb-0 font-weight-bold">{{ number_format($monthlyRevenue ?? 0, 0, ',', ' ') }} FCFA</div>
-                            <div class="text-xs mt-1">
-                                <span class="text-light"><i class="bi bi-graph-up"></i> {{ $paymentRate ?? 95 }}% collecté</span>
-                            </div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="bi bi-cash-stack stats-icon"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Quick Actions -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-lightning-charge me-2"></i>
-                        Actions rapides
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <a href="{{ route('students.create') }}" class="btn btn-outline-primary w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
-                                <i class="bi bi-person-plus fs-1 mb-2"></i>
-                                <span>Nouvel élève</span>
-                            </a>
-                        </div>
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <a href="{{ route('teachers.create') }}" class="btn btn-outline-success w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
-                                <i class="bi bi-person-workspace fs-1 mb-2"></i>
-                                <span>Nouvel enseignant</span>
-                            </a>
-                        </div>
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <a href="{{ route('grades.create') }}" class="btn btn-outline-warning w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
-                                <i class="bi bi-journal-plus fs-1 mb-2"></i>
-                                <span>Saisir notes</span>
-                            </a>
-                        </div>
-                        <div class="col-lg-3 col-md-6 mb-3">
-                            <a href="{{ route('payments.index') }}" class="btn btn-outline-info w-100 h-100 d-flex flex-column align-items-center justify-content-center py-3">
-                                <i class="bi bi-credit-card-2-front fs-1 mb-2"></i>
-                                <span>Gestion paiements</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content Row -->
-    <div class="row">
-        <!-- Recent Activities -->
-        <div class="col-lg-8 mb-4">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-clock-history me-2"></i>
-                        Activités récentes
-                    </h5>
-                    <a href="#" class="btn btn-sm btn-outline-primary">Voir tout</a>
-                </div>
-                <div class="card-body p-0">
-                    <div class="list-group list-group-flush">
-                        <!-- Sample Activities -->
-                        <div class="list-group-item border-0 py-3">
-                            <div class="row align-items-center">
-                                <div class="col-auto">
-                                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                        <i class="bi bi-person-plus"></i>
-                                    </div>
-                                </div>
-                                <div class="col">
-                                    <div class="fw-bold">Nouvel élève inscrit</div>
-                                    <div class="text-muted small">Kouassi Marie a été inscrite en CP1</div>
-                                </div>
-                                <div class="col-auto text-muted small">
-                                    il y a 2h
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="list-group-item border-0 py-3">
-                            <div class="row align-items-center">
-                                <div class="col-auto">
-                                    <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                        <i class="bi bi-credit-card"></i>
-                                    </div>
-                                </div>
-                                <div class="col">
-                                    <div class="fw-bold">Paiement reçu</div>
-                                    <div class="text-muted small">Frais de scolarité - 50,000 FCFA</div>
-                                </div>
-                                <div class="col-auto text-muted small">
-                                    il y a 3h
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="list-group-item border-0 py-3">
-                            <div class="row align-items-center">
-                                <div class="col-auto">
-                                    <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                        <i class="bi bi-journal-text"></i>
-                                    </div>
-                                </div>
-                                <div class="col">
-                                    <div class="fw-bold">Notes saisies</div>
-                                    <div class="text-muted small">Mathématiques - CM1 (25 élèves)</div>
-                                </div>
-                                <div class="col-auto text-muted small">
-                                    il y a 5h
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="list-group-item border-0 py-3">
-                            <div class="row align-items-center">
-                                <div class="col-auto">
-                                    <div class="bg-info text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                                        <i class="bi bi-calendar-check"></i>
-                                    </div>
-                                </div>
-                                <div class="col">
-                                    <div class="fw-bold">Présences marquées</div>
-                                    <div class="text-muted small">CE2 - 28/30 élèves présents</div>
-                                </div>
-                                <div class="col-auto text-muted small">
-                                    il y a 1j
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Quick Stats -->
-        <div class="col-lg-4 mb-4">
-            <!-- Attendance Today -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h6 class="card-title mb-0">
-                        <i class="bi bi-calendar-check me-2"></i>
-                        Présences aujourd'hui
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="text-center">
-                        <div class="h2 text-success mb-2">{{ $todayAttendance ?? 95 }}%</div>
-                        <div class="text-muted">{{ $presentStudents ?? 380 }}/{{ $totalStudents ?? 400 }} élèves présents</div>
-                        <div class="progress mt-3" style="height: 10px;">
-                            <div class="progress-bar bg-success" data-width="{{ $todayAttendance ?? 95 }}"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Upcoming Events -->
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="card-title mb-0">
-                        <i class="bi bi-calendar-event me-2"></i>
-                        Événements à venir
-                    </h6>
-                </div>
-                <div class="card-body p-0">
-                    <div class="list-group list-group-flush">
-                        <div class="list-group-item border-0 py-2">
-                            <div class="d-flex justify-content-between">
-                                <div>
-                                    <div class="fw-bold small">Réunion parents</div>
-                                    <div class="text-muted small">CM2</div>
-                                </div>
-                                <div class="text-muted small">25 juil</div>
-                            </div>
-                        </div>
-                        <div class="list-group-item border-0 py-2">
-                            <div class="d-flex justify-content-between">
-                                <div>
-                                    <div class="fw-bold small">Compositions 1er trimestre</div>
-                                    <div class="text-muted small">Toutes classes</div>
-                                </div>
-                                <div class="text-muted small">30 juil</div>
-                            </div>
-                        </div>
-                        <div class="list-group-item border-0 py-2">
-                            <div class="d-flex justify-content-between">
-                                <div>
-                                    <div class="fw-bold small">Rentrée des classes</div>
-                                    <div class="text-muted small">Nouvelle année</div>
-                                </div>
-                                <div class="text-muted small">02 sep</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Class Overview -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-bar-chart me-2"></i>
-                        Vue d'ensemble par classe
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Classe</th>
-                                    <th>Élèves inscrits</th>
-                                    <th>Présence moyenne</th>
-                                    <th>Enseignant titulaire</th>
-                                    <th>Dernière évaluation</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 30px; height: 30px;">
-                                                <small class="fw-bold">CP1</small>
-                                            </div>
-                                            <span class="fw-bold">CP1</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-light text-dark">25/30</span>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="progress me-2" style="width: 60px; height: 8px;">
-                                                <div class="progress-bar bg-success" style="width: 92%"></div>
-                                            </div>
-                                            <small>92%</small>
-                                        </div>
-                                    </td>
-                                    <td>Mme. Adjoua Koffi</td>
-                                    <td>
-                                        <span class="badge bg-warning text-dark">il y a 3j</span>
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-eye"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 30px; height: 30px;">
-                                                <small class="fw-bold">CE1</small>
-                                            </div>
-                                            <span class="fw-bold">CE1</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-light text-dark">28/30</span>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="progress me-2" style="width: 60px; height: 8px;">
-                                                <div class="progress-bar bg-success" style="width: 89%"></div>
-                                            </div>
-                                            <small>89%</small>
-                                        </div>
-                                    </td>
-                                    <td>M. Konan Yao</td>
-                                    <td>
-                                        <span class="badge bg-success">Aujourd'hui</span>
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-eye"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 30px; height: 30px;">
-                                                <small class="fw-bold">CM1</small>
-                                            </div>
-                                            <span class="fw-bold">CM1</span>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-light text-dark">30/30</span>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="progress me-2" style="width: 60px; height: 8px;">
-                                                <div class="progress-bar bg-success" style="width: 95%"></div>
-                                            </div>
-                                            <small>95%</small>
-                                        </div>
-                                    </td>
-                                    <td>Mme. Diabaté Fatou</td>
-                                    <td>
-                                        <span class="badge bg-primary">il y a 1j</span>
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-eye"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 @endsection
 
-@push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Auto-refresh dashboard every 5 minutes
-    setTimeout(function() {
-        window.location.reload();
-    }, 300000);
-    
-    // Set progress bar width from data attribute
-    const progressBar = document.querySelector('.progress-bar[data-width]');
-    if (progressBar) {
-        const width = progressBar.getAttribute('data-width');
-        progressBar.style.width = width + '%';
-    }
-});
-</script>
-@endpush 
+@section('contenu')
+
+    {{-- ----------------------------------------------------------------
+         Bandeau d'accueil
+         ---------------------------------------------------------------- --}}
+    <div class="carte mb-6 flex flex-wrap items-center gap-5 p-5">
+        <x-mascotte pose="repos" taille="h-20" class="hidden sm:flex"/>
+
+        <div class="min-w-0 flex-1">
+            <h2 class="text-lg font-semibold text-gris-900">
+                Bonjour {{ \Illuminate\Support\Str::before(auth()->user()->name, ' ') }}.
+            </h2>
+            <p class="mt-1 text-sm text-gris-500">
+                {{ \Carbon\Carbon::now()->locale('fr')->isoFormat('dddd D MMMM YYYY') }} &middot;
+                {{ number_format($totalStudents ?? 0, 0, ',', ' ') }} élèves suivis sur
+                l’année {{ $currentYear->name ?? '—' }}.
+            </p>
+        </div>
+
+        <a href="{{ route('students.create') }}" class="bouton-secondaire">Inscrire un élève</a>
+    </div>
+
+    {{-- ----------------------------------------------------------------
+         Chiffres cles
+         ---------------------------------------------------------------- --}}
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <x-statistique
+            libelle="Total élèves"
+            :valeur="number_format($totalStudents ?? 0, 0, ',', ' ')"
+            :detail="($studentStats['actifs'] ?? 0).' actifs · '.($studentStats['anciens'] ?? 0).' anciens'"
+            couleur="ogar"
+            :lien="route('students.index')"/>
+
+        <x-statistique
+            libelle="Inscriptions {{ $currentYear->name ?? '' }}"
+            :valeur="number_format($enrollmentStats['total'] ?? 0, 0, ',', ' ')"
+            :detail="($enrollmentStats['reinscription'] ?? 0).' réinscriptions'"
+            couleur="emerald"
+            :lien="route('enrollments.index')"/>
+
+        <x-statistique
+            libelle="Revenus de l'année"
+            :valeur="number_format($financialStats['yearly_revenue'] ?? 0, 0, ',', ' ').' F'"
+            :detail="($financialStats['collection_rate'] ?? 0).'% collecté'"
+            couleur="amber"
+            :lien="route('payments.index')"/>
+
+        <x-statistique
+            libelle="Solde à percevoir"
+            :valeur="number_format($financialStats['balance_due'] ?? 0, 0, ',', ' ').' F'"
+            :detail="(($financialStats['partial_count'] ?? 0) + ($financialStats['unpaid_count'] ?? 0)).' dossiers impayés'"
+            couleur="rose"
+            :lien="route('fees.index')"/>
+    </div>
+
+    {{-- ----------------------------------------------------------------
+         Repartition des inscriptions
+         ---------------------------------------------------------------- --}}
+    <div class="mt-6 grid gap-4 lg:grid-cols-2">
+        <div class="carte">
+            <div class="carte-entete">
+                <h2 class="text-sm font-semibold text-gris-900">Inscriptions par cycle</h2>
+                <span class="text-xs text-gris-400">{{ $currentYear->name ?? '' }}</span>
+            </div>
+            <div class="h-64 p-4">
+                <canvas data-graphique="doughnut" data-donnees="{{ json_encode([
+                    'labels' => ['Préprimaire', 'Primaire', 'Collège', 'Lycée'],
+                    'datasets' => [[
+                        'data' => [
+                            $enrollmentsByCycle['preprimaire'] ?? 0,
+                            $enrollmentsByCycle['primaire'] ?? 0,
+                            $enrollmentsByCycle['college'] ?? 0,
+                            $enrollmentsByCycle['lycee'] ?? 0,
+                        ],
+                    ]],
+                ]) }}"></canvas>
+            </div>
+        </div>
+
+        <div class="carte">
+            <div class="carte-entete">
+                <h2 class="text-sm font-semibold text-gris-900">Statut des élèves</h2>
+                <span class="text-xs text-gris-400">Année en cours</span>
+            </div>
+            <div class="h-64 p-4">
+                <canvas data-graphique="bar" data-donnees="{{ json_encode([
+                    'labels' => ['Nouveaux', 'Passants', 'Redoublants'],
+                    'legende' => false,
+                    'datasets' => [[
+                        'data' => [
+                            $enrollmentStats['nouveau'] ?? 0,
+                            $enrollmentStats['passant'] ?? 0,
+                            $enrollmentStats['redoublant'] ?? 0,
+                        ],
+                    ]],
+                ]) }}"></canvas>
+            </div>
+        </div>
+    </div>
+
+    {{-- ----------------------------------------------------------------
+         Evolution et situation financiere
+         ---------------------------------------------------------------- --}}
+    <div class="mt-6 grid gap-4 lg:grid-cols-3">
+        <div class="carte lg:col-span-2">
+            <div class="carte-entete">
+                <h2 class="text-sm font-semibold text-gris-900">Évolution des inscriptions</h2>
+                <span class="text-xs text-gris-400">12 derniers mois</span>
+            </div>
+            <div class="h-64 p-4">
+                <canvas data-graphique="line" data-donnees="{{ json_encode([
+                    'labels' => collect($enrollmentTrend ?? [])->pluck('month'),
+                    'legende' => false,
+                    'datasets' => [[
+                        'data' => collect($enrollmentTrend ?? [])->pluck('count'),
+                        'couleurs' => 'rgba(28, 117, 188, 0.12)',
+                        'bordure' => '#1c75bc',
+                    ]],
+                ]) }}"></canvas>
+            </div>
+        </div>
+
+        <div class="carte">
+            <div class="carte-entete">
+                <h2 class="text-sm font-semibold text-gris-900">Situation financière</h2>
+            </div>
+            <div class="space-y-4 p-5">
+                @php
+                    $tauxCollecte = (int) ($financialStats['collection_rate'] ?? 0);
+                @endphp
+
+                <dl class="space-y-2 text-sm">
+                    <div class="flex items-baseline justify-between gap-3">
+                        <dt class="text-gris-500">Frais attendus</dt>
+                        <dd class="font-semibold text-gris-900">{{ number_format($financialStats['total_fees'] ?? 0, 0, ',', ' ') }} F</dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-3">
+                        <dt class="text-gris-500">Encaissé</dt>
+                        <dd class="font-semibold text-emerald-700">{{ number_format($financialStats['yearly_revenue'] ?? 0, 0, ',', ' ') }} F</dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-3">
+                        <dt class="text-gris-500">Reste à percevoir</dt>
+                        <dd class="font-semibold text-corail-700">{{ number_format($financialStats['balance_due'] ?? 0, 0, ',', ' ') }} F</dd>
+                    </div>
+                </dl>
+
+                <div>
+                    <div class="mb-1 flex items-baseline justify-between text-xs">
+                        <span class="font-semibold uppercase tracking-wide text-gris-500">Taux de recouvrement</span>
+                        <span class="font-bold text-gris-900">{{ $tauxCollecte }}%</span>
+                    </div>
+                    <div class="h-2 overflow-hidden rounded-full bg-gris-100"
+                         role="progressbar" aria-valuenow="{{ $tauxCollecte }}" aria-valuemin="0" aria-valuemax="100">
+                        <div class="h-full rounded-full bg-emerald-600" style="width: {{ min($tauxCollecte, 100) }}%"></div>
+                    </div>
+                </div>
+
+                <ul class="space-y-1.5 border-t border-gris-100 pt-4 text-sm">
+                    <li class="flex items-center justify-between gap-3">
+                        <span class="text-gris-600">Dossiers soldés</span>
+                        <x-puce couleur="emerald">{{ $financialStats['paid_count'] ?? 0 }}</x-puce>
+                    </li>
+                    <li class="flex items-center justify-between gap-3">
+                        <span class="text-gris-600">Paiements partiels</span>
+                        <x-puce couleur="amber">{{ $financialStats['partial_count'] ?? 0 }}</x-puce>
+                    </li>
+                    <li class="flex items-center justify-between gap-3">
+                        <span class="text-gris-600">Impayés</span>
+                        <x-puce couleur="rose">{{ $financialStats['unpaid_count'] ?? 0 }}</x-puce>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    {{-- ----------------------------------------------------------------
+         Derniers mouvements
+         ---------------------------------------------------------------- --}}
+    <div class="mt-6 grid gap-4 lg:grid-cols-2">
+        <div class="carte overflow-hidden">
+            <div class="carte-entete">
+                <h2 class="text-sm font-semibold text-gris-900">Inscriptions récentes</h2>
+                <a href="{{ route('enrollments.index') }}" class="text-xs font-semibold text-ogar-600 hover:underline">Voir tout</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="tableau">
+                    <thead>
+                        <tr>
+                            <th>Élève</th>
+                            <th>Classe</th>
+                            <th>Statut</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($recentEnrollments as $inscription)
+                            <tr>
+                                <td>
+                                    <div class="font-semibold text-gris-900">
+                                        @if ($inscription->applicant_first_name && $inscription->applicant_last_name)
+                                            {{ $inscription->applicant_first_name }} {{ $inscription->applicant_last_name }}
+                                        @elseif ($inscription->student)
+                                            {{ $inscription->student->first_name }} {{ $inscription->student->last_name }}
+                                        @else
+                                            &mdash;
+                                        @endif
+                                    </div>
+                                    <div class="text-xs text-gris-400">{{ $inscription->enrollment_code }}</div>
+                                </td>
+                                <td>{{ $inscription->schoolClass->name ?? '—' }}</td>
+                                <td>
+                                    @switch($inscription->student_status)
+                                        @case('nouveau')    <x-puce couleur="sky">Nouveau</x-puce> @break
+                                        @case('passant')    <x-puce couleur="emerald">Passant</x-puce> @break
+                                        @case('redoublant') <x-puce couleur="amber">Redoublant</x-puce> @break
+                                        @default <x-puce>—</x-puce>
+                                    @endswitch
+                                </td>
+                                <td class="whitespace-nowrap text-gris-500">
+                                    {{ $inscription->enrollment_date?->format('d/m/Y') ?? '—' }}
+                                </td>
+                            </tr>
+                        @empty
+                            <x-vide :colonnes="4" message="Aucune inscription récente."/>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="carte overflow-hidden">
+            <div class="carte-entete">
+                <h2 class="text-sm font-semibold text-gris-900">Paiements récents</h2>
+                <a href="{{ route('payments.index') }}" class="text-xs font-semibold text-ogar-600 hover:underline">Voir tout</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="tableau">
+                    <thead>
+                        <tr>
+                            <th>Élève</th>
+                            <th>Montant</th>
+                            <th>Reçu</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($recentPayments as $paiement)
+                            <tr>
+                                <td>
+                                    <div class="font-semibold text-gris-900">
+                                        @if ($paiement->applicant_first_name && $paiement->applicant_last_name)
+                                            {{ $paiement->applicant_first_name }} {{ $paiement->applicant_last_name }}
+                                        @elseif ($paiement->student)
+                                            {{ $paiement->student->first_name }} {{ $paiement->student->last_name }}
+                                        @else
+                                            &mdash;
+                                        @endif
+                                    </div>
+                                    <div class="text-xs text-gris-400">{{ $paiement->schoolClass->name ?? '—' }}</div>
+                                </td>
+                                <td class="whitespace-nowrap font-semibold text-emerald-700">
+                                    {{ number_format($paiement->amount_paid, 0, ',', ' ') }} F
+                                </td>
+                                <td><span class="font-mono text-xs text-gris-500">{{ $paiement->receipt_number ?? '—' }}</span></td>
+                                <td class="whitespace-nowrap text-gris-500">
+                                    {{ $paiement->enrollment_date?->format('d/m/Y') ?? '—' }}
+                                </td>
+                            </tr>
+                        @empty
+                            <x-vide :colonnes="4" message="Aucun paiement récent."/>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {{-- ----------------------------------------------------------------
+         Classes les plus chargees
+         ---------------------------------------------------------------- --}}
+    <div class="carte mt-6 overflow-hidden">
+        <div class="carte-entete">
+            <h2 class="text-sm font-semibold text-gris-900">Classes les plus chargées</h2>
+            <a href="{{ route('classes.index') }}" class="text-xs font-semibold text-ogar-600 hover:underline">Toutes les classes</a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="tableau">
+                <thead>
+                    <tr>
+                        <th class="w-12">#</th>
+                        <th>Classe</th>
+                        <th>Niveau</th>
+                        <th>Cycle</th>
+                        <th>Effectif</th>
+                        <th>Capacité</th>
+                        <th class="w-48">Taux d'occupation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($classesByEnrollment as $rang => $classe)
+                        @php
+                            $capacite = $classe->capacity ?: 0;
+                            $taux = $capacite > 0 ? (int) round(($classe->enrollments_count / $capacite) * 100) : 0;
+                            $teinte = $taux >= 90 ? 'bg-corail-600' : ($taux >= 70 ? 'bg-soleil-500' : 'bg-emerald-600');
+                        @endphp
+                        <tr>
+                            <td class="text-gris-400">{{ $rang + 1 }}</td>
+                            <td class="font-semibold text-gris-900">{{ $classe->name }}</td>
+                            <td>{{ $classe->level->name ?? '—' }}</td>
+                            <td class="capitalize">{{ $classe->level->cycle ?? '—' }}</td>
+                            <td><x-puce couleur="sky">{{ $classe->enrollments_count }}</x-puce></td>
+                            <td class="text-gris-500">{{ $capacite ?: '—' }}</td>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <div class="h-2 flex-1 overflow-hidden rounded-full bg-gris-100"
+                                         role="progressbar" aria-valuenow="{{ $taux }}" aria-valuemin="0" aria-valuemax="100">
+                                        <div class="h-full rounded-full {{ $teinte }}" style="width: {{ min($taux, 100) }}%"></div>
+                                    </div>
+                                    <span class="w-10 shrink-0 text-right text-xs font-semibold text-gris-600">{{ $taux }}%</span>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <x-vide :colonnes="7" message="Aucune classe enregistrée."/>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {{-- ----------------------------------------------------------------
+         Actions rapides
+         ---------------------------------------------------------------- --}}
+    <div class="carte mt-6">
+        <div class="carte-entete">
+            <h2 class="text-sm font-semibold text-gris-900">Actions rapides</h2>
+        </div>
+        <div class="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4">
+            @foreach ([
+                ['route' => 'students.create', 'libelle' => 'Nouvel élève',      'trace' => 'M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z'],
+                ['route' => 'teachers.create', 'libelle' => 'Nouvel enseignant', 'trace' => 'M4.26 10.147a60.438 60.438 0 00-.491 6.347A48.62 48.62 0 0112 20.904a48.62 48.62 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.636 50.636 0 00-2.658-.813A59.906 59.906 0 0112 3.493a59.903 59.903 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5'],
+                ['route' => 'grades.create',   'libelle' => 'Saisir des notes',  'trace' => 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10'],
+                ['route' => 'payments.index',  'libelle' => 'Gérer les paiements', 'trace' => 'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z'],
+            ] as $action)
+                <a href="{{ route($action['route']) }}"
+                   class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-gris-200 px-4 py-6 text-center transition-colors hover:border-ogar-300 hover:bg-ogar-50
+                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ogar-600">
+                    <svg class="h-7 w-7 text-ogar-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="{{ $action['trace'] }}"/>
+                    </svg>
+                    <span class="text-sm font-semibold text-gris-700">{{ $action['libelle'] }}</span>
+                </a>
+            @endforeach
+        </div>
+    </div>
+
+@endsection

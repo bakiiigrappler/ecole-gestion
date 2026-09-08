@@ -1,632 +1,261 @@
 @extends('layouts.app')
 
-@section('title', 'Gestion des Inscriptions - Egesco')
+@section('titre', 'Inscriptions')
+@section('sous-titre', $currentYearEnrollments.' inscription(s) sur l’année en cours — '.$totalEnrollments.' au total')
 
-@section('breadcrumb')
-<li class="breadcrumb-item active">Inscriptions</li>
+@section('actions-entete')
+    @if ($pendingCount > 0)
+        <a href="{{ route('enrollments.pending-students') }}" class="bouton-secondaire">
+            {{ $pendingCount }} en attente
+        </a>
+    @endif
+    <a href="{{ route('enrollments.create') }}" class="bouton-primaire">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" d="M12 4.5v15m7.5-7.5h-15"/>
+        </svg>
+        <span class="hidden sm:inline">Nouvelle inscription</span>
+    </a>
 @endsection
 
-@section('content')
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-0">Gestion des Inscriptions</h1>
-                    <p class="text-muted">Gérez les inscriptions et réinscriptions des élèves</p>
-                </div>
-                <div class="d-flex gap-2">
-                    <a href="{{ route('enrollments.pending-students') }}" class="btn btn-warning">
-                        <i class="bi bi-clock-history me-2"></i>
-                        Inscriptions en attente <span class="badge bg-light text-dark ms-1">{{ $pendingCount ?? 0 }}</span>
-                    </a>
-                    <button type="button" class="btn btn-success" onclick="showUnEnrolledStudents()">
-                        <i class="bi bi-person-exclamation me-2"></i>
-                        Non inscrits
-                    </button>
-                    <a href="{{ route('enrollments.create') }}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle me-2"></i>
-                        Nouvelle inscription
-                    </a>
-                </div>
-            </div>
-        </div>
+@section('contenu')
+
+@php
+    $libellesCycle = ['preprimaire' => 'Préprimaire', 'primaire' => 'Primaire', 'college' => 'Collège', 'lycee' => 'Lycée'];
+    $teintesCycle = ['preprimaire' => 'amber', 'primaire' => 'emerald', 'college' => 'sky', 'lycee' => 'violet'];
+
+    $libellesPaiement = ['completed' => 'Soldé', 'partial' => 'Partiel', 'pending' => 'Impayé', 'overdue' => 'En retard'];
+    $teintesPaiement = ['completed' => 'emerald', 'partial' => 'amber', 'pending' => 'rose', 'overdue' => 'rose'];
+
+    $libellesStatut = ['active' => 'Active', 'completed' => 'Terminée', 'transferred' => 'Transférée', 'dropped' => 'Abandonnée'];
+    $teintesStatut = ['active' => 'emerald', 'completed' => 'violet', 'transferred' => 'sky', 'dropped' => 'slate'];
+
+    $franc = fn ($montant) => number_format((float) $montant, 0, ',', ' ').' F';
+@endphp
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <x-statistique libelle="Inscriptions"
+                       :valeur="number_format($currentYearEnrollments, 0, ',', ' ')"
+                       :detail="$activeEnrollments.' active(s) toutes années'"
+                       couleur="ogar"/>
+        <x-statistique libelle="Encaissé"
+                       :valeur="$franc($recouvrement['encaisse'])"
+                       :detail="$recouvrement['taux'] !== null ? $recouvrement['taux'].'% du facturé' : 'Aucun montant facturé'"
+                       couleur="emerald"/>
+        <x-statistique libelle="Reste à encaisser"
+                       :valeur="$franc($recouvrement['reste'])"
+                       :detail="'sur '.$franc($recouvrement['facture']).' facturés'"
+                       :couleur="$recouvrement['reste'] > 0 ? 'amber' : 'emerald'"/>
+        <x-statistique libelle="Dossiers non soldés"
+                       :valeur="$recouvrement['partiels'] + $recouvrement['impayes'] + $recouvrement['retards']"
+                       :detail="$recouvrement['partiels'].' partiels · '.$recouvrement['impayes'].' impayés'"
+                       :couleur="($recouvrement['partiels'] + $recouvrement['impayes']) > 0 ? 'rose' : 'violet'"/>
     </div>
 
-    <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-white" style="background: linear-gradient(135deg, #17a2b8, #138496);">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">{{ $totalEnrollments ?? 0 }}</h4>
-                            <span>Total inscriptions</span>
-                        </div>
-                        <i class="bi bi-clipboard-check fs-1 opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-white" style="background: linear-gradient(135deg, #28a745, #20c997);">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">{{ $activeEnrollments ?? 0 }}</h4>
-                            <span>Inscriptions actives</span>
-                        </div>
-                        <i class="bi bi-check-circle fs-1 opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-white" style="background: linear-gradient(135deg, #007bff, #0056b3);">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">{{ $currentYearEnrollments ?? 0 }}</h4>
-                            <span>Année courante</span>
-                        </div>
-                        <i class="bi bi-calendar-check fs-1 opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-white" style="background: linear-gradient(135deg, #6f42c1, #5a32a3);">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">{{ $enrollmentsByCycle['college'] ?? 0 }}</h4>
-                            <span>Collège</span>
-                        </div>
-                        <i class="bi bi-mortarboard fs-1 opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
+    {{-- Répartition par cycle : quatre raccourcis de filtre plutôt qu'un simple compteur --}}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        @foreach ($libellesCycle as $cle => $libelle)
+            <a href="{{ route('enrollments.index', ['cycle' => $cle]) }}"
+               class="carte flex items-center justify-between px-4 py-3 transition-colors hover:bg-gris-50 {{ request('cycle') === $cle ? 'ring-2 ring-ogar-300' : '' }}">
+                <span class="text-sm font-medium text-gris-700">{{ $libelle }}</span>
+                <span class="flex items-center gap-2">
+                    <span class="text-lg font-bold text-gris-900">{{ $enrollmentsByCycle[$cle] ?? 0 }}</span>
+                    <x-puce :couleur="$teintesCycle[$cle]">inscrits</x-puce>
+                </span>
+            </a>
+        @endforeach
     </div>
 
-    <!-- Statistics by Cycle -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-pie-chart me-2"></i>
-                        Répartition par cycle (Année courante)
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <div class="badge bg-info fs-6 mb-2">{{ $enrollmentsByCycle['preprimaire'] ?? 0 }}</div>
-                                <div>Pré-primaire</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <div class="badge bg-success fs-6 mb-2">{{ $enrollmentsByCycle['primaire'] ?? 0 }}</div>
-                                <div>Primaire</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <div class="badge bg-warning fs-6 mb-2">{{ $enrollmentsByCycle['college'] ?? 0 }}</div>
-                                <div>Collège</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="text-center">
-                                <div class="badge bg-primary fs-6 mb-2">{{ $enrollmentsByCycle['lycee'] ?? 0 }}</div>
-                                <div>Lycée</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    {{-- ----------------------------------------------------------------
+         Filtres — formulaire GET, filtrage côté serveur
+         ---------------------------------------------------------------- --}}
+    <form method="GET" action="{{ route('enrollments.index') }}" class="carte mt-6 p-4">
+        <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-6">
+            <div class="lg:col-span-2">
+                <label for="search" class="etiquette">Rechercher</label>
+                <input type="search" name="search" id="search" value="{{ request('search') }}"
+                       class="champ" placeholder="Nom, matricule, n° de reçu…">
+            </div>
+
+            <div>
+                <label for="academic_year" class="etiquette">Année scolaire</label>
+                <select name="academic_year" id="academic_year" class="champ">
+                    <option value="">Toutes les années</option>
+                    @foreach ($academicYears as $annee)
+                        <option value="{{ $annee->id }}" @selected((string) request('academic_year') === (string) $annee->id)>
+                            {{ $annee->name }}{{ $annee->is_current ? ' (courante)' : '' }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label for="cycle" class="etiquette">Cycle</label>
+                <select name="cycle" id="cycle" class="champ">
+                    <option value="">Tous les cycles</option>
+                    @foreach ($libellesCycle as $cle => $libelle)
+                        <option value="{{ $cle }}" @selected(request('cycle') === $cle)>{{ $libelle }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label for="class" class="etiquette">Classe</label>
+                <select name="class" id="class" class="champ">
+                    <option value="">Toutes les classes</option>
+                    @foreach ($classes as $classe)
+                        <option value="{{ $classe->id }}" @selected((string) request('class') === (string) $classe->id)>
+                            {{ $classe->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label for="payment_status" class="etiquette">Paiement</label>
+                <select name="payment_status" id="payment_status" class="champ">
+                    <option value="">Toutes les situations</option>
+                    @foreach ($libellesPaiement as $cle => $libelle)
+                        <option value="{{ $cle }}" @selected(request('payment_status') === $cle)>{{ $libelle }}</option>
+                    @endforeach
+                </select>
             </div>
         </div>
-    </div>
 
-    <!-- Filters and Search -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <form method="GET" action="{{ route('enrollments.index') }}">
-                        <div class="row g-3">
-                            <div class="col-md-3">
-                                <label class="form-label">Rechercher élève</label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                    <input type="text" class="form-control" name="search" value="{{ request('search') }}" placeholder="Nom, prénom, matricule...">
-                                </div>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Année scolaire</label>
-                                <select class="form-select" name="academic_year">
-                                    <option value="">Toutes les années</option>
-                                    @foreach($academicYears ?? [] as $year)
-                                        <option value="{{ $year->id }}" {{ request('academic_year') == $year->id ? 'selected' : '' }}>
-                                            {{ $year->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Cycle</label>
-                                <select class="form-select" name="cycle">
-                                    <option value="">Tous les cycles</option>
-                                    <option value="preprimaire" {{ request('cycle') == 'preprimaire' ? 'selected' : '' }}>Pré-primaire</option>
-                                    <option value="primaire" {{ request('cycle') == 'primaire' ? 'selected' : '' }}>Primaire</option>
-                                    <option value="college" {{ request('cycle') == 'college' ? 'selected' : '' }}>Collège</option>
-                                    <option value="lycee" {{ request('cycle') == 'lycee' ? 'selected' : '' }}>Lycée</option>
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Classe</label>
-                                <select class="form-select" name="class">
-                                    <option value="">Toutes les classes</option>
-                                    @foreach($classes ?? [] as $class)
-                                        <option value="{{ $class->id }}" {{ request('class') == $class->id ? 'selected' : '' }}>
-                                            {{ $class->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Statut</label>
-                                <select class="form-select" name="status">
-                                    <option value="">Tous les statuts</option>
-                                    <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Actif</option>
-                                    <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Inactif</option>
-                                    <option value="transferred" {{ request('status') == 'transferred' ? 'selected' : '' }}>Transféré</option>
-                                    <option value="graduated" {{ request('status') == 'graduated' ? 'selected' : '' }}>Diplômé</option>
-                                </select>
-                            </div>
-                            <div class="col-md-1">
-                                <label class="form-label">&nbsp;</label>
-                                <div class="d-flex gap-1">
-                                    <button type="submit" class="btn btn-primary btn-sm">
-                                        <i class="bi bi-funnel"></i>
-                                    </button>
-                                    <a href="{{ route('enrollments.index') }}" class="btn btn-outline-secondary btn-sm">
-                                        <i class="bi bi-arrow-clockwise"></i>
+        <div class="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-6">
+            <div>
+                <label for="status" class="etiquette">Statut</label>
+                <select name="status" id="status" class="champ">
+                    <option value="">Tous les statuts</option>
+                    @foreach ($libellesStatut as $cle => $libelle)
+                        <option value="{{ $cle }}" @selected(request('status') === $cle)>{{ $libelle }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label for="student_status" class="etiquette">Situation de l’élève</label>
+                <select name="student_status" id="student_status" class="champ">
+                    <option value="">Toutes</option>
+                    <option value="nouveau" @selected(request('student_status') === 'nouveau')>Nouveau</option>
+                    <option value="redoublant" @selected(request('student_status') === 'redoublant')>Redoublant</option>
+                    <option value="passant" @selected(request('student_status') === 'passant')>Passant</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="enrollment_type" class="etiquette">Type</label>
+                <select name="enrollment_type" id="enrollment_type" class="champ">
+                    <option value="">Tous les types</option>
+                    <option value="new" @selected(request('enrollment_type') === 'new')>Première inscription</option>
+                    <option value="reinscription" @selected(request('enrollment_type') === 'reinscription')>Réinscription</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="per_page" class="etiquette">Par page</label>
+                <select name="per_page" id="per_page" class="champ">
+                    @foreach (\App\Support\ParametresPlateforme::PAGINATIONS as $n)
+                        <option value="{{ $n }}" @selected(\App\Support\ParametresPlateforme::pagination(request('per_page')) === $n)>{{ $n }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="flex items-end gap-2 lg:col-span-2">
+                <button type="submit" class="bouton-primaire">Filtrer</button>
+                <a href="{{ route('enrollments.index') }}" class="bouton-secondaire">Réinitialiser</a>
+            </div>
+        </div>
+    </form>
+
+    {{-- ----------------------------------------------------------------
+         Liste
+         ---------------------------------------------------------------- --}}
+    <div class="carte mt-6 overflow-hidden">
+        <div class="carte-entete">
+            <h2 class="text-sm font-semibold text-gris-900">Dossiers d’inscription</h2>
+            <span class="text-xs text-gris-400">{{ $enrollments->total() }} résultat(s)</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="tableau">
+                <thead>
+                    <tr>
+                        <th>Élève</th>
+                        <th>Classe</th>
+                        <th>Année</th>
+                        <th class="whitespace-nowrap">Inscrit le</th>
+                        <th class="text-right">Facturé</th>
+                        <th class="text-right">Reste dû</th>
+                        <th class="text-center">Paiement</th>
+                        <th class="text-center">Statut</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($enrollments as $inscription)
+                        <tr>
+                            <td>
+                                @if ($inscription->student)
+                                    <a href="{{ route('students.show', $inscription->student->id) }}"
+                                       class="font-medium text-gris-800 hover:text-ogar-700 hover:underline">
+                                        {{ $inscription->student->full_name }}
                                     </a>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Enrollments Table -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-list-ul me-2"></i>
-                        Liste des inscriptions
-                    </h5>
-                    <span class="badge bg-primary fs-6">{{ $enrollments->count() ?? 0 }} inscriptions</span>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead style="background: linear-gradient(135deg, #007bff, #0056b3); color: white;">
-                                <tr>
-                                    <th class="border-0" style="width: 80px;">ID</th>
-                                    <th class="border-0" style="min-width: 200px;">Élève</th>
-                                    <th class="border-0" style="width: 150px;">Classe</th>
-                                    <th class="border-0" style="width: 120px;">Niveau/Cycle</th>
-                                    <th class="border-0" style="width: 130px;">Année scolaire</th>
-                                    <th class="border-0" style="width: 120px;">Date inscription</th>
-                                    <th class="border-0" style="width: 90px;">Statut</th>
-                                    <th class="border-0" style="width: 120px;">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($enrollments as $enrollment)
-                                <tr>
-                                    <td>
-                                        <span class="fw-bold text-primary">#{{ $enrollment->id }}</span>
-                                    </td>
-                                    <td>
-                                        @if($enrollment->student)
-                                            <div class="d-flex align-items-center">
-                                                <div class="avatar-sm me-2">
-                                                    <div class="avatar-title bg-primary rounded-circle">
-                                                        {{ strtoupper(substr($enrollment->student->first_name ?? '', 0, 1) . substr($enrollment->student->last_name ?? '', 0, 1)) }}
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div class="fw-bold">{{ $enrollment->student->full_name ?? 'Étudiant supprimé' }}</div>
-                                                    <small class="text-muted">{{ $enrollment->student->student_id ?? 'N/A' }}</small>
-                                                </div>
-                                            </div>
-                                        @else
-                                            <div class="d-flex align-items-center">
-                                                <div class="avatar-sm me-2">
-                                                    <div class="avatar-title bg-danger rounded-circle">
-                                                        <i class="bi bi-exclamation-triangle"></i>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div class="fw-bold text-danger">Étudiant supprimé</div>
-                                                    <small class="text-muted">Référence invalide</small>
-                                                </div>
-                                            </div>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <span class="badge bg-info">{{ $enrollment->schoolClass->name }}</span>
-                                    </td>
-                                    <td>
-                                        @if($enrollment->schoolClass && $enrollment->schoolClass->level)
-                                            <div>
-                                                <div class="fw-bold">{{ is_object($enrollment->schoolClass->level) ? ($enrollment->schoolClass->level->name ?? 'N/A') : $enrollment->schoolClass->level }}</div>
-                                                <small class="text-muted text-capitalize">
-                                                    @if(is_object($enrollment->schoolClass->level))
-                                                        {{ $enrollment->schoolClass->level->cycle ?? 'N/A' }}
-                                                    @endif
-                                                </small>
-                                            </div>
-                                        @else
-                                            <span class="text-muted">Non défini</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if($enrollment->academicYear)
-                                            <div>
-                                                <div class="fw-bold">{{ $enrollment->academicYear->name ?? 'N/A' }}</div>
-                                                @if($enrollment->academicYear->is_current)
-                                                    <small class="badge bg-success">Courante</small>
-                                                @endif
-                                            </div>
-                                        @else
-                                            <span class="text-muted">Non défini</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <span class="text-nowrap">{{ $enrollment->getFormattedEnrollmentDate() }}</span>
-                                    </td>
-                                    <td>
-                                        {!! $enrollment->status_badge !!}
-                                    </td>
-                                    <td>
-                                        <div class="btn-group" role="group">
-                                            <button type="button" class="btn btn-sm btn-outline-info" data-enrollment-id="{{ $enrollment->id }}" onclick="viewEnrollment(this.dataset.enrollmentId)" title="Voir détails">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
-                                            @if($enrollment->canBeModified())
-                                                <button type="button" class="btn btn-sm btn-outline-warning" data-enrollment-id="{{ $enrollment->id }}" onclick="editEnrollment(this.dataset.enrollmentId)" title="Modifier">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
-                                            @endif
-                                            @if($enrollment->student)
-                                                <a href="{{ route('enrollments.re-enroll', $enrollment->student) }}" class="btn btn-sm btn-outline-success" title="Réinscrire">
-                                                    <i class="bi bi-arrow-repeat"></i>
-                                                </a>
-                                            @else
-                                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Étudiant supprimé">
-                                                    <i class="bi bi-arrow-repeat"></i>
-                                                </button>
-                                            @endif
-                                            <button type="button" class="btn btn-sm btn-outline-danger" data-enrollment-id="{{ $enrollment->id }}" onclick="deleteEnrollment(this.dataset.enrollmentId)" title="Supprimer">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                @empty
-                                <tr>
-                                    <td colspan="8" class="text-center py-5">
-                                        <div class="text-muted">
-                                            <i class="bi bi-inbox fs-1 d-block mb-3"></i>
-                                            <h5>Aucune inscription trouvée</h5>
-                                            <p>Aucune inscription ne correspond à vos critères de recherche.</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <!-- Pagination -->
-                @if($enrollments->hasPages())
-                <div class="card-footer bg-white border-0 py-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="text-muted small">
-                            Affichage de {{ $enrollments->firstItem() ?? 0 }} à {{ $enrollments->lastItem() ?? 0 }} sur {{ $enrollments->total() ?? 0 }} inscriptions
-                        </div>
-                        <nav aria-label="Pagination des inscriptions">
-                            {{ $enrollments->appends(request()->query())->links('pagination::bootstrap-5') }}
-                        </nav>
-                    </div>
-                </div>
-                @endif
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Add Enrollment Modal -->
-<div class="modal fade" id="addEnrollmentModal" tabindex="-1" aria-labelledby="addEnrollmentModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="addEnrollmentModalLabel">
-                    <i class="bi bi-person-plus me-2"></i>
-                    Nouvelle inscription
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form id="addEnrollmentForm">
-                @csrf
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="student_id" class="form-label">Élève <span class="text-danger">*</span></label>
-                                <select class="form-select" id="student_id" name="student_id" required>
-                                    <option value="">Sélectionner un élève</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label for="academic_year_id" class="form-label">Année scolaire <span class="text-danger">*</span></label>
-                                <select class="form-select" id="academic_year_id" name="academic_year_id" required>
-                                    <option value="">Sélectionner une année</option>
-                                    @foreach($academicYears ?? [] as $year)
-                                        <option value="{{ $year->id }}" {{ $year->is_current ? 'selected' : '' }}>
-                                            {{ $year->name }} {{ $year->is_current ? '(Courante)' : '' }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label for="enrollment_date" class="form-label">Date d'inscription <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control" id="enrollment_date" name="enrollment_date" value="{{ date('Y-m-d') }}" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="cycle_select" class="form-label">Cycle <span class="text-danger">*</span></label>
-                                <select class="form-select" id="cycle_select" required>
-                                    <option value="">Sélectionner un cycle</option>
-                                    <option value="preprimaire">Pré-primaire</option>
-                                    <option value="primaire">Primaire</option>
-                                    <option value="college">Collège</option>
-                                    <option value="lycee">Lycée</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label for="class_id" class="form-label">Classe <span class="text-danger">*</span></label>
-                                <select class="form-select" id="class_id" name="class_id" required>
-                                    <option value="">Sélectionner une classe</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label for="status" class="form-label">Statut</label>
-                                <select class="form-select" id="status" name="status">
-                                    <option value="active" selected>Actif</option>
-                                    <option value="inactive">Inactif</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="mb-3">
-                                <label for="notes" class="form-label">Notes</label>
-                                <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Notes sur l'inscription..."></textarea>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        <i class="bi bi-x-circle me-2"></i>
-                        Annuler
-                    </button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-circle me-2"></i>
-                        Enregistrer l'inscription
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Unenrolled Students Modal -->
-<div class="modal fade" id="unEnrolledStudentsModal" tabindex="-1" aria-labelledby="unEnrolledStudentsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header bg-warning text-dark">
-                <h5 class="modal-title" id="unEnrolledStudentsModalLabel">
-                    <i class="bi bi-person-exclamation me-2"></i>
-                    Élèves non inscrits pour l'année courante
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="unEnrolledStudentsContent">
-                <!-- Le contenu sera chargé dynamiquement -->
-            </div>
-        </div>
-    </div>
-</div>
-@endsection
-
-@push('scripts')
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Chargement des classes par cycle
-    const cycleSelect = document.getElementById('cycle_select');
-    const classSelect = document.getElementById('class_id');
-
-    if (cycleSelect) {
-        cycleSelect.addEventListener('change', function() {
-            const cycle = this.value;
-            classSelect.innerHTML = '<option value="">Sélectionner une classe</option>';
-            
-            if (cycle) {
-                fetch(`/api/students/classes-by-cycle?cycle=${cycle}`)
-                    .then(response => response.json())
-                    .then(classes => {
-                        classes.forEach(classItem => {
-                            classSelect.innerHTML += `<option value="${classItem.id}">${classItem.name}</option>`;
-                        });
-                    });
-            }
-        });
-    }
-
-    // Soumission du formulaire d'inscription
-    document.getElementById('addEnrollmentForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(this);
-        
-        fetch('{{ route("enrollments.store") }}', {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                bootstrap.Modal.getInstance(document.getElementById('addEnrollmentModal')).hide();
-                location.reload();
-            } else {
-                alert(data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Une erreur est survenue lors de l\'inscription.');
-        });
-    });
-});
-
-function viewEnrollment(id) {
-    // Rediriger vers la page de détails de l'inscription
-    window.location.href = `/enrollments/${id}/receipt`;
-}
-
-function editEnrollment(id) {
-    // Implémentation à venir
-    console.log('Modifier inscription ID:', id);
-}
-
-function deleteEnrollment(id) {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette inscription ?')) {
-        fetch(`/enrollments/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'Accept': 'application/json'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                location.reload();
-            } else {
-                alert(data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Une erreur est survenue lors de la suppression.');
-        });
-    }
-}
-
-function showUnEnrolledStudents() {
-    fetch('/enrollments/unenrolled-students')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const modal = new bootstrap.Modal(document.getElementById('unEnrolledStudentsModal'));
-                const content = document.getElementById('unEnrolledStudentsContent');
-                
-                if (data.students.length === 0) {
-                    content.innerHTML = `
-                        <div class="text-center py-5">
-                            <i class="bi bi-check-circle-fill text-success fs-1 d-block mb-3"></i>
-                            <h5>Parfait !</h5>
-                            <p>Tous les élèves actifs sont inscrits pour l'année courante ${data.current_year.year}.</p>
-                        </div>
-                    `;
-                } else {
-                    let studentsHtml = `
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle me-2"></i>
-                            <strong>${data.students.length} élève(s)</strong> ne sont pas encore inscrits pour l'année courante ${data.current_year.year}.
-                        </div>
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Élève</th>
-                                        <th>Dernière classe</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                    `;
-                    
-                    data.students.forEach(student => {
-                        const lastEnrollment = student.enrollments.length > 0 ? student.enrollments[0] : null;
-                        studentsHtml += `
-                            <tr>
-                                <td>
-                                    <div>
-                                        <div class="fw-bold">${student.full_name}</div>
-                                        <small class="text-muted">${student.student_id}</small>
+                                    <div class="font-mono text-[11px] text-gris-400">{{ $inscription->student->student_id }}</div>
+                                @else
+                                    <span class="font-medium text-gris-800">{{ $inscription->applicant_full_name ?: 'Candidat sans nom' }}</span>
+                                    <div class="text-[11px] italic text-soleil-700">Élève non encore créé</div>
+                                @endif
+                            </td>
+                            <td>
+                                @if ($inscription->schoolClass)
+                                    <a href="{{ route('classes.show', $inscription->schoolClass->id) }}"
+                                       class="text-gris-700 hover:text-ogar-700 hover:underline">
+                                        {{ $inscription->schoolClass->name }}
+                                    </a>
+                                    <div class="text-[11px] text-gris-400">
+                                        {{ $libellesCycle[$inscription->schoolClass->getSafeCycle()] ?? '—' }}
                                     </div>
-                                </td>
-                                <td>
-                                    ${lastEnrollment ? 
-                                        `<span class="badge bg-secondary">${lastEnrollment.school_class.name}</span><br>
-                                         <small class="text-muted">${lastEnrollment.academic_year.year}</small>` : 
-                                        '<span class="text-muted">Aucune</span>'
-                                    }
-                                </td>
-                                <td>
-                                    <a href="/students/${student.id}/re-enroll" class="btn btn-sm btn-success">
-                                        <i class="bi bi-person-plus me-1"></i>
-                                        Inscrire
-                                    </a>
-                                </td>
-                            </tr>
-                        `;
-                    });
-                    
-                    studentsHtml += '</tbody></table></div>';
-                    content.innerHTML = studentsHtml;
-                }
-                
-                modal.show();
-            } else {
-                alert(data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Une erreur est survenue lors du chargement.');
-        });
-}
-</script>
-@endpush 
+                                @else
+                                    <span class="text-xs text-gris-400">—</span>
+                                @endif
+                            </td>
+                            <td class="whitespace-nowrap text-gris-600">{{ $inscription->academicYear->name ?? '—' }}</td>
+                            <td class="whitespace-nowrap text-gris-600">
+                                {{ $inscription->enrollment_date ? \Carbon\Carbon::parse($inscription->enrollment_date)->format('d/m/Y') : '—' }}
+                            </td>
+                            <td class="whitespace-nowrap text-right text-gris-700">{{ $franc($inscription->total_fees) }}</td>
+                            <td class="whitespace-nowrap text-right {{ $inscription->balance_due > 0 ? 'font-semibold text-corail-700' : 'text-gris-300' }}">
+                                {{ $inscription->balance_due > 0 ? $franc($inscription->balance_due) : '—' }}
+                            </td>
+                            <td class="text-center">
+                                <x-puce :couleur="$teintesPaiement[$inscription->payment_status] ?? 'slate'">
+                                    {{ $libellesPaiement[$inscription->payment_status] ?? $inscription->payment_status }}
+                                </x-puce>
+                            </td>
+                            <td class="text-center">
+                                <x-puce :couleur="$teintesStatut[$inscription->status] ?? 'slate'">
+                                    {{ $libellesStatut[$inscription->status] ?? $inscription->status }}
+                                </x-puce>
+                            </td>
+                            <td class="text-right">
+                                <div class="flex justify-end gap-1">
+                                    <a href="{{ route('enrollments.show', $inscription->id) }}" class="bouton-mini">Consulter</a>
+                                    <a href="{{ route('enrollments.edit', $inscription->id) }}" class="bouton-mini">Modifier</a>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <x-vide :colonnes="9" message="Aucune inscription ne correspond à ces critères."/>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        @if ($enrollments->hasPages())
+            <div class="border-t border-gris-100 px-5 py-4">
+                {{ $enrollments->links() }}
+            </div>
+        @endif
+    </div>
+
+@endsection

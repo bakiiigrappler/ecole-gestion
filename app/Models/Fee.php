@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+
+use App\Models\Concerns\AppartientAUnEtablissement;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,7 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Fee extends Model
 {
-    use HasFactory;
+    use AppartientAUnEtablissement, HasFactory;
 
     protected $fillable = [
         'name',
@@ -18,6 +20,7 @@ class Fee extends Model
         'fee_type',
         'frequency',
         'class_id',
+        'level_id',
         'academic_year_id',
         'due_date',
         'is_mandatory',
@@ -37,6 +40,26 @@ class Fee extends Model
     public function schoolClass(): BelongsTo
     {
         return $this->belongsTo(SchoolClass::class, 'class_id');
+    }
+
+    /**
+     * Niveau vise par le frais.
+     *
+     * Il n'etait ecrit que dans le libelle (« Frais de scolarite 6eme ») : le
+     * tarif d'une classe ne se retrouvait qu'en decoupant une chaine.
+     */
+    public function niveau(): BelongsTo
+    {
+        return $this->belongsTo(Level::class, 'level_id');
+    }
+
+    /**
+     * Frais applicables a un niveau : ceux qui le visent, plus ceux qui ne
+     * visent aucun niveau en particulier (cantine, transport, uniforme).
+     */
+    public function scopePourLeNiveau($query, $levelId)
+    {
+        return $query->where(fn ($q) => $q->where('level_id', $levelId)->orWhereNull('level_id'));
     }
 
     /**
@@ -101,6 +124,24 @@ class Fee extends Model
     /**
      * Accesseur pour le montant formaté
      */
+    /**
+     * Montant ramene a l'annee scolaire.
+     *
+     * Comparer un frais mensuel a un frais annuel sans les ramener a la meme
+     * echelle donne un total qui ne veut rien dire : dix mois de classe pour
+     * un frais mensuel, trois periodes pour un frais trimestriel.
+     */
+    public function montantAnnuel(): float
+    {
+        $multiplicateur = match ($this->frequency) {
+            'monthly' => 10,
+            'quarterly' => 3,
+            default => 1,
+        };
+
+        return (float) $this->amount * $multiplicateur;
+    }
+
     public function getFormattedAmountAttribute()
     {
         return number_format($this->amount, 0, ',', ' ') . ' FCFA';

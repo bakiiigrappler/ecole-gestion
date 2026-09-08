@@ -15,8 +15,12 @@ class SchoolSettingsController extends Controller
      */
     public function index()
     {
+        // Cette vue etait 'admin.settings.index', partagee avec
+        // SettingsController qui y passe d'autres variables : les champs du
+        // formulaire arrivaient vides selon la porte d'entree.
         $settings = SchoolSettings::getSettings();
-        return view('admin.settings.index', compact('settings'));
+
+        return view('admin.settings.etablissement', compact('settings'));
     }
 
     /**
@@ -33,7 +37,9 @@ class SchoolSettingsController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'school_name' => 'required|string|max:255',
+            'school_name' => 'nullable|string|max:255',
+            'primary_school_name' => 'required|string|max:255',
+            'secondary_school_name' => 'required|string|max:255',
             'school_address' => 'nullable|string|max:500',
             'school_phone' => 'required|string|max:50',
             'school_email' => 'nullable|email|max:255',
@@ -46,8 +52,10 @@ class SchoolSettingsController extends Controller
             'principal_name' => 'nullable|string|max:255',
             'principal_title' => 'required|string|max:255',
             'academic_year' => 'required|string|max:50',
-            'school_type' => 'required|string|max:100',
-            'school_level' => 'required|string|max:100',
+            'school_type' => 'nullable|string|max:100',
+            'school_level' => 'nullable|string|max:100',
+            'has_primary' => 'nullable|boolean',
+            'has_secondary' => 'nullable|boolean',
             'country' => 'required|string|max:100',
             'city' => 'required|string|max:100',
             'timezone' => 'required|string|max:100',
@@ -99,7 +107,8 @@ class SchoolSettingsController extends Controller
      */
     public function edit(SchoolSettings $schoolSetting)
     {
-        return view('admin.settings.edit', compact('schoolSetting'));
+        // 'admin.settings.edit' n'existe pas : le formulaire est le meme.
+        return view('admin.settings.etablissement', ['settings' => $schoolSetting]);
     }
 
     /**
@@ -108,7 +117,9 @@ class SchoolSettingsController extends Controller
     public function update(Request $request, SchoolSettings $schoolSetting)
     {
         $validator = Validator::make($request->all(), [
-            'school_name' => 'required|string|max:255',
+            'school_name' => 'nullable|string|max:255',
+            'primary_school_name' => 'required|string|max:255',
+            'secondary_school_name' => 'required|string|max:255',
             'school_address' => 'nullable|string|max:500',
             'school_phone' => 'required|string|max:50',
             'school_email' => 'nullable|email|max:255',
@@ -121,8 +132,10 @@ class SchoolSettingsController extends Controller
             'principal_name' => 'nullable|string|max:255',
             'principal_title' => 'required|string|max:255',
             'academic_year' => 'required|string|max:50',
-            'school_type' => 'required|string|max:100',
-            'school_level' => 'required|string|max:100',
+            'school_type' => 'nullable|string|max:100',
+            'school_level' => 'nullable|string|max:100',
+            'has_primary' => 'nullable|boolean',
+            'has_secondary' => 'nullable|boolean',
             'country' => 'required|string|max:100',
             'city' => 'required|string|max:100',
             'timezone' => 'required|string|max:100',

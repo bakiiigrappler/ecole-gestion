@@ -22,6 +22,9 @@ class UserController extends Controller
 
         $query = User::query();
 
+        // Exclure les superadmins de la liste
+        $query->where('role', '!=', 'superadmin');
+
         // Filtrage par rôle
         if ($request->has('role') && $request->role) {
             $query->where('role', $request->role);
@@ -71,7 +74,9 @@ class UserController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'role' => 'required|in:superadmin,admin,teacher,secretary',
+            // 'parent' manquait alors que la liste en affiche : enregistrer un tel
+            // compte echouait sur la validation du role.
+            'role' => 'required|in:superadmin,admin,teacher,secretary,parent',
             'is_active' => 'boolean'
         ]);
 
@@ -122,6 +127,13 @@ class UserController extends Controller
             abort(403, 'Accès non autorisé.');
         }
 
+        // Charger les relations pour les parents
+        if ($user->role === 'parent') {
+            $parentModel = \App\Models\ParentModel::where('user_id', $user->id)
+                ->with('students')
+                ->first();
+        }
+
         return view('admin.users.show', compact('user'));
     }
 
@@ -166,11 +178,19 @@ class UserController extends Controller
                 Rule::unique('users')->ignore($user->id)
             ],
             'password' => 'nullable|string|min:8|confirmed',
-            'role' => 'required|in:superadmin,admin,teacher,secretary',
+            // 'parent' manquait alors que la liste en affiche : enregistrer un tel
+            // compte echouait sur la validation du role.
+            'role' => 'required|in:superadmin,admin,teacher,secretary,parent',
             'is_active' => 'boolean'
         ]);
 
+        // Un formulaire classique recevait le JSON brut a l'ecran : la reponse
+        // suit desormais le format demande par l'appelant.
         if ($validator->fails()) {
+            if (! $request->expectsJson()) {
+                return back()->withErrors($validator)->withInput();
+            }
+
             return response()->json([
                 'success' => false,
                 'errors' => $validator->errors()
@@ -179,6 +199,10 @@ class UserController extends Controller
 
         // Vérifier si l'utilisateur peut modifier le rôle vers superadmin
         if ($request->role === 'superadmin' && !auth()->user()->isSuperAdmin()) {
+            if (! $request->expectsJson()) {
+                return back()->withInput()->with('error', 'Seul un super administrateur peut attribuer ce rôle.');
+            }
+
             return response()->json([
                 'success' => false,
                 'message' => 'Seul un superadmin peut attribuer le rôle superadmin.'
@@ -197,6 +221,12 @@ class UserController extends Controller
         }
 
         $user->update($updateData);
+
+        if (! $request->expectsJson()) {
+            return redirect()
+                ->route('admin.users.index')
+                ->with('success', 'Compte de '.$user->name.' mis à jour.');
+        }
 
         return response()->json([
             'success' => true,

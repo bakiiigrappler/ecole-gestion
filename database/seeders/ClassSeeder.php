@@ -22,7 +22,6 @@ class ClassSeeder extends Seeder
             for ($i = 1; $i <= $classCount; $i++) {
                 SchoolClass::create([
                     'name' => $level->name . ' ' . $i,
-                    'level' => $level->cycle, // Garde la colonne legacy pour compatibilité
                     'level_id' => $level->id, // Relation correcte avec la table levels
                     'capacity' => $this->getCapacityByLevel($level->cycle),
                     'description' => 'Classe ' . $level->name . ' section ' . $i,

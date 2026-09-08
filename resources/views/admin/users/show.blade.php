@@ -83,6 +83,7 @@
 .role-admin { background-color: var(--primary-blue); }
 .role-teacher { background-color: var(--success-green); }
 .role-secretary { background-color: var(--warning-orange); }
+.role-parent { background-color: var(--info-cyan); }
 
 .info-item {
     padding: 1rem;
@@ -239,7 +240,25 @@
                         <h3 class="mb-1">{{ $user->name }}</h3>
                         <div class="d-flex justify-content-center gap-2 mb-2">
                             <span class="role-badge role-{{ $user->role }}">
-                                {{ ucfirst($user->role) }}
+                                @switch($user->role)
+                                    @case('superadmin')
+                                        Super Admin
+                                        @break
+                                    @case('admin')
+                                        Administrateur
+                                        @break
+                                    @case('teacher')
+                                        Enseignant
+                                        @break
+                                    @case('secretary')
+                                        Secrétaire
+                                        @break
+                                    @case('parent')
+                                        Parent
+                                        @break
+                                    @default
+                                        {{ ucfirst($user->role) }}
+                                @endswitch
                             </span>
                             <span class="status-badge {{ $user->is_active ? 'status-active' : 'status-inactive' }}">
                                 <i class="bi bi-{{ $user->is_active ? 'check-circle' : 'x-circle' }} me-1"></i>
@@ -265,20 +284,29 @@
                             Rôle dans le système
                         </div>
                         <div class="info-value">
-                            {{ ucfirst($user->role) }}
                             @switch($user->role)
                                 @case('superadmin')
+                                    Super Admin
                                     <small class="text-muted d-block">Accès complet au système y compris la maintenance</small>
                                     @break
                                 @case('admin')
+                                    Administrateur
                                     <small class="text-muted d-block">Accès administratif complet sauf maintenance</small>
                                     @break
                                 @case('teacher')
+                                    Enseignant
                                     <small class="text-muted d-block">Accès aux classes, notes et présences</small>
                                     @break
                                 @case('secretary')
+                                    Secrétaire
                                     <small class="text-muted d-block">Gestion des inscriptions et paiements</small>
                                     @break
+                                @case('parent')
+                                    Parent
+                                    <small class="text-muted d-block">Consultation du suivi de ses enfants</small>
+                                    @break
+                                @default
+                                    {{ ucfirst($user->role) }}
                             @endswitch
                         </div>
                     </div>
@@ -324,60 +352,197 @@
                 </div>
             </div>
 
-            <!-- Permissions -->
-            <div class="card info-card">
-                <div class="card-header bg-light border-0">
-                    <h5 class="mb-0">
-                        <i class="bi bi-shield-check me-2"></i>
-                        Permissions et Accès
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="permissions-list">
-                        @switch($user->role)
-                            @case('superadmin')
-                                <h6 class="text-danger mb-2">Super Administrateur - Accès Complet</h6>
-                                <ul class="mb-0">
-                                    <li>✅ Gestion complète des utilisateurs</li>
-                                    <li>✅ Accès à tous les modules</li>
-                                    <li>✅ Maintenance système</li>
-                                    <li>✅ Sauvegarde et restauration</li>
-                                    <li>✅ Configuration avancée</li>
-                                </ul>
-                                @break
-                            @case('admin')
-                                <h6 class="text-primary mb-2">Administrateur</h6>
-                                <ul class="mb-0">
-                                    <li>✅ Gestion des utilisateurs (sauf superadmin)</li>
-                                    <li>✅ Accès à tous les modules pédagogiques</li>
-                                    <li>✅ Gestion des paramètres généraux</li>
-                                    <li>❌ Maintenance système</li>
-                                </ul>
-                                @break
-                            @case('teacher')
-                                <h6 class="text-success mb-2">Enseignant</h6>
-                                <ul class="mb-0">
-                                    <li>✅ Gestion des classes assignées</li>
-                                    <li>✅ Saisie des notes</li>
-                                    <li>✅ Gestion des présences</li>
-                                    <li>✅ Consultation des emplois du temps</li>
-                                    <li>❌ Gestion administrative</li>
-                                </ul>
-                                @break
-                            @case('secretary')
-                                <h6 class="text-warning mb-2">Secrétaire</h6>
-                                <ul class="mb-0">
-                                    <li>✅ Gestion des inscriptions</li>
-                                    <li>✅ Gestion des paiements</li>
-                                    <li>✅ Communication avec les parents</li>
-                                    <li>✅ Génération de documents</li>
-                                    <li>❌ Gestion pédagogique</li>
-                                </ul>
-                                @break
-                        @endswitch
+            @if($user->role === 'parent')
+                <!-- Section Enfants pour les parents -->
+                @php
+                    $parentModel = \App\Models\ParentModel::where('user_id', $user->id)->first();
+                    $children = $parentModel ? $parentModel->students : collect();
+                @endphp
+                <div class="card info-card">
+                    <div class="card-header bg-light border-0">
+                        <h5 class="mb-0">
+                            <i class="bi bi-people me-2"></i>
+                            Enfants liés ({{ $children->count() }})
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @if($children->count() > 0)
+                            <div class="list-group list-group-flush">
+                                @foreach($children as $student)
+                                    <div class="list-group-item">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" 
+                                                 style="width: 40px; height: 40px; font-weight: bold;">
+                                                {{ strtoupper(substr($student->first_name, 0, 1)) }}{{ strtoupper(substr($student->last_name, 0, 1)) }}
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1">{{ $student->first_name }} {{ $student->last_name }}</h6>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-card-text me-1"></i>Matricule: {{ $student->student_id }}
+                                                    @if($student->pivot && $student->pivot->relationship_type)
+                                                        • 
+                                                        @switch($student->pivot->relationship_type)
+                                                            @case('father') Père @break
+                                                            @case('mother') Mère @break
+                                                            @case('guardian') Tuteur @break
+                                                            @default Autre
+                                                        @endswitch
+                                                    @endif
+                                                </small>
+                                            </div>
+                                            <a href="{{ route('students.show', $student->id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye me-1"></i>Voir
+                                            </a>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-people fs-1 d-block mb-2"></i>
+                                <p class="mb-0">Aucun enfant associé à ce parent</p>
+                            </div>
+                        @endif
                     </div>
                 </div>
-            </div>
+
+                @if($parentModel)
+                    <!-- Informations détaillées du parent -->
+                    <div class="card info-card mt-4">
+                        <div class="card-header bg-light border-0">
+                            <h5 class="mb-0">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Informations complémentaires
+                            </h5>
+                        </div>
+                        <div class="card-body p-0">
+                            @if($parentModel->phone)
+                            <div class="info-item">
+                                <div class="info-label">
+                                    <i class="bi bi-telephone me-1"></i>
+                                    Téléphone principal
+                                </div>
+                                <div class="info-value">
+                                    <a href="tel:{{ $parentModel->phone }}">{{ $parentModel->phone }}</a>
+                                </div>
+                            </div>
+                            @endif
+
+                            @if($parentModel->phone_2)
+                            <div class="info-item">
+                                <div class="info-label">
+                                    <i class="bi bi-telephone me-1"></i>
+                                    Téléphone secondaire
+                                </div>
+                                <div class="info-value">
+                                    <a href="tel:{{ $parentModel->phone_2 }}">{{ $parentModel->phone_2 }}</a>
+                                </div>
+                            </div>
+                            @endif
+
+                            @if($parentModel->profession)
+                            <div class="info-item">
+                                <div class="info-label">
+                                    <i class="bi bi-briefcase me-1"></i>
+                                    Profession
+                                </div>
+                                <div class="info-value">{{ $parentModel->profession }}</div>
+                            </div>
+                            @endif
+
+                            @if($parentModel->workplace)
+                            <div class="info-item">
+                                <div class="info-label">
+                                    <i class="bi bi-building me-1"></i>
+                                    Lieu de travail
+                                </div>
+                                <div class="info-value">{{ $parentModel->workplace }}</div>
+                            </div>
+                            @endif
+
+                            @if($parentModel->address)
+                            <div class="info-item">
+                                <div class="info-label">
+                                    <i class="bi bi-geo-alt me-1"></i>
+                                    Adresse
+                                </div>
+                                <div class="info-value">{{ $parentModel->address }}</div>
+                            </div>
+                            @endif
+
+                            <div class="info-item">
+                                <div class="info-label">
+                                    <i class="bi bi-check-circle me-1"></i>
+                                    Statuts
+                                </div>
+                                <div class="info-value">
+                                    @if($parentModel->is_primary_contact)
+                                        <span class="badge bg-success me-1">Contact principal</span>
+                                    @endif
+                                    @if($parentModel->can_pickup)
+                                        <span class="badge bg-info">Autorisé à récupérer</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+            @else
+                <!-- Permissions pour les autres rôles -->
+                <div class="card info-card">
+                    <div class="card-header bg-light border-0">
+                        <h5 class="mb-0">
+                            <i class="bi bi-shield-check me-2"></i>
+                            Permissions et Accès
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="permissions-list">
+                            @switch($user->role)
+                                @case('superadmin')
+                                    <h6 class="text-danger mb-2">Super Administrateur - Accès Complet</h6>
+                                    <ul class="mb-0">
+                                        <li>✅ Gestion complète des utilisateurs</li>
+                                        <li>✅ Accès à tous les modules</li>
+                                        <li>✅ Maintenance système</li>
+                                        <li>✅ Sauvegarde et restauration</li>
+                                        <li>✅ Configuration avancée</li>
+                                    </ul>
+                                    @break
+                                @case('admin')
+                                    <h6 class="text-primary mb-2">Administrateur</h6>
+                                    <ul class="mb-0">
+                                        <li>✅ Gestion des utilisateurs (sauf superadmin)</li>
+                                        <li>✅ Accès à tous les modules pédagogiques</li>
+                                        <li>✅ Gestion des paramètres généraux</li>
+                                        <li>❌ Maintenance système</li>
+                                    </ul>
+                                    @break
+                                @case('teacher')
+                                    <h6 class="text-success mb-2">Enseignant</h6>
+                                    <ul class="mb-0">
+                                        <li>✅ Gestion des classes assignées</li>
+                                        <li>✅ Saisie des notes</li>
+                                        <li>✅ Gestion des présences</li>
+                                        <li>✅ Consultation des emplois du temps</li>
+                                        <li>❌ Gestion administrative</li>
+                                    </ul>
+                                    @break
+                                @case('secretary')
+                                    <h6 class="text-warning mb-2">Secrétaire</h6>
+                                    <ul class="mb-0">
+                                        <li>✅ Gestion des inscriptions</li>
+                                        <li>✅ Gestion des paiements</li>
+                                        <li>✅ Communication avec les parents</li>
+                                        <li>✅ Génération de documents</li>
+                                        <li>❌ Gestion pédagogique</li>
+                                    </ul>
+                                    @break
+                            @endswitch
+                        </div>
+                    </div>
+                </div>
+            @endif
         </div>
 
         <!-- Actions et informations complémentaires -->
@@ -392,31 +557,46 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
-                        @if($user->id !== auth()->id() && (!$user->isSuperAdmin() || auth()->user()->isSuperAdmin()))
-                        <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-action-large btn-edit">
-                            <i class="bi bi-pencil me-2"></i>
-                            Modifier l'utilisateur
-                        </a>
-                        
-                        <button type="button" class="btn btn-action-large btn-toggle toggle-status-btn" 
-                                data-user-id="{{ $user->id }}" 
-                                data-user-name="{{ $user->name }}"
-                                data-current-status="{{ $user->is_active }}">
-                            <i class="bi bi-toggle-{{ $user->is_active ? 'off' : 'on' }} me-2"></i>
-                            {{ $user->is_active ? 'Désactiver' : 'Activer' }} le compte
-                        </button>
+                        @if($user->role === 'parent')
+                            {{-- Actions limitées pour les parents --}}
+                            <button type="button" class="btn btn-action-large btn-toggle toggle-status-btn" 
+                                    data-user-id="{{ $user->id }}" 
+                                    data-user-name="{{ $user->name }}"
+                                    data-current-status="{{ $user->is_active }}">
+                                <i class="bi bi-toggle-{{ $user->is_active ? 'off' : 'on' }} me-2"></i>
+                                {{ $user->is_active ? 'Désactiver' : 'Activer' }} le compte
+                            </button>
 
-                        <button type="button" class="btn btn-action-large btn-delete delete-user-btn" 
-                                data-user-id="{{ $user->id }}" 
-                                data-user-name="{{ $user->name }}">
-                            <i class="bi bi-trash me-2"></i>
-                            Supprimer l'utilisateur
-                        </button>
+                            <div class="alert alert-info mb-0">
+                                <i class="bi bi-info-circle me-2"></i>
+                                La gestion complète du parent se fait via le module Parents.
+                            </div>
+                        @elseif($user->id !== auth()->id() && (!$user->isSuperAdmin() || auth()->user()->isSuperAdmin()))
+                            {{-- Actions complètes pour les autres rôles --}}
+                            <a href="{{ route('admin.users.edit', $user) }}" class="btn btn-action-large btn-edit">
+                                <i class="bi bi-pencil me-2"></i>
+                                Modifier l'utilisateur
+                            </a>
+                            
+                            <button type="button" class="btn btn-action-large btn-toggle toggle-status-btn" 
+                                    data-user-id="{{ $user->id }}" 
+                                    data-user-name="{{ $user->name }}"
+                                    data-current-status="{{ $user->is_active }}">
+                                <i class="bi bi-toggle-{{ $user->is_active ? 'off' : 'on' }} me-2"></i>
+                                {{ $user->is_active ? 'Désactiver' : 'Activer' }} le compte
+                            </button>
+
+                            <button type="button" class="btn btn-action-large btn-delete delete-user-btn" 
+                                    data-user-id="{{ $user->id }}" 
+                                    data-user-name="{{ $user->name }}">
+                                <i class="bi bi-trash me-2"></i>
+                                Supprimer l'utilisateur
+                            </button>
                         @else
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle me-2"></i>
-                            Vous ne pouvez pas modifier votre propre compte ou un compte superadmin.
-                        </div>
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Vous ne pouvez pas modifier votre propre compte ou un compte superadmin.
+                            </div>
                         @endif
 
                         <a href="{{ route('admin.users.index') }}" class="btn btn-action-large btn-back">

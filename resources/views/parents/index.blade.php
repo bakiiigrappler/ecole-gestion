@@ -1,429 +1,259 @@
 @extends('layouts.app')
 
-@section('title', 'Gestion des Parents - Egesco')
+@section('titre', 'Parents')
+@section('sous-titre', ($totalParents ?? $parents->total()).' contact(s) enregistré(s)')
 
-@section('breadcrumb')
-<li class="breadcrumb-item active">Parents</li>
+@section('actions-entete')
+    <a href="{{ route('parents.create') }}" class="bouton-primaire">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" d="M12 4.5v15m7.5-7.5h-15"/>
+        </svg>
+        <span class="hidden sm:inline">Nouveau parent</span>
+    </a>
 @endsection
 
-@section('content')
-<div class="container-fluid">
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-0">Gestion des Parents</h1>
-                    <p class="text-muted">Gérez les informations des parents et tuteurs</p>
-                </div>
-                <div>
-                    <a href="{{ route('parents.create') }}" class="btn btn-primary">
-                        <i class="bi bi-people-fill me-2"></i>
-                        Ajouter un parent
-                    </a>
-                </div>
-            </div>
-        </div>
+@section('contenu')
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <x-statistique libelle="Parents"
+                       :valeur="number_format($totalParents ?? 0, 0, ',', ' ')"
+                       detail="Fiches enregistrées"
+                       couleur="ogar"/>
+        <x-statistique libelle="Contacts joignables"
+                       :valeur="number_format($activeContacts ?? 0, 0, ',', ' ')"
+                       detail="Téléphone ou e-mail renseigné"
+                       couleur="emerald"/>
+        <x-statistique libelle="Contacts principaux"
+                       :valeur="number_format($primaryContacts ?? 0, 0, ',', ' ')"
+                       detail="Pour au moins un enfant"
+                       couleur="violet"/>
+        <x-statistique libelle="Autorisés à récupérer"
+                       :valeur="number_format($canPickup ?? 0, 0, ',', ' ')"
+                       detail="Pour au moins un enfant"
+                       couleur="amber"/>
     </div>
 
-    <!-- Messages de succès/erreur -->
-    @if(session('success'))
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="fas fa-check-circle me-2"></i>
-                {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <form method="GET" action="{{ route('parents.index') }}" id="filterForm"
+          data-filtre-dynamique="parents" class="carte mt-6 p-4">
+        <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+            <div class="lg:col-span-2">
+                <label for="searchInput" class="etiquette">Rechercher</label>
+                <input type="search" name="search" id="searchInput" value="{{ request('search') }}"
+                       class="champ" placeholder="Nom, prénom, téléphone, e-mail...">
             </div>
-        </div>
-    </div>
-    @endif
 
-    @if(session('error'))
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="fas fa-exclamation-circle me-2"></i>
-                {{ session('error') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <div>
+                <label for="relationFilter" class="etiquette">Lien de parenté</label>
+                <select name="relationship" id="relationFilter" class="champ">
+                    <option value="">Tous</option>
+                    <option value="father" @selected(request('relationship') == 'father')>Père</option>
+                    <option value="mother" @selected(request('relationship') == 'mother')>Mère</option>
+                    <option value="guardian" @selected(request('relationship') == 'guardian')>Tuteur</option>
+                    <option value="other" @selected(request('relationship') == 'other')>Autre</option>
+                </select>
             </div>
-        </div>
-    </div>
-    @endif
 
-    <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-white" style="background: linear-gradient(135deg, #3498db, #2980b9);">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">{{ $totalParents ?? 156 }}</h4>
-                            <span>Total parents</span>
-                        </div>
-                        <i class="bi bi-people-fill fs-1 opacity-50"></i>
-                    </div>
-                </div>
+            <div>
+                <label for="primaryFilter" class="etiquette">Contact principal</label>
+                <select name="is_primary_contact" id="primaryFilter" class="champ">
+                    <option value="">Tous</option>
+                    <option value="1" @selected(request('is_primary_contact') === '1')>Oui</option>
+                    <option value="0" @selected(request('is_primary_contact') === '0')>Non</option>
+                </select>
             </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-white" style="background: linear-gradient(135deg, #27ae60, #2ecc71);">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">{{ $activeContacts ?? 145 }}</h4>
-                            <span>Contacts actifs</span>
-                        </div>
-                        <i class="bi bi-check-circle fs-1 opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-white" style="background: linear-gradient(135deg, #f39c12, #e67e22);">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">{{ $primaryContacts ?? 98 }}</h4>
-                            <span>Contacts principaux</span>
-                        </div>
-                        <i class="bi bi-star-fill fs-1 opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-white" style="background: linear-gradient(135deg, #9b59b6, #8e44ad);">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h4 class="mb-0">{{ $canPickup ?? 134 }}</h4>
-                            <span>Autorisés récupération</span>
-                        </div>
-                        <i class="bi bi-shield-check fs-1 opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Filters -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label">Rechercher</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                <input type="text" class="form-control" placeholder="Nom, prénom, téléphone..." id="searchInput">
-                            </div>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Relation</label>
-                            <select class="form-select" id="relationFilter">
-                                <option value="">Toutes</option>
-                                <option value="father">Père</option>
-                                <option value="mother">Mère</option>
-                                <option value="guardian">Tuteur</option>
-                                <option value="other">Autre</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Contact principal</label>
-                            <select class="form-select" id="primaryFilter">
-                                <option value="">Tous</option>
-                                <option value="1">Oui</option>
-                                <option value="0">Non</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Récupération</label>
-                            <select class="form-select" id="pickupFilter">
-                                <option value="">Tous</option>
-                                <option value="1">Autorisé</option>
-                                <option value="0">Non autorisé</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">&nbsp;</label>
-                            <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-outline-secondary w-100" onclick="resetFilters()">
-                                    <i class="bi bi-arrow-clockwise"></i>
-                                </button>
-                                <button type="button" class="btn btn-outline-success w-100" onclick="exportData()">
-                                    <i class="bi bi-download"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            <div>
+                <label for="pickupFilter" class="etiquette">Autorisé à récupérer</label>
+                <select name="can_pickup" id="pickupFilter" class="champ">
+                    <option value="">Tous</option>
+                    <option value="1" @selected(request('can_pickup') === '1')>Oui</option>
+                    <option value="0" @selected(request('can_pickup') === '0')>Non</option>
+                </select>
             </div>
         </div>
-    </div>
 
-    <!-- Parents Table -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="bi bi-people-fill me-2"></i>
-                        Liste des parents
-                    </h5>
-                    <span class="badge bg-primary fs-6">{{ $parents->total() }} parent{{ $parents->total() > 1 ? 's' : '' }}</span>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Parent</th>
-                                    <th>Relation</th>
-                                    <th>Enfants</th>
-                                    <th>Contact</th>
-                                    <th>Profession</th>
-                                    <th>Autorisations</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($parents as $parent)
-                                <tr>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            @php
-                                                $initials = substr($parent->first_name, 0, 1) . substr($parent->last_name, 0, 1);
-                                                $colors = ['007bff', '28a745', 'dc3545', 'ffc107', '17a2b8', '6610f2'];
-                                                $color = $colors[abs(crc32($parent->id)) % count($colors)];
-                                            @endphp
-                                            <img src="https://via.placeholder.com/40x40/{{ $color }}/ffffff?text={{ $initials }}" 
-                                                 class="rounded-circle me-3" width="40" height="40">
-                                            <div>
-                                                <div class="fw-bold">{{ $parent->first_name }} {{ $parent->last_name }}</div>
-                                                <small class="text-muted">
-                                                    @switch($parent->relationship)
-                                                        @case('father') Père @break
-                                                        @case('mother') Mère @break
-                                                        @case('guardian') Tuteur/Tutrice @break
-                                                        @default {{ ucfirst($parent->relationship) }}
-                                                    @endswitch
-                                                </small>
-                                            </div>
+        <div class="mt-4 flex flex-wrap items-end gap-2">
+            <button type="submit" class="bouton-primaire">Filtrer</button>
+            <a href="{{ route('parents.index') }}" id="clearFilters" class="bouton-secondaire">Réinitialiser</a>
+
+            <div class="ml-auto">
+                <label for="perPageFilter" class="etiquette">Par page</label>
+                <select name="per_page" id="perPageFilter" class="champ w-auto">
+                    @foreach (\App\Support\ParametresPlateforme::PAGINATIONS as $taille)
+                        <option value="{{ $taille }}" @selected(\App\Support\ParametresPlateforme::pagination(request('per_page')) === $taille)>{{ $taille }}</option>
+                    @endforeach
+                </select>
+            </div>
+        </div>
+    </form>
+
+    <div class="carte relative mt-6 overflow-hidden" data-liste-dynamique="parents">
+        <x-chargement data-voile-chargement hidden message="Chargement de la liste…"/>
+
+        <div class="carte-entete">
+            <h2 class="text-sm font-semibold text-gris-900">Liste des parents</h2>
+            <span class="text-xs text-gris-400">{{ $parents->total() }} au total</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="tableau" id="parentsTable">
+                <thead>
+                    <tr>
+                        <th>Parent</th>
+                        <th>Lien</th>
+                        <th>Enfants</th>
+                        <th>Contact</th>
+                        <th>Profession</th>
+                        <th>Autorisations</th>
+                        <th class="w-28"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @php
+                        $libellesLien = ['father' => 'Père', 'mother' => 'Mère', 'guardian' => 'Tuteur', 'other' => 'Autre'];
+                        $teintesLien = ['father' => 'sky', 'mother' => 'rose', 'guardian' => 'violet', 'other' => 'slate'];
+                    @endphp
+
+                    @forelse ($parents as $parent)
+                        <tr>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <x-avatar :nom="$parent->first_name.' '.$parent->last_name"/>
+                                    <div class="min-w-0">
+                                        <a href="{{ route('parents.show', $parent->id) }}"
+                                           class="block truncate font-semibold text-gris-900 hover:text-ogar-700">
+                                            {{ $parent->first_name }} {{ $parent->last_name }}
+                                        </a>
+                                        <div class="whitespace-nowrap text-xs text-gris-400">
+                                            Inscrit le {{ $parent->created_at->format('d/m/Y') }}
                                         </div>
-                                    </td>
-                                    <td>
-                                        @php
-                                            $relationColors = [
-                                                'father' => 'primary',
-                                                'mother' => 'success', 
-                                                'guardian' => 'warning',
-                                                'other' => 'secondary'
-                                            ];
-                                            $relationLabels = [
-                                                'father' => 'Père',
-                                                'mother' => 'Mère',
-                                                'guardian' => 'Tuteur',
-                                                'other' => 'Autre'
-                                            ];
-                                        @endphp
-                                        <span class="badge bg-{{ $relationColors[$parent->relationship] ?? 'secondary' }}">
-                                            {{ $relationLabels[$parent->relationship] ?? ucfirst($parent->relationship) }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        @if($parent->students->count() > 0)
-                                            <div class="d-flex flex-wrap gap-1">
-                                                @foreach($parent->students->take(2) as $student)
-                                                    <span class="badge bg-info">{{ $student->first_name }} {{ $student->last_name }}</span>
-                                                @endforeach
-                                                @if($parent->students->count() > 2)
-                                                    <span class="badge bg-secondary">+{{ $parent->students->count() - 2 }} autre(s)</span>
-                                                @endif
-                                            </div>
-                                            <small class="text-muted">{{ $parent->students->count() }} enfant{{ $parent->students->count() > 1 ? 's' : '' }}</small>
-                                        @else
-                                            <span class="text-muted">Aucun enfant</span>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td>
+                                {{-- Un adulte peut tenir plusieurs roles selon l'enfant :
+                                     on affiche les liens distincts de ses rattachements. --}}
+                                @php($liens = $parent->students->pluck('pivot.relationship_type')->unique())
+                                <div class="flex flex-wrap gap-1">
+                                    @forelse ($liens as $lien)
+                                        <x-puce :couleur="$teintesLien[$lien] ?? 'slate'" class="whitespace-nowrap">
+                                            {{ $libellesLien[$lien] ?? ucfirst($lien) }}
+                                        </x-puce>
+                                    @empty
+                                        <span class="text-xs text-gris-400">—</span>
+                                    @endforelse
+                                </div>
+                            </td>
+
+                            <td>
+                                @if ($parent->students->count() > 0)
+                                    <div class="text-xs text-gris-600">
+                                        @foreach ($parent->students->take(2) as $student)
+                                            <div class="truncate">{{ $student->first_name }} {{ $student->last_name }}</div>
+                                        @endforeach
+                                        @if ($parent->students->count() > 2)
+                                            <div class="text-gris-400">+{{ $parent->students->count() - 2 }} autre(s)</div>
                                         @endif
-                                    </td>
-                                    <td>
-                                        <div>
-                                            <small class="d-block">{{ $parent->phone }}</small>
-                                            @if($parent->email)
-                                                <small class="text-muted">{{ $parent->email }}</small>
-                                            @endif
-                                        </div>
-                                    </td>
-                                    <td>
-                                        @if($parent->profession || $parent->workplace)
-                                            <div>
-                                                @if($parent->profession)
-                                                    <div class="fw-bold small">{{ $parent->profession }}</div>
-                                                @endif
-                                                @if($parent->workplace)
-                                                    <small class="text-muted">{{ $parent->workplace }}</small>
-                                                @endif
-                                            </div>
-                                        @else
-                                            <span class="text-muted">Non renseigné</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <div class="d-flex flex-wrap gap-1">
-                                            @if($parent->is_primary_contact)
-                                                <span class="badge bg-success">Contact principal</span>
-                                            @endif
-                                            @if($parent->can_pickup)
-                                                <span class="badge bg-info">Récupération</span>
-                                            @endif
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="btn-group" role="group">
-                                            <a href="{{ route('parents.show', $parent->id) }}" 
-                                               class="btn btn-sm btn-outline-primary" title="Voir détails">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                            <a href="{{ route('parents.edit', $parent->id) }}" 
-                                               class="btn btn-sm btn-outline-warning" title="Modifier">
-                                                <i class="bi bi-pencil"></i>
-                                            </a>
-                                            <button type="button" class="btn btn-sm btn-outline-danger delete-parent-btn" 
-                                                    data-parent-id="{{ $parent->id }}" title="Supprimer">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                @empty
-                                <tr>
-                                    <td colspan="7" class="text-center py-4">
-                                        <div class="text-muted">
-                                            <i class="bi bi-people fs-1 mb-3"></i>
-                                            <h5>Aucun parent trouvé</h5>
-                                            <p>Commencez par ajouter votre premier parent.</p>
-                                            <a href="{{ route('parents.create') }}" class="btn btn-primary">
-                                                <i class="bi bi-plus-circle me-2"></i>Ajouter un parent
-                                            </a>
-                                        </div>
-                                    </td>
-                                </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+                                    </div>
+                                @else
+                                    <span class="text-xs text-gris-400">Aucun enfant lié</span>
+                                @endif
+                            </td>
 
-<!-- Pagination -->
-@if($parents->hasPages())
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="d-flex justify-content-center">
-            {{ $parents->appends(request()->query())->links() }}
+                            <td>
+                                @if ($parent->phone)
+                                    <a href="tel:{{ $parent->phone }}" class="block whitespace-nowrap text-xs text-gris-600 hover:text-ogar-700">
+                                        {{ $parent->phone }}
+                                    </a>
+                                @endif
+                                @if ($parent->email)
+                                    <a href="mailto:{{ $parent->email }}" class="block truncate text-xs text-gris-400 hover:text-ogar-700">
+                                        {{ $parent->email }}
+                                    </a>
+                                @endif
+                                @if (! $parent->phone && ! $parent->email)
+                                    <span class="text-xs text-gris-400">—</span>
+                                @endif
+                            </td>
+
+                            <td>
+                                @if ($parent->profession)
+                                    <div class="text-xs text-gris-600">{{ Str::limit($parent->profession, 24) }}</div>
+                                @endif
+                                @if ($parent->workplace)
+                                    <div class="text-xs text-gris-400">{{ Str::limit($parent->workplace, 24) }}</div>
+                                @endif
+                                @if (! $parent->profession && ! $parent->workplace)
+                                    <span class="text-xs text-gris-400">—</span>
+                                @endif
+                            </td>
+
+                            <td>
+                                @php($principalPour = $parent->students->filter(fn ($e) => $e->pivot->is_primary_contact)->count())
+                                @php($recuperationPour = $parent->students->filter(fn ($e) => $e->pivot->can_pickup)->count())
+                                <div class="flex flex-wrap gap-1">
+                                    @if ($principalPour)
+                                        <x-puce couleur="ogar" class="whitespace-nowrap">Principal ({{ $principalPour }})</x-puce>
+                                    @endif
+                                    @if ($recuperationPour)
+                                        <x-puce couleur="emerald" class="whitespace-nowrap">Récupération ({{ $recuperationPour }})</x-puce>
+                                    @endif
+                                    @if (! $principalPour && ! $recuperationPour)
+                                        <span class="text-xs text-gris-400">Aucune</span>
+                                    @endif
+                                </div>
+                            </td>
+
+                            <td>
+                                <div class="flex items-center justify-end gap-1 whitespace-nowrap">
+                                    <a href="{{ route('parents.show', $parent->id) }}" class="bouton-mini" title="Voir la fiche">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                        </svg>
+                                    </a>
+                                    <a href="{{ route('parents.edit', $parent->id) }}" class="bouton-mini" title="Modifier">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"/>
+                                        </svg>
+                                    </a>
+                                    <x-confirmation :action="route('parents.destroy', $parent->id)" methode="DELETE"
+                                                    titre="Supprimer ce parent ?"
+                                                    :message="'La fiche de '.$parent->first_name.' '.$parent->last_name.' et ses liens avec les élèves seront supprimés.'"
+                                                    confirmer="Supprimer"
+                                                    bouton="bouton-mini text-corail-600 hover:bg-corail-50">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
+                                        </svg>
+                                    </x-confirmation>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <x-vide :colonnes="7" message="Aucun parent ne correspond aux filtres."/>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
+
+        @if ($parents->hasPages())
+            <div class="border-t border-gris-200 px-4 py-3" data-pagination>
+                {{ $parents->withQueryString()->links() }}
+            </div>
+        @endif
     </div>
-</div>
-@endif
+
 @endsection
 
 @push('scripts')
 <script>
-function deleteParent(id) {
-    if (confirm('Êtes-vous sûr de vouloir supprimer ce parent ?')) {
-        // Créer un formulaire pour la suppression
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/parents/${id}`;
-        form.innerHTML = `
-            <input type="hidden" name="_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="_method" value="DELETE">
-        `;
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-
-function resetFilters() {
-    document.getElementById('searchInput').value = '';
-    document.getElementById('relationFilter').value = '';
-    document.getElementById('primaryFilter').value = '';
-    document.getElementById('pickupFilter').value = '';
-    // Rediriger vers la page sans filtres
-    window.location.href = "{{ route('parents.index') }}";
-}
-
-function exportData() {
-    alert('Export en cours...');
-}
-
-// Filtrage en temps réel
-document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('searchInput');
-    const relationFilter = document.getElementById('relationFilter');
-    const primaryFilter = document.getElementById('primaryFilter');
-    const pickupFilter = document.getElementById('pickupFilter');
-    
-    // Event listener pour les boutons de suppression
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('.delete-parent-btn')) {
-            const parentId = e.target.closest('.delete-parent-btn').dataset.parentId;
-            deleteParent(parentId);
-        }
+    // Les listes deroulantes relancent la recherche sans passer par le bouton.
+    document.addEventListener('DOMContentLoaded', () => {
+        const formulaire = document.getElementById('filterForm');
+        ['relationFilter', 'primaryFilter', 'pickupFilter', 'perPageFilter'].forEach((id) => {
+            document.getElementById(id)?.addEventListener('change', () => formulaire.submit());
+        });
     });
-    
-    let searchTimeout;
-    
-    function applyFilters() {
-        const params = new URLSearchParams();
-        
-        if (searchInput.value.trim()) {
-            params.append('search', searchInput.value.trim());
-        }
-        if (relationFilter.value) {
-            params.append('relationship', relationFilter.value);
-        }
-        if (primaryFilter.value) {
-            params.append('is_primary_contact', primaryFilter.value);
-        }
-        if (pickupFilter.value) {
-            params.append('can_pickup', pickupFilter.value);
-        }
-        
-        const url = new URL(window.location.href);
-        url.search = params.toString();
-        window.location.href = url.toString();
-    }
-    
-    // Recherche avec délai
-    searchInput.addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(applyFilters, 500);
-    });
-    
-    // Filtres immédiats
-    relationFilter.addEventListener('change', applyFilters);
-    primaryFilter.addEventListener('change', applyFilters);
-    pickupFilter.addEventListener('change', applyFilters);
-    
-    // Pré-remplir les filtres avec les valeurs de l'URL
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('search')) {
-        searchInput.value = urlParams.get('search');
-    }
-    if (urlParams.get('relationship')) {
-        relationFilter.value = urlParams.get('relationship');
-    }
-    if (urlParams.get('is_primary_contact')) {
-        primaryFilter.value = urlParams.get('is_primary_contact');
-    }
-    if (urlParams.get('can_pickup')) {
-        pickupFilter.value = urlParams.get('can_pickup');
-    }
-});
 </script>
-@endpush 
+@endpush

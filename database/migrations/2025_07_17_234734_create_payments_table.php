@@ -11,6 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Cette table est remplacee par la table unifiee creee dans
+        // 2025_01_15_000000_recreate_payments_table, qui s'execute avant celle-ci
+        // sur une base neuve. On ne recree donc rien si elle existe deja.
+        if (Schema::hasTable('payments')) {
+            return;
+        }
+
         Schema::create('payments', function (Blueprint $table) {
             $table->id();
             $table->string('payment_id')->unique(); // Numéro de reçu

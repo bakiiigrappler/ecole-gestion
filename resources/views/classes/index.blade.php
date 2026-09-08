@@ -1,737 +1,317 @@
 @extends('layouts.app')
 
-@section('title', 'Gestion des Classes - Egesco')
+@section('titre', 'Classes')
+@section('sous-titre', $classes->total().' classe(s) correspondant aux filtres')
 
-@section('breadcrumb')
-<li class="breadcrumb-item active">Classes</li>
+@section('actions-entete')
+    <a href="{{ route('classes.create') }}" class="bouton-primaire">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" d="M12 4.5v15m7.5-7.5h-15"/>
+        </svg>
+        <span class="hidden sm:inline">Nouvelle classe</span>
+    </a>
 @endsection
 
-@push('styles')
-<link href="{{ asset('css/classes-enhanced.css') }}" rel="stylesheet">
-@endpush
+@section('contenu')
 
-@section('content')
-<div class="container-fluid">
-    <!-- Messages de statut -->
-    @if(session('success'))
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle me-2"></i>
-                {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+@php
+    $libellesCycle = [
+        'preprimaire' => 'Préprimaire',
+        'primaire' => 'Primaire',
+        'college' => 'Collège',
+        'lycee' => 'Lycée',
+    ];
+    $teintesCycle = ['preprimaire' => 'amber', 'primaire' => 'emerald', 'college' => 'sky', 'lycee' => 'violet'];
+
+    $filtresActifs = collect(request()->only(['search', 'cycle', 'level_id', 'status']))
+        ->filter(fn ($v) => $v !== null && $v !== '')
+        ->isNotEmpty();
+@endphp
+
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <x-statistique libelle="Classes ouvertes"
+                       :valeur="number_format($statistiques['ouvertes'], 0, ',', ' ')"
+                       :detail="$statistiques['total'].' au total'"
+                       couleur="ogar"/>
+        <x-statistique libelle="Élèves inscrits"
+                       :valeur="number_format($statistiques['effectif'], 0, ',', ' ')"
+                       detail="Année en cours"
+                       couleur="emerald"/>
+        <x-statistique libelle="Places offertes"
+                       :valeur="number_format($statistiques['places'], 0, ',', ' ')"
+                       :detail="$statistiques['places'] > 0
+                            ? round($statistiques['effectif'] / $statistiques['places'] * 100).'% d’occupation'
+                            : 'Capacité non renseignée'"
+                       couleur="violet"/>
+        <x-statistique libelle="Sans enseignant"
+                       :valeur="number_format($statistiques['sans_enseignant'], 0, ',', ' ')"
+                       detail="Aucune affectation"
+                       :couleur="$statistiques['sans_enseignant'] > 0 ? 'rose' : 'slate'"/>
+    </div>
+
+    {{-- ----------------------------------------------------------------
+         Filtres : formulaire GET, filtrage côté serveur
+         ---------------------------------------------------------------- --}}
+    <form method="GET" action="{{ route('classes.index') }}" data-filtre-dynamique="classes"
+          class="carte mt-6 p-4">
+
+        <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            <div>
+                <label for="search" class="etiquette">Rechercher</label>
+                <input type="search" id="search" name="search" value="{{ request('search') }}"
+                       class="champ" placeholder="Nom de la classe...">
+            </div>
+
+            <div>
+                <label for="cycle" class="etiquette">Cycle</label>
+                <select id="cycle" name="cycle" class="champ">
+                    <option value="">Tous les cycles</option>
+                    @foreach ($libellesCycle as $valeur => $libelle)
+                        <option value="{{ $valeur }}" @selected(request('cycle') === $valeur)>{{ $libelle }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label for="level_id" class="etiquette">Niveau</label>
+                <select id="level_id" name="level_id" class="champ">
+                    <option value="">Tous les niveaux</option>
+                    @foreach ($levels as $level)
+                        <option value="{{ $level->id }}" @selected(request('level_id') == $level->id)>{{ $level->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label for="status" class="etiquette">Statut</label>
+                <select id="status" name="status" class="champ">
+                    <option value="">Tous les statuts</option>
+                    <option value="active" @selected(request('status') === 'active')>Ouvertes</option>
+                    <option value="inactive" @selected(request('status') === 'inactive')>Fermées</option>
+                </select>
             </div>
         </div>
-    </div>
-    @endif
 
-    @if(session('error'))
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle me-2"></i>
-                {{ session('error') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="mt-4 flex flex-wrap items-end gap-2">
+            <button type="submit" class="bouton-primaire">Filtrer</button>
+
+            @if ($filtresActifs)
+                <a href="{{ route('classes.index') }}" class="bouton-secondaire">Réinitialiser</a>
+            @endif
+
+            <div class="ml-auto flex items-end gap-2">
+                <div>
+                    <label for="sort" class="etiquette">Trier par</label>
+                    <select id="sort" name="sort" class="champ w-auto" onchange="this.form.requestSubmit()">
+                        <option value="name" @selected(request('sort', 'name') === 'name')>Nom</option>
+                        <option value="effectif" @selected(request('sort') === 'effectif')>Effectif</option>
+                        <option value="capacity" @selected(request('sort') === 'capacity')>Capacité</option>
+                        <option value="created_at" @selected(request('sort') === 'created_at')>Création</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="direction" class="etiquette">Sens</label>
+                    <select id="direction" name="direction" class="champ w-auto" onchange="this.form.requestSubmit()">
+                        <option value="asc" @selected(request('direction', 'asc') === 'asc')>Croissant</option>
+                        <option value="desc" @selected(request('direction') === 'desc')>Décroissant</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="per_page" class="etiquette">Par page</label>
+                    <select id="per_page" name="per_page" class="champ w-auto" onchange="this.form.requestSubmit()">
+                        @foreach (\App\Support\ParametresPlateforme::PAGINATIONS as $taille)
+                            <option value="{{ $taille }}" @selected(\App\Support\ParametresPlateforme::pagination(request('per_page')) === $taille)>{{ $taille }}</option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
         </div>
-    </div>
-    @endif
+    </form>
 
-    <!-- Page Header -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card shadow-sm border-0" style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);">
-                <div class="card-body text-white">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h1 class="h2 mb-2 fw-bold">
-                                <i class="bi bi-door-open me-3"></i>
-                                Gestion des Classes
-                            </h1>
-                            <p class="mb-0 opacity-75">Gérez les classes et niveaux de votre établissement</p>
-                        </div>
-                        <div>
-                            <a href="{{ route('classes.create') }}" class="btn btn-light btn-lg">
-                                <i class="bi bi-plus-circle me-2"></i>
-                                Nouvelle Classe
+    {{-- ----------------------------------------------------------------
+         Grille des classes
+         ---------------------------------------------------------------- --}}
+    <div class="relative mt-6" data-liste-dynamique="classes">
+        <x-chargement data-voile-chargement hidden message="Chargement des classes…"/>
+
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            @forelse ($classes as $class)
+                @php
+                    $cycle = $class->getSafeCycle();
+                    $capacite = (int) $class->capacity;
+                    $taux = $capacite > 0 ? (int) round($class->effectif / $capacite * 100) : null;
+                    $teinteTaux = $taux === null ? 'bg-gris-300'
+                        : ($taux >= 100 ? 'bg-corail-600' : ($taux >= 85 ? 'bg-soleil-500' : 'bg-emerald-600'));
+
+                    $principal = $class->allTeachers->firstWhere('pivot.role', 'principal');
+                    $intervenants = $class->allTeachers->where('pivot.role', '!=', 'principal');
+                @endphp
+
+                <article class="carte flex flex-col">
+                    <div class="carte-entete">
+                        <div class="min-w-0">
+                            <a href="{{ route('classes.show', $class->id) }}"
+                               class="block truncate text-base font-semibold text-gris-900 hover:text-ogar-700">
+                                {{ $class->name }}
                             </a>
+                            <div class="text-xs text-gris-400">
+                                {{ $class->getSafeLevelName() }}
+                                @if ($class->series) &middot; série {{ $class->series }} @endif
+                            </div>
                         </div>
+                        <x-puce :couleur="$teintesCycle[$cycle] ?? 'slate'" class="whitespace-nowrap">
+                            {{ $libellesCycle[$cycle] ?? ucfirst($cycle) }}
+                        </x-puce>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
-                <div class="card-body text-white">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h3 class="mb-1 fw-bold">{{ $classes->count() ?? 0 }}</h3>
-                            <p class="mb-0 opacity-80 small">Classes Actives</p>
-                        </div>
-                        <div class="ms-3">
-                            <div class="bg-light bg-opacity-20 rounded-circle p-3">
-                                <i class="bi bi-door-open fs-3 text-dark"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #059669, #10b981);">
-                <div class="card-body text-white">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h3 class="mb-1 fw-bold">{{ $classes->sum('capacity') ?? 0 }}</h3>
-                            <p class="mb-0 opacity-80 small">Capacité Totale</p>
-                        </div>
-                        <div class="ms-3">
-                            <div class="bg-light bg-opacity-20 rounded-circle p-3">
-                                <i class="bi bi-people fs-3 text-dark"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #dc2626, #ef4444);">
-                <div class="card-body text-white">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h3 class="mb-1 fw-bold">{{ $classes->count() > 0 ? round($classes->avg('capacity')) : 0 }}</h3>
-                            <p class="mb-0 opacity-80 small">Capacité Moyenne</p>
-                        </div>
-                        <div class="ms-3">
-                            <div class="bg-light bg-opacity-20 rounded-circle p-3">
-                                <i class="bi bi-bar-chart fs-3 text-dark"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #7c3aed, #8b5cf6);">
-                <div class="card-body text-white">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h3 class="mb-1 fw-bold">{{ $levels->count() ?? 0 }}</h3>
-                            <p class="mb-0 opacity-80 small">Niveaux Disponibles</p>
-                        </div>
-                        <div class="ms-3">
-                            <div class="bg-light bg-opacity-20 rounded-circle p-3">
-                                <i class="bi bi-layers fs-3 text-dark"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Filtres Avancés -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-light border-0">
-                    <h5 class="mb-0">
-                        <i class="bi bi-funnel me-2 text-primary"></i>
-                        Filtres et Recherche
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-lg-3 col-md-6">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-search me-1"></i>
-                                Rechercher
-                            </label>
-                            <div class="input-group">
-                                <span class="input-group-text border-end-0 bg-light">
-                                    <i class="bi bi-search text-muted"></i>
+                    <div class="flex-1 space-y-4 p-5">
+                        {{-- Effectif rapporté à la capacité : c'est le chiffre utile --}}
+                        <div>
+                            <div class="mb-1.5 flex items-baseline justify-between gap-3">
+                                <span class="text-sm text-gris-500">Effectif</span>
+                                <span class="text-sm">
+                                    <span class="text-lg font-bold text-gris-900">{{ $class->effectif }}</span>
+                                    <span class="text-gris-400">/ {{ $capacite ?: '—' }}</span>
                                 </span>
-                                <input type="text" class="form-control border-start-0 ps-0" 
-                                       placeholder="Nom de classe..." id="searchInput">
                             </div>
-                        </div>
-                        <div class="col-lg-3 col-md-6">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-layers me-1"></i>
-                                Cycle
-                            </label>
-                            <select class="form-select" id="cycleFilter">
-                                <option value="">📚 Tous les cycles</option>
-                                <option value="preprimaire">🍼 Pré-primaire</option>
-                                <option value="primaire">📝 Primaire</option>
-                                <option value="college">🏫 Collège</option>
-                                <option value="lycee">🎓 Lycée</option>
-                            </select>
-                        </div>
-                        <div class="col-lg-3 col-md-6">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-bookmark me-1"></i>
-                                Niveau
-                            </label>
-                            <select class="form-select" id="levelFilter">
-                                <option value="">Tous les niveaux</option>
-                                @foreach($levels->groupBy('cycle') as $cycle => $cyclevels)
-                                    <optgroup label="{{ ucfirst($cycle) }}">
-                                        @foreach($cyclevels as $level)
-                                            <option value="{{ $level->id }}">{{ $level->name }}</option>
-                                        @endforeach
-                                    </optgroup>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-lg-3 col-md-6">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-toggle-on me-1"></i>
-                                Statut
-                            </label>
-                            <select class="form-select" id="statusFilter">
-                                <option value="">📊 Tous</option>
-                                <option value="active">✅ Active</option>
-                                <option value="inactive">❌ Inactive</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row mt-3">
-                        <div class="col-lg-6">
-                            <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-outline-primary" onclick="applyFilters()">
-                                    <i class="bi bi-funnel-fill me-1"></i>
-                                    Appliquer les filtres
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
-                                    <i class="bi bi-x-circle me-1"></i>
-                                    Réinitialiser
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-lg-6">
-                            <div class="d-flex gap-2 justify-content-lg-end">
-                                <label class="form-label fw-semibold mb-0 align-self-center">
-                                    <i class="bi bi-sort-down me-1"></i>
-                                    Trier par:
-                                </label>
-                                <select class="form-select" style="width: auto;" onchange="changeSorting()">
-                                    <option value="created_at_desc" {{ request('sort') == 'created_at' && request('direction') == 'desc' ? 'selected' : '' }}>➡️ Plus récentes</option>
-                                    <option value="created_at_asc" {{ request('sort') == 'created_at' && request('direction') == 'asc' ? 'selected' : '' }}>⬅️ Plus anciennes</option>
-                                    <option value="name_asc" {{ request('sort') == 'name' && request('direction') == 'asc' ? 'selected' : '' }}>🔤 Nom (A-Z)</option>
-                                    <option value="name_desc" {{ request('sort') == 'name' && request('direction') == 'desc' ? 'selected' : '' }}>🔤 Nom (Z-A)</option>
-                                    <option value="capacity_desc" {{ request('sort') == 'capacity' && request('direction') == 'desc' ? 'selected' : '' }}>📊 Capacité ↓</option>
-                                    <option value="capacity_asc" {{ request('sort') == 'capacity' && request('direction') == 'asc' ? 'selected' : '' }}>📊 Capacité ↑</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Classes Grid -->
-    <div class="row" id="classesContainer">
-        @forelse($classes as $class)
-        <div class="col-lg-4 col-md-6 mb-4 class-card" 
-             data-cycle="{{ $class->getSafeCycle() }}" 
-             data-level="{{ $class->level_id }}" 
-             data-name="{{ strtolower($class->name) }}"
-             data-status="{{ $class->is_active ? 'active' : 'inactive' }}">
-            <div class="card h-100 border-0 shadow-sm hover-shadow transition-all">
-                <!-- Cycle Badge -->
-                <div class="position-absolute top-0 end-0 m-2">
-                    @php
-                        $cycleColors = [
-                            'preprimaire' => 'bg-success',
-                            'primaire' => 'bg-primary', 
-                            'college' => 'bg-warning',
-                            'lycee' => 'bg-info'
-                        ];
-                        $cycleIcons = [
-                            'preprimaire' => '🍼',
-                            'primaire' => '📝',
-                            'college' => '🏫', 
-                            'lycee' => '🎓'
-                        ];
-                        $cycle = $class->getSafeCycle();
-                    @endphp
-                    <span class="badge {{ $cycleColors[$cycle] ?? 'bg-secondary' }} rounded-pill">
-                        {{ $cycleIcons[$cycle] ?? '📚' }} {{ ucfirst($cycle) }}
-                    </span>
-                </div>
-
-                <!-- Class Header -->
-                <div class="card-header border-0 {{ $class->is_active ? 'bg-success' : 'bg-secondary' }} text-white">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold">
-                            <i class="bi bi-door-open me-2"></i>
-                            {{ $class->name }}
-                        </h5>
-                        <span class="badge bg-light text-dark px-3 py-2">
-                            <i class="bi bi-people me-1"></i>
-                            {{ $class->capacity ?? 0 }}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Class Content -->
-                <div class="card-body">
-                    <!-- Stats Row -->
-                    <div class="row text-center mb-3">
-                        <div class="col-6">
-                            <div class="border-end">
-                                <div class="h4 text-primary mb-1 fw-bold">{{ $class->capacity ?? 0 }}</div>
-                                <small class="text-muted">Places</small>
+                            <div class="h-2 overflow-hidden rounded-full bg-gris-100"
+                                 role="progressbar" aria-valuenow="{{ $taux ?? 0 }}" aria-valuemin="0" aria-valuemax="100">
+                                <div class="h-full rounded-full {{ $teinteTaux }}" style="width: {{ min($taux ?? 0, 100) }}%"></div>
                             </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="h4 mb-1 fw-bold {{ $class->is_active ? 'text-success' : 'text-danger' }}">
-                                {{ $class->is_active ? '✅' : '❌' }}
-                            </div>
-                            <small class="text-muted">{{ $class->is_active ? 'Active' : 'Inactive' }}</small>
-                        </div>
-                    </div>
-                    
-                    <!-- Class Details -->
-                    <div class="mb-3">
-                        <div class="d-flex align-items-center mb-2">
-                            <i class="bi bi-bookmark-fill text-primary me-2"></i>
-                            <strong>Niveau:</strong>
-                            <span class="ms-2">{{ $class->getSafeLevelName() }}</span>
-                        </div>
-                        <div class="d-flex align-items-center mb-2">
-                            <i class="bi bi-layers-fill text-info me-2"></i>
-                            <strong>Cycle:</strong>
-                            <span class="badge bg-light text-dark ms-2">{{ ucfirst($class->getSafeCycle()) }}</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Professeurs de la classe -->
-                    <div class="mb-3">
-                        <div class="d-flex align-items-center mb-2">
-                            <i class="bi bi-person-workspace text-warning me-2"></i>
-                            <strong>Professeurs:</strong>
-                        </div>
-                        @php
-                            $teachers = $class->allTeachers()->with('subjects')->get();
-                            $principalTeacher = $teachers->where('pivot.role', 'principal')->first();
-                            $otherTeachers = $teachers->where('pivot.role', '!=', 'principal');
-                        @endphp
-                        @if($teachers->count() > 0)
-                            <div class="bg-light p-2 rounded">
-                                @if($principalTeacher)
-                                    <!-- Professeur Principal -->
-                                    <div class="d-flex align-items-center mb-2 p-2 bg-success bg-opacity-10 rounded">
-                                        <i class="bi bi-star-fill text-warning me-1"></i>
-                                        <span class="small fw-bold">
-                                            <strong>{{ $principalTeacher->first_name }} {{ $principalTeacher->last_name }}</strong>
-                                            <span class="badge bg-success ms-1">Principal</span>
-                                            @if($principalTeacher->specialization)
-                                                <span class="text-muted">({{ $principalTeacher->specialization }})</span>
-                                            @endif
-                                        </span>
-                                    </div>
+
+                            <div class="mt-1 flex items-center justify-between text-xs">
+                                <span class="{{ $taux !== null && $taux >= 100 ? 'font-semibold text-corail-700' : 'text-gris-400' }}">
+                                    @if ($taux === null)
+                                        Capacité non renseignée
+                                    @elseif ($taux >= 100)
+                                        Classe pleine
+                                    @else
+                                        {{ 100 - $taux }}% de places libres
+                                    @endif
+                                </span>
+                                @if (! $class->is_active)
+                                    <x-puce couleur="rose">Fermée</x-puce>
                                 @endif
-                                
-                                @if($otherTeachers->count() > 0)
-                                    <!-- Autres professeurs -->
-                                    @foreach($otherTeachers as $teacher)
-                                        <div class="d-flex align-items-center mb-1">
-                                            <i class="bi bi-person-circle text-primary me-1"></i>
-                                            <span class="small">
-                                                <strong>{{ $teacher->first_name }} {{ $teacher->last_name }}</strong>
-                                                @if($teacher->specialization)
-                                                    <span class="text-muted">({{ $teacher->specialization }})</span>
-                                                @endif
-                                            </span>
-                                        </div>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-gris-100 pt-3">
+                            <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-gris-500">
+                                Équipe pédagogique
+                            </div>
+
+                            @if ($class->allTeachers->isNotEmpty())
+                                <ul class="space-y-1.5 text-sm">
+                                    @if ($principal)
+                                        <li class="flex items-center gap-2">
+                                            <a href="{{ route('teachers.show', $principal->id) }}"
+                                               class="truncate text-gris-800 hover:text-ogar-700">{{ $principal->full_name }}</a>
+                                            <x-puce couleur="ogar" class="whitespace-nowrap">Principal</x-puce>
+                                        </li>
+                                    @endif
+                                    @foreach ($intervenants->take(3) as $enseignant)
+                                        <li class="truncate text-gris-600">
+                                            <a href="{{ route('teachers.show', $enseignant->id) }}" class="hover:text-ogar-700">
+                                                {{ $enseignant->full_name }}
+                                            </a>
+                                        </li>
                                     @endforeach
-                                @endif
-                            </div>
-                        @else
-                            <div class="bg-light p-2 rounded text-muted small">
-                                <i class="bi bi-exclamation-triangle me-1"></i>
-                                Aucun professeur assigné
-                            </div>
+                                    @if ($intervenants->count() > 3)
+                                        <li class="text-xs text-gris-400">+{{ $intervenants->count() - 3 }} autre(s)</li>
+                                    @endif
+                                </ul>
+                            @else
+                                <p class="text-sm text-corail-700">Aucun enseignant affecté.</p>
+                            @endif
+                        </div>
+
+                        @if ($class->description)
+                            <p class="border-t border-gris-100 pt-3 text-sm leading-relaxed text-gris-500">
+                                {{ Str::limit($class->description, 110) }}
+                            </p>
                         @endif
                     </div>
 
-                    @if($class->description)
-                        <div class="mb-3">
-                            <div class="bg-light p-3 rounded">
-                                <small class="text-muted d-block mb-1">
-                                    <i class="bi bi-info-circle me-1"></i>Description
-                                </small>
-                                <span class="text-dark">{{ Str::limit($class->description, 80) }}</span>
+                    {{-- Deux raccourcis vers les taches quotidiennes ; le reste
+                         dans un menu, pour ne pas mettre la suppression au meme
+                         rang qu'une consultation. --}}
+                    <div class="flex items-center gap-2 border-t border-gris-200 px-5 py-3">
+                        <a href="{{ route('classes.show', $class->id) }}?onglet=eleves" class="bouton-mini">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/>
+                            </svg>
+                            {{ $class->effectif }} élève{{ $class->effectif > 1 ? 's' : '' }}
+                        </a>
+
+                        <a href="{{ route('classes.show', $class->id) }}?onglet=equipe"
+                           class="bouton-mini {{ $class->allTeachers->isEmpty() ? 'border-corail-300 text-corail-700 hover:bg-corail-50' : '' }}">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 00-.491 6.347A48.62 48.62 0 0112 20.904a48.62 48.62 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.636 50.636 0 00-2.658-.813A59.906 59.906 0 0112 3.493a59.903 59.903 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0112 13.489a50.702 50.702 0 017.74-3.342"/>
+                            </svg>
+                            @if ($class->allTeachers->isEmpty())
+                                Sans enseignant
+                            @else
+                                {{ $class->allTeachers->count() }} enseignant{{ $class->allTeachers->count() > 1 ? 's' : '' }}
+                            @endif
+                        </a>
+
+                        <div x-data="{ ouvert: false }" class="relative ml-auto">
+                            <button type="button" @click="ouvert = ! ouvert" class="bouton-mini" aria-label="Autres actions">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" d="M6.75 12h.008v.008H6.75V12zm5.25 0h.008v.008H12V12zm5.25 0h.008v.008h-.008V12z"/>
+                                </svg>
+                            </button>
+
+                            <div x-show="ouvert" x-cloak @click.outside="ouvert = false"
+                                 class="absolute bottom-full right-0 z-30 mb-1 w-52 overflow-hidden rounded-xl border border-gris-200 bg-white py-1 shadow-lg">
+                                <a href="{{ route('classes.show', $class->id) }}"
+                                   class="block cursor-pointer px-4 py-2 text-sm text-gris-700 hover:bg-gris-50">Ouvrir la fiche</a>
+                                <a href="{{ route('classes.edit', $class->id) }}"
+                                   class="block cursor-pointer px-4 py-2 text-sm text-gris-700 hover:bg-gris-50">Modifier la classe</a>
+                                <a href="{{ route('classes.show', $class->id) }}?onglet=emploi"
+                                   class="block cursor-pointer px-4 py-2 text-sm text-gris-700 hover:bg-gris-50">Emploi du temps</a>
+                                <a href="{{ route('classes.fiche', $class->id) }}"
+                                   class="block cursor-pointer px-4 py-2 text-sm text-gris-700 hover:bg-gris-50">Fiche de classe</a>
+
+                                <div class="my-1 border-t border-gris-100"></div>
+
+                                <x-confirmation :action="route('classes.destroy', $class->id)" methode="DELETE"
+                                                titre="Supprimer cette classe ?"
+                                                :message="'La classe '.$class->name.' compte '.$class->effectif.' élève(s) inscrit(s). La suppression est définitive.'"
+                                                confirmer="Supprimer"
+                                                bouton="block w-full px-4 py-2 text-left text-sm text-corail-600 hover:bg-corail-50">
+                                    Supprimer la classe
+                                </x-confirmation>
                             </div>
                         </div>
-                    @endif
+                    </div>
+                </article>
+            @empty
+                <div class="carte col-span-full p-10 text-center">
+                    <x-mascotte pose="vide" taille="h-24" class="mb-4"/>
+                    <h2 class="text-base font-semibold text-gris-700">
+                        {{ $filtresActifs ? 'Aucune classe ne correspond aux filtres' : 'Aucune classe enregistrée' }}
+                    </h2>
+                    <p class="mt-1 text-sm text-gris-500">
+                        {{ $filtresActifs
+                            ? 'Élargissez la recherche ou réinitialisez les filtres.'
+                            : 'Créez une première classe pour commencer à affecter des élèves.' }}
+                    </p>
+                    @unless ($filtresActifs)
+                        <a href="{{ route('classes.create') }}" class="bouton-primaire mt-4">Créer une classe</a>
+                    @endunless
                 </div>
+            @endforelse
+        </div>
 
-                <!-- Action Footer -->
-                <div class="card-footer border-0 bg-light">
-                    <div class="d-grid gap-2">
-                        <div class="btn-group" role="group">
-                            <button type="button" class="btn btn-outline-primary btn-sm" 
-                                    data-class-id="{{ $class->id }}" onclick="viewClass(this.dataset.classId)">
-                                <i class="bi bi-eye me-1"></i>Voir
-                            </button>
-                            <button type="button" class="btn btn-outline-warning btn-sm" 
-                                    data-class-id="{{ $class->id }}" onclick="editClass(this.dataset.classId)">
-                                <i class="bi bi-pencil me-1"></i>Modifier
-                            </button>
-                            <button type="button" class="btn btn-outline-info btn-sm" 
-                                    data-class-id="{{ $class->id }}" onclick="manageStudents(this.dataset.classId)">
-                                <i class="bi bi-people me-1"></i>Élèves
-                            </button>
-                        </div>
-                        <div class="btn-group" role="group">
-                            <a href="{{ route('classes.teachers', $class->id) }}" class="btn btn-outline-success btn-sm">
-                                <i class="bi bi-person-workspace me-1"></i>Professeurs
-                            </a>
-                        </div>
-                        
-                        <!-- Bouton Supprimer -->
-                        @php
-                            $studentsCount = \App\Models\Student::whereHas('enrollments', function($q) use ($class) {
-                                $q->where('class_id', $class->id);
-                            })->count();
-                            $canDelete = $studentsCount === 0;
-                        @endphp
-                        
-                        @if($canDelete)
-                            <button type="button" class="btn btn-outline-danger btn-sm w-100" 
-                                    onclick="deleteClass('{{ $class->id }}', '{{ $class->name }}')">
-                                <i class="bi bi-trash me-1"></i>Supprimer
-                            </button>
-                        @else
-                            <button type="button" class="btn btn-outline-secondary btn-sm w-100" disabled 
-                                    title="Impossible de supprimer - {{ $studentsCount }} élève(s) inscrit(s)">
-                                <i class="bi bi-lock me-1"></i>Suppression impossible
-                            </button>
-                        @endif
-                    </div>
-                </div>
+        @if ($classes->hasPages())
+            <div class="carte mt-4 px-4 py-3" data-pagination>
+                {{ $classes->links() }}
             </div>
-        </div>
-        @empty
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body text-center py-5">
-                    <div class="mb-4">
-                        <i class="bi bi-door-closed text-muted" style="font-size: 4rem;"></i>
-                    </div>
-                    <h3 class="text-muted mb-3">Aucune classe trouvée</h3>
-                    <p class="text-muted mb-4">Commencez par créer votre première classe pour organiser vos élèves.</p>
-                    <a href="{{ route('classes.create') }}" class="btn btn-primary btn-lg">
-                        <i class="bi bi-plus-circle me-2"></i>
-                        Créer ma première classe
-                    </a>
-                </div>
-            </div>
-        </div>
-        @endforelse
-
-        <!-- Add New Class Card -->
-        @if($classes->count() > 0)
-        <div class="col-lg-4 col-md-6 mb-4">
-            <div class="card h-100 border-0 shadow-sm" style="border: 2px dashed #2563eb !important; background: linear-gradient(135deg, #f1f5f9, #e2e8f0);">
-                <div class="card-body d-flex flex-column align-items-center justify-content-center text-center">
-                    <div class="mb-3">
-                        <i class="bi bi-plus-circle" style="font-size: 3rem; color: #2563eb;"></i>
-                    </div>
-                    <h5 class="mb-3 fw-bold" style="color: #2563eb;">Ajouter une nouvelle classe</h5>
-                    <p class="text-muted small mb-3">Créez une nouvelle classe pour vos élèves</p>
-                    <a href="{{ route('classes.create') }}" class="btn btn-primary" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none;">
-                        <i class="bi bi-plus me-2"></i>
-                        Créer une classe
-                    </a>
-                </div>
-            </div>
-        </div>
         @endif
     </div>
 
-    <!-- Pagination Améliorée -->
-    @if($classes->hasPages())
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="text-muted">
-                            <i class="bi bi-info-circle me-1"></i>
-                            Affichage de {{ $classes->firstItem() }} à {{ $classes->lastItem() }} 
-                            sur {{ $classes->total() }} classes
-                        </div>
-                        <div>
-                            {{ $classes->onEachSide(2)->links('vendor.pagination.custom-bootstrap') }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    @endif
-</div>
-
-
-
-<script>
-
-
-
-
-function viewClass(id) {
-    // Redirection vers la page de détail
-    window.location.href = `/classes/${id}`;
-}
-
-function editClass(id) {
-    // Redirection vers la page d'édition
-    window.location.href = `/classes/${id}/edit`;
-}
-
-function manageStudents(id) {
-    // Redirection vers la gestion des élèves
-    window.location.href = `/classes/${id}/students`;
-}
-
-// Configuration du filtrage en temps réel
-function setupRealTimeFiltering() {
-    const searchInput = document.getElementById('searchInput');
-    const cycleFilter = document.getElementById('cycleFilter');
-    const levelFilter = document.getElementById('levelFilter');
-    const statusFilter = document.getElementById('statusFilter');
-
-    // Écouter les changements sur tous les filtres
-    [searchInput, cycleFilter, levelFilter, statusFilter].forEach(filter => {
-        filter.addEventListener('input', applyFilters);
-        filter.addEventListener('change', applyFilters);
-    });
-}
-
-// Appliquer les filtres
-function applyFilters() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-    const selectedCycle = document.getElementById('cycleFilter').value;
-    const selectedLevel = document.getElementById('levelFilter').value;
-    const selectedStatus = document.getElementById('statusFilter').value;
-    
-    const classCards = document.querySelectorAll('.class-card');
-    let visibleCount = 0;
-    
-    classCards.forEach(card => {
-        const className = card.dataset.name;
-        const cardCycle = card.dataset.cycle;
-        const cardLevel = card.dataset.level;
-        const cardStatus = card.dataset.status;
-        
-        let shouldShow = true;
-        
-        // Filtre par nom
-        if (searchTerm && !className.includes(searchTerm)) {
-            shouldShow = false;
-        }
-        
-        // Filtre par cycle
-        if (selectedCycle && cardCycle !== selectedCycle) {
-            shouldShow = false;
-        }
-        
-        // Filtre par niveau
-        if (selectedLevel && cardLevel !== selectedLevel) {
-            shouldShow = false;
-        }
-        
-        // Filtre par statut
-        if (selectedStatus && cardStatus !== selectedStatus) {
-            shouldShow = false;
-        }
-        
-        // Afficher/masquer la carte
-        if (shouldShow) {
-            card.classList.remove('filtered-out');
-            card.style.display = 'block';
-            visibleCount++;
-        } else {
-            card.classList.add('filtered-out');
-            card.style.display = 'none';
-        }
-    });
-    
-    // Afficher un message si aucun résultat
-    updateNoResultsMessage(visibleCount);
-}
-
-// Réinitialiser les filtres
-function clearFilters() {
-    document.getElementById('searchInput').value = '';
-    document.getElementById('cycleFilter').value = '';
-    document.getElementById('levelFilter').value = '';
-    document.getElementById('statusFilter').value = '';
-    
-    // Afficher toutes les cartes
-    const classCards = document.querySelectorAll('.class-card');
-    classCards.forEach(card => {
-        card.classList.remove('filtered-out');
-        card.style.display = 'block';
-    });
-    
-    updateNoResultsMessage(classCards.length);
-}
-
-// Mettre à jour le message "aucun résultat"
-function updateNoResultsMessage(visibleCount) {
-    let noResultsMessage = document.getElementById('noResultsMessage');
-    
-    if (visibleCount === 0) {
-        if (!noResultsMessage) {
-            noResultsMessage = document.createElement('div');
-            noResultsMessage.id = 'noResultsMessage';
-            noResultsMessage.className = 'col-12 text-center py-5';
-            noResultsMessage.innerHTML = `
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body">
-                        <i class="bi bi-search text-muted" style="font-size: 3rem;"></i>
-                        <h4 class="text-muted mt-3">Aucun résultat trouvé</h4>
-                        <p class="text-muted">Essayez de modifier vos critères de recherche.</p>
-                        <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
-                            <i class="bi bi-x-circle me-1"></i>
-                            Réinitialiser les filtres
-                        </button>
-                    </div>
-                </div>
-            `;
-            document.getElementById('classesContainer').appendChild(noResultsMessage);
-        }
-    } else {
-        if (noResultsMessage) {
-            noResultsMessage.remove();
-        }
-    }
-}
-
-// Initialiser le filtrage lors du chargement
-document.addEventListener('DOMContentLoaded', function() {
-    setupRealTimeFiltering();
-});
-
-
-
-// Fonction pour changer le tri
-function changeSorting() {
-    const select = event.target;
-    const [sort, direction] = select.value.split('_');
-    
-    const url = new URL(window.location);
-    url.searchParams.set('sort', sort);
-    url.searchParams.set('direction', direction);
-    
-    window.location.href = url.toString();
-}
-
-// Fonction pour supprimer une classe
-function deleteClass(classId, className) {
-    // Première confirmation
-    if (confirm(`⚠️ ATTENTION ⚠️\n\nVoulez-vous vraiment supprimer la classe "${className}" ?\n\nCette action est IRRÉVERSIBLE et supprimera :\n- La classe elle-même\n- Toutes les inscriptions d'élèves\n- L'historique des notes\n- Les présences enregistrées\n\nÊtes-vous sûr de vouloir continuer ?`)) {
-        
-        // Demande de confirmation par saisie du nom
-        const confirmation = prompt(`Pour confirmer la suppression, tapez exactement le nom de la classe :\n\n"${className}"`);
-        
-        if (confirmation === className) {
-            // Dernière confirmation
-            if (confirm(`DERNIÈRE CONFIRMATION\n\nÊtes-vous ABSOLUMENT certain de vouloir supprimer "${className}" ?\n\nCette action ne peut pas être annulée !`)) {
-                // Créer et soumettre un formulaire de suppression
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = `/classes/${classId}`;
-                
-                // Token CSRF
-                const csrfToken = document.createElement('input');
-                csrfToken.type = 'hidden';
-                csrfToken.name = '_token';
-                csrfToken.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                form.appendChild(csrfToken);
-                
-                // Méthode DELETE
-                const methodField = document.createElement('input');
-                methodField.type = 'hidden';
-                methodField.name = '_method';
-                methodField.value = 'DELETE';
-                form.appendChild(methodField);
-                
-                // Ajouter au document et soumettre
-                document.body.appendChild(form);
-                form.submit();
-            }
-        } else if (confirmation !== null) {
-            alert('❌ Nom incorrect. Suppression annulée pour votre sécurité.');
-        }
-    }
-}
-</script>
-
-
-
-<style>
-/* Styles personnalisés pour les classes */
-.hover-shadow:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
-    transition: all 0.3s ease;
-}
-
-.transition-all {
-    transition: all 0.3s ease;
-}
-
-.class-card {
-    transition: all 0.3s ease;
-}
-
-.class-card.filtered-out {
-    display: none !important;
-}
-
-/* Animation pour les cartes */
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-.class-card {
-    animation: fadeInUp 0.5s ease forwards;
-}
-
-/* Amélioration de la pagination */
-.pagination .page-link {
-    border-radius: 8px !important;
-    margin: 0 2px;
-    border: none;
-    color: #6f42c1;
-}
-
-.pagination .page-link:hover {
-    background-color: #6f42c1;
-    color: white;
-}
-
-.pagination .page-item.active .page-link {
-    background-color: #6f42c1;
-    border-color: #6f42c1;
-}
-</style>
-@endsection 
+@endsection

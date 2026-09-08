@@ -1,0 +1,58 @@
+# Base de données de développement.
+#
+# L'application tourne sur la machine hôte (php artisan serve) ; seul PostgreSQL
+# est conteneurisé. La pile complète — application, Nginx, queue — vit dans
+# docker-compose.yml et n'est pas nécessaire pour développer.
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#   docker compose -f docker-compose.dev.yml down          (garde les données)
+#   docker compose -f docker-compose.dev.yml down -v       (repart de zéro)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: egesco-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: egesco
+      POSTGRES_USER: egesco
+      POSTGRES_PASSWORD: egesco
+      # Collation française : les tris par nom respectent les accents.
+      LANG: fr_FR.utf8
+    ports:
+      # Les ports 5432-5443 sont déjà pris sur ce poste par d'autres projets :
+      # on publie sur 15432 côté hôte. Le port interne reste 5432.
+      - "15432:5432"
+    volumes:
+      - egesco-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U egesco -d egesco"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - egesco-dev
+
+  # Console SQL, pratique pour inspecter les données sans client installé.
+  adminer:
+    image: adminer:latest
+    container_name: egesco-adminer
+    restart: unless-stopped
+    ports:
+      - "15433:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: dracula
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - egesco-dev
+
+volumes:
+  egesco-postgres:
+    driver: local
+
+networks:
+  egesco-dev:
+    driver: bridge

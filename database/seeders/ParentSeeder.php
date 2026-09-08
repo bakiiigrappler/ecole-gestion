@@ -13,19 +13,20 @@ class ParentSeeder extends Seeder
     public function run(): void
     {
         for ($i = 1; $i <= 50; $i++) {
+            // Le prenom decoule du sexe : sans cela le jeu de demonstration
+            // produisait des « Sabine » declarees peres.
+            $sexe = fake()->randomElement(['male', 'female']);
+
             ParentModel::create([
-                'first_name' => fake()->firstName(),
+                'first_name' => fake()->firstName($sexe),
                 'last_name' => fake()->lastName(),
                 'email' => fake()->unique()->safeEmail(),
                 'phone' => fake()->phoneNumber(),
                 'phone_2' => fake()->phoneNumber(),
-                'gender' => fake()->randomElement(['male', 'female']),
+                'gender' => $sexe,
                 'address' => fake()->address(),
                 'profession' => fake()->jobTitle(),
                 'workplace' => fake()->company(),
-                'relationship' => fake()->randomElement(['father', 'mother', 'guardian']),
-                'is_primary_contact' => fake()->boolean(),
-                'can_pickup' => true,
             ]);
         }
 

@@ -2,13 +2,23 @@
 
 namespace App\Models;
 
+
+use App\Models\Concerns\AppartientAUnEtablissement;
+use App\Models\Concerns\GardeQuiSupprime;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Teacher extends Model
 {
+    /*
+     * Suppression douce : effacer une fiche la met en corbeille au lieu de la
+     * detruire. Le super administrateur peut l'y reprendre ou l'y detruire.
+     */
+    use AppartientAUnEtablissement, GardeQuiSupprime, SoftDeletes;
+
     protected $fillable = [
         'employee_id',
         'first_name',
@@ -19,10 +29,10 @@ class Teacher extends Model
         'gender',
         'address',
         'qualification',
+        'diploma_file',
         'specialization',
         'cycle',
         'teacher_type',
-        'assigned_class_id',
         'hire_date',
         'salary',
         'status',
@@ -56,10 +66,14 @@ class Teacher extends Model
         return "ENS{$year}" . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
-    // Relation avec les notes attribuées
+    /*
+     * Les notes vivent dans `student_grades`, pas dans `grades` : cette
+     * derniere table est vide et morte. La relation y pointait encore, et
+     * tout ce qui la traversait comptait zero sans jamais lever d'erreur.
+     */
     public function grades(): HasMany
     {
-        return $this->hasMany(Grade::class);
+        return $this->hasMany(StudentGrade::class);
     }
 
     // Relation avec les horaires
@@ -69,9 +83,30 @@ class Teacher extends Model
     }
 
     // Relation avec la classe assignée (pour enseignants généralistes)
-    public function assignedClass(): BelongsTo
+    /**
+     * Classe dont l'enseignant est professeur principal.
+     *
+     * L'affectation vit sur le pivot `class_teacher` : elle decrit un lien, pas
+     * l'enseignant. La colonne `teachers.assigned_class_id` a ete supprimee,
+     * les deux niveaux ne se synchronisant jamais.
+     */
+    public function classePrincipale(): BelongsToMany
     {
-        return $this->belongsTo(SchoolClass::class, 'assigned_class_id');
+        return $this->belongsToMany(SchoolClass::class, 'class_teacher', 'teacher_id', 'class_id')
+            ->wherePivot('role', 'principal')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
+    /**
+     * Raccourci de lecture : $teacher->assignedClass reste disponible et
+     * renvoie desormais la classe dont il est principal.
+     */
+    public function getAssignedClassAttribute(): ?SchoolClass
+    {
+        return $this->relationLoaded('classes')
+            ? $this->classes->firstWhere('pivot.role', 'principal')
+            : $this->classePrincipale->first();
     }
 
     // Relation many-to-many avec les matières
@@ -98,7 +133,9 @@ class Teacher extends Model
     // Accesseur pour l'ancienneté
     public function getYearsOfServiceAttribute()
     {
-        return $this->hire_date ? $this->hire_date->diffInYears(now()) : 0;
+        // Carbon 3 renvoie un flottant : sans cast, l'affichage montre
+        // « 11.552058688198 ans ».
+        return $this->hire_date ? (int) $this->hire_date->diffInYears(now()) : 0;
     }
 
     // Accesseur pour le type d'enseignant en français
@@ -163,5 +200,42 @@ class Teacher extends Model
         return $query->whereHas('subjects', function($q) use ($subjectId) {
             $q->where('subject_id', $subjectId);
         });
+    }
+
+    /**
+     * Abréviations employées dans le champ libre `specialization` et matières
+     * réelles qu'elles recouvrent. Table de rattrapage, pas une référence : elle
+     * n'existe que parce que la spécialité est saisie en texte libre à côté de
+     * la liaison `subject_teacher`, seule source fiable.
+     */
+    private const SPECIALITES_EQUIVALENTES = [
+        'eps' => ['éducation physique et sportive'],
+        'svt' => ['sciences de la vie et de la terre', 'biologie approfondie'],
+        'physique-chimie' => ['sciences physiques'],
+        'sciences' => ["sciences d'observation", 'sciences physiques'],
+        'langues' => ['anglais', 'espagnol', 'latin', 'grec'],
+    ];
+
+    /**
+     * L'enseignant couvre-t-il cette matière ? La réponse se lit d'abord dans la
+     * liaison `subject_teacher`, puis à défaut dans le champ texte
+     * `specialization` — les deux stockent le même fait sans se synchroniser,
+     * et la liaison est aujourd'hui vide pour tout le monde.
+     */
+    public function couvreLaMatiere(Subject $matiere): bool
+    {
+        if ($this->subjects->contains('id', $matiere->id)) {
+            return true;
+        }
+
+        if (! $this->specialization) {
+            return false;
+        }
+
+        $specialite = mb_strtolower(trim($this->specialization));
+        $nom = mb_strtolower($matiere->name);
+
+        return $specialite === $nom
+            || in_array($nom, self::SPECIALITES_EQUIVALENTES[$specialite] ?? [], true);
     }
 }

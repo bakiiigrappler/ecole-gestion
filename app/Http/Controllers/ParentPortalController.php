@@ -97,23 +97,120 @@ class ParentPortalController extends Controller
         $user = Auth::user();
         $parent = $this->getCurrentParent();
         $children = $parent->students;
+        $annee = \App\Models\AcademicYear::where('is_current', true)->first();
 
-        // Statistiques des enfants
         $stats = [
             'total_children' => $children->count(),
-            'active_enrollments' => $children->where('status', 'active')->count(),
+            'active_enrollments' => \App\Models\Enrollment::whereIn('student_id', $children->pluck('id'))
+                ->where('status', 'active')
+                ->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id))
+                ->count(),
             'total_payments' => OnlinePayment::where('parent_id', $parent->id)->count(),
             'completed_payments' => OnlinePayment::where('parent_id', $parent->id)
-                ->where('status', 'completed')->count()
+                ->where('status', 'completed')->count(),
         ];
 
-        // Paiements récents
-        $recentPayments = OnlinePayment::where('parent_id', $parent->id)
-            ->orderBy('created_at', 'desc')
-            ->limit(5)
+        /*
+         * Une fiche par enfant : sa classe, sa moyenne, ses absences et ou en
+         * est sa scolarite. L'ancien tableau de bord n'affichait que des noms,
+         * et il fallait ouvrir chaque dossier pour savoir quoi que ce soit.
+         */
+        $inscriptions = \App\Models\Enrollment::with('schoolClass.level')
+            ->whereIn('student_id', $children->pluck('id'))
+            ->where('status', 'active')
+            ->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id))
+            ->get()
+            ->keyBy('student_id');
+
+        $moyennes = \App\Models\StudentGrade::whereIn('student_id', $children->pluck('id'))
+            ->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id))
+            ->where('max_score', '>', 0)
+            ->selectRaw('student_id, count(*) as notes, avg(score / max_score * 20) as moyenne')
+            ->groupBy('student_id')
+            ->get()
+            ->keyBy('student_id');
+
+        $absences = \App\Models\Attendance::whereIn('student_id', $children->pluck('id'))
+            ->where('status', 'absent')
+            ->when($annee, fn ($q) => $q->whereBetween('attendance_date', [$annee->start_date, $annee->end_date]))
+            ->selectRaw('student_id, count(*) as absences')
+            ->groupBy('student_id')
+            ->pluck('absences', 'student_id');
+
+        $absencesDuMois = \App\Models\Attendance::whereIn('student_id', $children->pluck('id'))
+            ->where('status', 'absent')
+            ->whereMonth('attendance_date', now()->month)
+            ->whereYear('attendance_date', now()->year)
+            ->count();
+
+        $fiches = $children->mapWithKeys(function ($enfant) use ($inscriptions, $moyennes, $absences) {
+            $inscription = $inscriptions[$enfant->id] ?? null;
+            $note = $moyennes[$enfant->id] ?? null;
+
+            $du = (float) ($inscription->total_fees ?? 0);
+            $paye = (float) ($inscription->amount_paid ?? 0);
+
+            return [$enfant->id => [
+                'classe' => $inscription?->schoolClass?->name,
+                'niveau' => $inscription?->schoolClass?->level?->name,
+                'moyenne' => $note ? round((float) $note->moyenne, 2) : null,
+                'notes' => (int) ($note->notes ?? 0),
+                'absences' => (int) ($absences[$enfant->id] ?? 0),
+                'du' => $du,
+                'paye' => $paye,
+                'reste' => max(0, $du - $paye),
+            ]];
+        });
+
+        $bilan = [
+            'du' => $fiches->sum('du'),
+            'paye' => $fiches->sum('paye'),
+            'reste' => $fiches->sum('reste'),
+            'absences' => $absencesDuMois,
+        ];
+
+        $recentPayments = \App\Models\Payment::whereIn('student_id', $children->pluck('id'))
+            ->orderByDesc('created_at')
+            ->limit(6)
             ->get();
 
-        return view('parent-portal.dashboard', compact('user', 'parent', 'children', 'stats', 'recentPayments'));
+        // Ce qui vient d'arriver : les notes et les absences les plus recentes,
+        // tous enfants confondus. C'est ce qu'un parent ouvre l'application pour
+        // voir, et cela ne figurait nulle part.
+        $dernieresNotes = \App\Models\StudentGrade::with('subject:id,name')
+            ->whereIn('student_id', $children->pluck('id'))
+            ->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id))
+            ->where('max_score', '>', 0)
+            ->orderByDesc('created_at')
+            ->limit(8)
+            ->get();
+
+        $dernieresAbsences = \App\Models\Attendance::whereIn('student_id', $children->pluck('id'))
+            ->whereIn('status', ['absent', 'late', 'excused'])
+            ->when($annee, fn ($q) => $q->whereBetween('attendance_date', [$annee->start_date, $annee->end_date]))
+            ->orderByDesc('attendance_date')
+            ->limit(8)
+            ->get(['student_id', 'attendance_date', 'status', 'reason']);
+
+        $moyennes_valides = $fiches->pluck('moyenne')->filter(fn ($m) => $m !== null);
+        $bilan['moyenne'] = $moyennes_valides->isNotEmpty()
+            ? round($moyennes_valides->avg(), 2)
+            : null;
+
+        return view('parent-portal.dashboard', compact(
+            'user', 'parent', 'children', 'stats', 'recentPayments',
+            'fiches', 'bilan', 'annee', 'dernieresNotes', 'dernieresAbsences'
+        ));
+    }
+
+    /**
+     * La liste de mes enfants : une carte par dossier.
+     */
+    public function children()
+    {
+        $donnees = $this->dashboard()->getData();
+
+        return view('parent-portal.children', $donnees);
     }
 
     /**
@@ -122,45 +219,100 @@ class ParentPortalController extends Controller
     public function childDetails($studentId)
     {
         $parent = $this->getCurrentParent();
-        
+
         $student = $parent->students()->where('students.id', $studentId)->first();
-        
-        if (!$student) {
+
+        if (! $student) {
             abort(404, 'Élève non trouvé.');
         }
 
-        // Informations actuelles
+        $annee = \App\Models\AcademicYear::where('is_current', true)->first();
+
         $currentEnrollment = $student->enrollments()
             ->with(['schoolClass.level', 'academicYear'])
             ->where('status', 'active')
             ->first();
 
-        // Notes récentes
-        $recentGrades = $student->grades()
-            ->with(['subject', 'teacher'])
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
+        /*
+         * Les notes : toutes celles de l'année, et non les dix dernières.
+         * Un parent a droit aux données entières de son enfant ; une moyenne
+         * calculée sur un échantillon serait fausse.
+         */
+        $notes = \App\Models\StudentGrade::with(['subject:id,name', 'teacher:id,first_name,last_name'])
+            ->where('student_id', $student->id)
+            ->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id))
+            ->where('max_score', '>', 0)
+            ->orderByDesc('created_at')
             ->get();
 
-        // Présences du mois
-        $monthlyAttendance = $student->attendances()
-            ->whereMonth('attendance_date', now()->month)
-            ->whereYear('attendance_date', now()->year)
+        $parMatiere = $notes
+            ->groupBy('subject_id')
+            ->map(fn ($lot) => [
+                'matiere' => $lot->first()->subject->name ?? 'Matière supprimée',
+                'notes' => $lot->count(),
+                'moyenne' => round($lot->avg(fn ($n) => $n->score / $n->max_score * 20), 2),
+            ])
+            ->sortByDesc('moyenne')
+            ->values();
+
+        $moyenneGenerale = $notes->isNotEmpty()
+            ? round($notes->avg(fn ($n) => $n->score / $n->max_score * 20), 2)
+            : null;
+
+        // --- Assiduité, sur toute l'année ---------------------------------
+        $pointages = $student->attendances()
+            ->when($annee, fn ($q) => $q->whereBetween('attendance_date', [$annee->start_date, $annee->end_date]))
+            ->orderByDesc('attendance_date')
+            ->get(['attendance_date', 'status', 'reason', 'justified']);
+
+        $assiduite = [
+            'total' => $pointages->count(),
+            'present' => $pointages->where('status', 'present')->count(),
+            'absent' => $pointages->where('status', 'absent')->count(),
+            'late' => $pointages->where('status', 'late')->count(),
+            'excused' => $pointages->where('status', 'excused')->count(),
+        ];
+
+        $assiduite['taux'] = $assiduite['total'] > 0
+            ? round($assiduite['present'] / $assiduite['total'] * 100)
+            : null;
+
+        $absences = $pointages->whereIn('status', ['absent', 'late', 'excused'])->take(30)->values();
+
+        // --- L'emploi du temps de sa classe -------------------------------
+        $creneaux = $currentEnrollment
+            ? \App\Models\Schedule::with(['subject:id,name', 'teacher:id,first_name,last_name'])
+                ->where('class_id', $currentEnrollment->class_id)
+                ->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id))
+                ->orderBy('day_of_week')
+                ->orderBy('start_time')
+                ->get()
+            : collect();
+
+        // --- Ce qui a été payé pour lui -----------------------------------
+        $paiements = \App\Models\Payment::where('student_id', $student->id)
+            ->orderByDesc('created_at')
             ->get();
 
-        // Paiements de l'élève
-        $studentPayments = OnlinePayment::where('student_id', $student->id)
-            ->orderBy('created_at', 'desc')
+        $enLigne = OnlinePayment::where('student_id', $student->id)
+            ->orderByDesc('created_at')
             ->get();
 
-        return view('parent-portal.child-details', compact(
-            'parent', 
-            'student', 
-            'currentEnrollment', 
-            'recentGrades', 
-            'monthlyAttendance',
-            'studentPayments'
-        ));
+        return view('parent-portal.child-details', [
+            'parent' => $parent,
+            'student' => $student,
+            'annee' => $annee,
+            'currentEnrollment' => $currentEnrollment,
+            'notes' => $notes,
+            'parMatiere' => $parMatiere,
+            'moyenneGenerale' => $moyenneGenerale,
+            'assiduite' => $assiduite,
+            'absences' => $absences,
+            'creneaux' => $creneaux,
+            'paiements' => $paiements,
+            'enLigne' => $enLigne,
+            'onglet' => request('onglet', 'scolarite'),
+        ]);
     }
 
     /**
@@ -168,20 +320,9 @@ class ParentPortalController extends Controller
      */
     public function childGrades($studentId)
     {
-        $parent = $this->getCurrentParent();
-        
-        $student = $parent->students()->where('students.id', $studentId)->first();
-        
-        if (!$student) {
-            abort(404, 'Élève non trouvé.');
-        }
-
-        $grades = $student->grades()
-            ->with(['subject', 'teacher'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
-
-        return view('parent-portal.child-grades', compact('parent', 'student', 'grades'));
+        // Les notes et l'assiduité ne sont pas des pages séparées : ce sont
+        // deux onglets de la fiche de l'enfant, qui les tient toutes.
+        return redirect()->route('parent-portal.child-details', [$studentId, 'onglet' => 'notes']);
     }
 
     /**
@@ -189,24 +330,7 @@ class ParentPortalController extends Controller
      */
     public function childAttendance($studentId)
     {
-        $parent = $this->getCurrentParent();
-        
-        $student = $parent->students()->where('students.id', $studentId)->first();
-        
-        if (!$student) {
-            abort(404, 'Élève non trouvé.');
-        }
-
-        $month = request('month', now()->format('Y-m'));
-        $date = \Carbon\Carbon::createFromFormat('Y-m', $month);
-
-        $attendance = $student->attendances()
-            ->whereYear('attendance_date', $date->year)
-            ->whereMonth('attendance_date', $date->month)
-            ->orderBy('attendance_date', 'desc')
-            ->get();
-
-        return view('parent-portal.child-attendance', compact('parent', 'student', 'attendance', 'date'));
+        return redirect()->route('parent-portal.child-details', [$studentId, 'onglet' => 'assiduite']);
     }
 
     /**
@@ -216,12 +340,27 @@ class ParentPortalController extends Controller
     {
         $parent = $this->getCurrentParent();
 
-        $payments = OnlinePayment::where('parent_id', $parent->id)
-            ->with(['student', 'enrollment'])
-            ->orderBy('created_at', 'desc')
+        $enfants = $parent->students;
+
+        /*
+         * L'historique ne portait que sur les paiements en ligne : les
+         * versements encaisses au guichet, qui sont l'essentiel, n'y
+         * figuraient pas. Il porte desormais sur tout ce qui a ete paye pour
+         * ses enfants, quel qu'en soit le canal.
+         */
+        $payments = \App\Models\Payment::whereIn('student_id', $enfants->pluck('id'))
+            ->with('student:id,first_name,last_name,student_id')
+            ->orderByDesc('created_at')
             ->paginate(15);
 
-        return view('parent-portal.payment-history', compact('parent', 'payments'));
+        $bilan = [
+            'total' => (float) \App\Models\Payment::whereIn('student_id', $enfants->pluck('id'))
+                ->where('status', 'completed')->sum('amount'),
+            'nombre' => \App\Models\Payment::whereIn('student_id', $enfants->pluck('id'))->count(),
+            'en_ligne' => OnlinePayment::where('parent_id', $parent->id)->count(),
+        ];
+
+        return view('parent-portal.payment-history', compact('parent', 'payments', 'enfants', 'bilan'));
     }
 
     /**
@@ -304,6 +443,11 @@ class ParentPortalController extends Controller
      */
     public function showOnlineEnrollment()
     {
+        // L'inscription en ligne s'ouvre et se ferme depuis les parametres de
+        // la plateforme : hors periode, le formulaire ne doit pas etre servi.
+        abort_unless(\App\Support\ParametresPlateforme::actif('inscriptions_en_ligne'), 403,
+            'Les inscriptions en ligne sont actuellement fermees.');
+
         $levels = \App\Models\Level::active()->orderBy('order')->get();
         $classes = \App\Models\SchoolClass::with('level')->active()->get();
         $academicYears = \App\Models\AcademicYear::where('status', 'active')->get();
