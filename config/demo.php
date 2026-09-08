@@ -58,6 +58,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Comptes portes par les seeders
+    |--------------------------------------------------------------------------
+    |
+    | Ceux-ci ne sont pas crees par ComptesDemoSeeder mais par le seeder de leur
+    | etablissement. Ils figurent ici pour l'acces rapide seulement : la page de
+    | connexion ecarte d'elle-meme ceux qui n'existent pas en base, une
+    | installation qui n'a pas ce second etablissement n'affichera pas le bouton.
+    |
+    */
+
+    'comptes_etablissements' => [
+        [
+            'libelle' => 'Proviseur (Lycée Léon Mba)',
+            'email' => 'proviseur@lyceeleonmba.ga',
+            'mot_de_passe' => 'leonmba123',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Accès rapide sur la page de connexion
     |--------------------------------------------------------------------------
     |

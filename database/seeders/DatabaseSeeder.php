@@ -49,6 +49,20 @@ class DatabaseSeeder extends Seeder
             // Liens parent-eleve, frais chiffres, paiements et notes : sans eux
             // le tableau de bord et les statistiques restent a zero.
             DonneesDemoSeeder::class,
+
+            /*
+             * Comptes des lyceens : leur matricule leur sert d'identifiant.
+             * Apres les inscriptions, forcement — il n'y a de compte que pour
+             * un eleve inscrit au lycee.
+             */
+            ComptesElevesSeeder::class,
+
+            /*
+             * Un second etablissement, pour que la vue du super administrateur
+             * ait quelque chose a montrer : une plateforme multi-etablissements
+             * qui n'en heberge qu'un ne demontre rien.
+             */
+            EtablissementLeonMbaSeeder::class,
         ]);
     }
 }

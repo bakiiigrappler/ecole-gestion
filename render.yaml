@@ -79,6 +79,14 @@ services:
       - key: LOG_LEVEL
         value: warning
 
+      # --- Demonstration ----------------------------------------------------
+      # L'acces rapide est coupe d'office quand APP_ENV vaut « production ».
+      # Ce deploiement-ci est une demonstration : on le rallume explicitement.
+      # A retirer le jour ou un etablissement s'en sert reellement — publier des
+      # mots de passe sur sa page de connexion serait alors une faille.
+      - key: DEMO_ACCES_RAPIDE
+        value: "true"
+
 # ---------------------------------------------------------------------------
 # Le jour ou la base doit survivre aux redeploiements : decommenter le bloc
 # `databases` ci-dessous, remplacer les deux variables DB_CONNECTION et

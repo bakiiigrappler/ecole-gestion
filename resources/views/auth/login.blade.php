@@ -251,15 +251,28 @@
                     {{-- Accès rapide : un bouton par profil, qui remplit les deux champs.
                          Confort de démonstration, coupé en production. --}}
                     @php
-                        /*
-                         * Aux comptes de démonstration s'ajoute un élève réel du
-                         * lycée : son compte n'est pas fixé en configuration, il
-                         * naît de son inscription. Identifiant et mot de passe
-                         * initial sont son matricule.
-                         */
-                        $comptesDemo = config('demo.comptes', []);
+                        $accesRapide = config('demo.acces_rapide') && ($marque['login_acces_rapide'] ?? true);
 
-                        if (config('demo.acces_rapide') && ($marque['login_acces_rapide'] ?? true)) {
+                        $comptesDemo = $accesRapide ? config('demo.comptes', []) : [];
+
+                        if ($accesRapide) {
+                            /*
+                             * Les comptes portés par un établissement — le
+                             * proviseur du second lycée, par exemple — ne sont
+                             * proposés que s'ils existent vraiment. Un bouton qui
+                             * ne connecte à rien vaut moins que pas de bouton.
+                             */
+                            foreach (config('demo.comptes_etablissements', []) as $compte) {
+                                if (\App\Models\User::where('email', $compte['email'])->exists()) {
+                                    $comptesDemo[] = $compte;
+                                }
+                            }
+
+                            /*
+                             * Un élève réel du lycée : son compte n'est pas fixé en
+                             * configuration, il naît de son inscription. Identifiant
+                             * et mot de passe initial sont son matricule.
+                             */
                             $eleve = \App\Models\User::where('role', 'student')
                                 ->whereNotNull('matricule')
                                 ->orderBy('matricule')
@@ -275,7 +288,7 @@
                         }
                     @endphp
 
-                    @if (config('demo.acces_rapide') && ($marque['login_acces_rapide'] ?? true) && ! empty($comptesDemo))
+                    @if ($accesRapide && ! empty($comptesDemo))
                         <div class="border-t border-gris-200 pt-5">
                             <div class="mb-3 flex items-baseline justify-between gap-3">
                                 <span class="text-xs font-semibold uppercase tracking-wide text-gris-500">
