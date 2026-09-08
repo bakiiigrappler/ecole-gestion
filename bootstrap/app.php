@@ -12,6 +12,24 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        /*
+         * Faire confiance au proxy de l'hebergeur.
+         *
+         * Render, comme tout hebergeur de ce type, termine le TLS sur son
+         * proxy et transmet la requete en clair au conteneur, avec l'en-tete
+         * `X-Forwarded-Proto: https`. Sans cette confiance, Laravel croit
+         * repondre a une requete `http` et fabrique toutes ses URL avec ce
+         * schema : le navigateur, lui, est sur une page `https` et refuse de
+         * charger des feuilles de style annoncees en clair. Le site s'affichait
+         * sans le moindre style, et les redirections de connexion repartaient
+         * en `http`.
+         *
+         * `at: '*'` : l'adresse du proxy n'est pas connue d'avance et change
+         * d'un deploiement a l'autre. C'est sans risque ici, le conteneur
+         * n'etant joignable que par ce proxy.
+         */
+        $middleware->trustProxies(at: '*');
+
         $middleware->alias([
             'auth' => \App\Http\Middleware\RedirectIfNotAuthenticated::class,
             'guest' => \App\Http\Middleware\RedirectIfAuthenticated::class,
