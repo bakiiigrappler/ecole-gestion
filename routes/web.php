@@ -577,7 +577,13 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
     });
     
     // Routes protégées du portail parent
-    Route::prefix('parent')->name('parent-portal.')->group(function () {
+    /*
+     * Un compte parent sans fiche voit un ecran qui le dit, et non un 404 :
+     * la page existe, c'est le rattachement qui manque.
+     */
+    Route::prefix('parent')->name('parent-portal.')
+        ->middleware(\App\Http\Middleware\ParentAvecFiche::class)
+        ->group(function () {
         Route::get('/dashboard', [ParentPortalController::class, 'dashboard'])->name('dashboard');
         Route::get('/children', [ParentPortalController::class, 'children'])->name('children');
         Route::get('/logout', [ParentPortalController::class, 'logout'])->name('logout');

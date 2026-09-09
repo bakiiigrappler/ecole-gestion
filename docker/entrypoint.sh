@@ -98,6 +98,15 @@ if [ -n "${DB_HOST}" ] || [ -n "${DB_URL}" ] || [ "${DB_CONNECTION}" = "sqlite" 
         echo "⚠ Base injoignable : ni comptage, ni peuplement"
     else
         echo "→ ${ADMINS} administrateur(s) en place, peuplement ignore"
+
+        # Le compte parent et le compte enseignant de demonstration ont besoin
+        # d'une fiche : leur portail part d'elle, et sans elle il repond 404.
+        # Une base peuplee avant que ce rattachement existe n'en a pas, et
+        # aucun redeploiement n'y changeait rien puisque le peuplement est
+        # ignore des qu'un administrateur existe. Ce rattrapage ne touche que
+        # les comptes declares dans config/demo.php, et ne fait rien s'ils sont
+        # deja relies.
+        php artisan db:seed --class='Database\Seeders\RattacherLesComptesDemoSeeder' --force --no-interaction || echo "⚠ Rattachement des comptes de demonstration en echec"
     fi
 fi
 

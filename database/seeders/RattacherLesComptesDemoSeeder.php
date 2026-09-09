@@ -29,6 +29,29 @@ class RattacherLesComptesDemoSeeder extends Seeder
     }
 
     /**
+     * Le compte de démonstration d'un rôle, et lui seul.
+     *
+     * La recherche passe par `config/demo.php` : ce seeder tourne aussi à
+     * l'ouverture d'un déploiement, et il ne doit toucher aucun compte réel —
+     * relier au hasard le compte d'un vrai parent à la fiche d'une autre
+     * famille lui ouvrirait le dossier d'enfants qui ne sont pas les siens.
+     */
+    private function compteDeDemonstration(string $role): ?User
+    {
+        $courriels = collect(config('demo.comptes', []))
+            ->where('role', $role)
+            ->pluck('email')
+            ->filter()
+            ->all();
+
+        if ($courriels === []) {
+            return null;
+        }
+
+        return User::whereIn('email', $courriels)->orderBy('id')->first();
+    }
+
+    /**
      * Le compte parent reçoit la fiche d'une famille, la plus petite possible.
      *
      * Une fratrie, pour que la démonstration montre plusieurs dossiers — mais
@@ -37,7 +60,7 @@ class RattacherLesComptesDemoSeeder extends Seeder
      */
     private function rattacherLeParent(): void
     {
-        $compte = User::where('role', 'parent')->orderBy('id')->first();
+        $compte = $this->compteDeDemonstration('parent');
 
         if (! $compte) {
             return;
@@ -63,7 +86,7 @@ class RattacherLesComptesDemoSeeder extends Seeder
             ?? $libres->last();
 
         if (! $parent) {
-            $this->command->warn('Aucun parent avec enfants : le compte parent reste sans fiche.');
+            $this->command?->warn('Aucun parent avec enfants : le compte parent reste sans fiche.');
 
             return;
         }
@@ -77,7 +100,7 @@ class RattacherLesComptesDemoSeeder extends Seeder
             'telephone' => $compte->telephone ?: \App\Support\ComptesUtilisateurs::normaliserLeNumero($parent->phone),
         ])->save();
 
-        $this->command->info(sprintf(
+        $this->command?->info(sprintf(
             'Compte parent rattaché à %s %s (%d enfant(s)).',
             $parent->first_name,
             $parent->last_name,
@@ -90,7 +113,7 @@ class RattacherLesComptesDemoSeeder extends Seeder
      */
     private function rattacherLEnseignant(): void
     {
-        $compte = User::where('role', 'teacher')->orderBy('id')->first();
+        $compte = $this->compteDeDemonstration('teacher');
 
         if (! $compte) {
             return;
@@ -108,7 +131,7 @@ class RattacherLesComptesDemoSeeder extends Seeder
             ->first();
 
         if (! $enseignant) {
-            $this->command->warn('Aucun enseignant libre : le compte enseignant reste sans fiche.');
+            $this->command?->warn('Aucun enseignant libre : le compte enseignant reste sans fiche.');
 
             return;
         }
@@ -119,7 +142,7 @@ class RattacherLesComptesDemoSeeder extends Seeder
             'school_id' => $compte->school_id ?: $enseignant->school_id,
         ])->save();
 
-        $this->command->info(sprintf(
+        $this->command?->info(sprintf(
             'Compte enseignant rattaché à %s %s.',
             $enseignant->first_name,
             $enseignant->last_name
