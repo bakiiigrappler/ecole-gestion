@@ -464,19 +464,58 @@ class PaymentController extends Controller
     /**
      * Annuler un paiement
      */
-    public function cancel(Payment $payment)
+    /**
+     * Refuser un versement, en disant pourquoi.
+     *
+     * Le refus etait muet : le parent voyait « annule » et rien d'autre — ni
+     * s'il avait mal recopie un chiffre, ni si son argent etait perdu, ni ce
+     * qu'il devait faire. Le motif est desormais exige, choisi dans les cas
+     * qui reviennent au guichet ou ecrit a la main, et il accompagne le
+     * versement jusque sur l'ecran du parent.
+     */
+    public function cancel(Request $request, Payment $payment)
     {
+        if (! $payment->isPending()) {
+            return back()->with('error', 'Seuls les versements en attente peuvent être refusés.');
+        }
+
+        $donnees = $request->validate([
+            'motif' => 'required|in:'.implode(',', \App\Support\MotifsDeRejet::cles()),
+            // « Autre motif » ne dit rien a lui seul : sans un mot, le parent
+            // resterait aussi demuni qu'avec un refus muet.
+            'precision' => [
+                \Illuminate\Validation\Rule::requiredIf(
+                    fn () => \App\Support\MotifsDeRejet::exigeUnePrecision($request->input('motif'))
+                ),
+                'nullable', 'string', 'max:500',
+            ],
+        ], [
+            'motif.required' => 'Indiquez pourquoi ce versement est refusé.',
+            'precision.required' => 'Précisez le motif : le parent n’aura que cette phrase pour comprendre.',
+        ]);
+
+        $precision = trim((string) ($donnees['precision'] ?? ''));
+
         try {
-            if (!$payment->isPending()) {
-                return back()->with('error', 'Seuls les paiements en attente peuvent être annulés.');
-            }
+            $payment->forceFill([
+                'metadata' => array_merge((array) $payment->metadata, [
+                    'rejet' => [
+                        'motif' => $donnees['motif'],
+                        'libelle' => \App\Support\MotifsDeRejet::libelle($donnees['motif']),
+                        'precision' => $precision ?: null,
+                        'le' => now()->toDateTimeString(),
+                        'par' => auth()->user()?->name,
+                    ],
+                ]),
+            ])->save();
 
-            $payment->markAsCancelled('Annulé par l\'administrateur');
+            $payment->markAsCancelled(
+                \App\Support\MotifsDeRejet::libelle($donnees['motif']).($precision ? ' — '.$precision : '')
+            );
 
-            return back()->with('success', 'Paiement annulé avec succès.');
-
+            return back()->with('success', 'Versement refusé. Le parent en est informé sur son portail.');
         } catch (\Exception $e) {
-            return back()->with('error', 'Erreur lors de l\'annulation du paiement: ' . $e->getMessage());
+            return back()->with('error', 'Refus impossible : '.$e->getMessage());
         }
     }
 

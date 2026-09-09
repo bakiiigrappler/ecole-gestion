@@ -98,7 +98,7 @@
                         <h3 class="text-sm font-semibold text-gris-900">Enfants</h3>
                         <span class="text-xs text-gris-400">{{ $students->count() }}</span>
                     </div>
-                    <ul class="max-h-[28rem] divide-y divide-gris-100 overflow-y-auto">
+                    <ul class="relative max-h-[28rem] divide-y divide-gris-100 overflow-y-auto">
                         @foreach ($students as $enfant)
                             <li>
                                 <button type="button" @click="eleve = '{{ $enfant->id }}'"

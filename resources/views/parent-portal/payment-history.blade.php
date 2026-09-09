@@ -10,6 +10,9 @@
 
 @section('contenu')
 
+{{-- Ce que l'école a refusé, en tête : c'est ce qui appelle une action. --}}
+<x-alerte-rejets :rejets="$rejets"/>
+
 @php
     $franc = fn ($v) => number_format((float) $v, 0, ',', ' ').' FCFA';
 
@@ -81,9 +84,25 @@
                                 {{ $methodes[$paiement->payment_method] ?? ($paiement->payment_method ?: '—') }}
                             </td>
                             <td class="text-center">
-                                <x-puce :couleur="$paiement->status === 'completed' ? 'emerald' : 'soleil'">
-                                    {{ $libelles[$paiement->status] ?? ucfirst((string) $paiement->status) }}
+                                @php($rejet = $paiement->metadata['rejet'] ?? null)
+
+                                <x-puce :couleur="match ($paiement->status) {
+                                    'completed' => 'emerald',
+                                    'cancelled', 'failed' => 'rose',
+                                    default => 'soleil',
+                                }">
+                                    {{ $paiement->status === 'cancelled' && $rejet
+                                        ? 'Refusé'
+                                        : ($libelles[$paiement->status] ?? ucfirst((string) $paiement->status)) }}
                                 </x-puce>
+
+                                {{-- Le motif suit le statut : « refusé » tout seul
+                                     n'apprend rien à qui a payé. --}}
+                                @if ($rejet)
+                                    <span class="mt-1 block text-[11px] leading-snug text-gris-500">
+                                        {{ $rejet['libelle'] }}
+                                    </span>
+                                @endif
                             </td>
                             <td class="text-center tabular-nums text-gris-500">
                                 {{ optional($paiement->paid_at ?? $paiement->created_at)->format('d/m/Y') ?? '—' }}

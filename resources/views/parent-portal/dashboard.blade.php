@@ -10,6 +10,9 @@
 
 @section('contenu')
 
+{{-- Ce que l'école a refusé, en tête : c'est ce qui appelle une action. --}}
+<x-alerte-rejets :rejets="$rejets"/>
+
 @php
     $franc = fn ($v) => number_format((float) $v, 0, ',', ' ').' FCFA';
 

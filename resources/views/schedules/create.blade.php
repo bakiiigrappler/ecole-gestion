@@ -127,7 +127,7 @@
                         </p>
                     @endif
 
-                    <div class="max-h-80 space-y-1 overflow-y-auto pr-1">
+                    <div class="relative max-h-80 space-y-1 overflow-y-auto pr-1">
                         @foreach ($matieres as $m)
                             {{-- Couleurs posees en style : une classe Tailwind construite
                                  a la volee n'est pas generee a la compilation. --}}

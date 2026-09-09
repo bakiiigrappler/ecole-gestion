@@ -224,13 +224,12 @@
                             </button>
                         </form>
 
-                        <form method="POST" action="{{ route('payments.cancel', $payment) }}"
-                              onsubmit="return confirm('Annuler ce paiement ?')">
-                            @csrf
-                            <button type="submit" class="bouton-danger w-full justify-center">
-                                Annuler le paiement
-                            </button>
-                        </form>
+                        {{-- Le refus exige un motif : c'est la seule phrase que le
+                             parent lira pour comprendre ce qu'il doit faire. --}}
+                        <x-rejet-paiement :payment="$payment"
+                                          bouton="bouton-danger w-full justify-center">
+                            Refuser le versement…
+                        </x-rejet-paiement>
                     @else
                         <p class="text-[11px] leading-relaxed text-gris-400">
                             Seuls les paiements en attente peuvent être terminés ou annulés.

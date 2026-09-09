@@ -151,6 +151,10 @@
                                 @csrf
                                 <button type="submit" class="bouton-mini text-emerald-700">Valider</button>
                             </form>
+                            <x-rejet-paiement :payment="$declaration"
+                                              bouton="bouton-mini text-corail-600">
+                                Refuser…
+                            </x-rejet-paiement>
                         </div>
                     </li>
                 @endforeach

@@ -588,6 +588,10 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
          */
         Route::get('/paiement', [ParentPortalController::class, 'paiement'])->name('paiement');
         Route::post('/paiement', [ParentPortalController::class, 'declarerLePaiement'])->name('declarer-paiement');
+
+        // Le parent accuse lecture d'un versement refuse : l'alerte s'efface.
+        Route::post('/paiement/{payment}/lu', [ParentPortalController::class, 'accuserLeRejet'])
+            ->name('rejet-lu');
         Route::get('/profile', [ParentPortalController::class, 'profile'])->name('profile');
         Route::post('/profile', [ParentPortalController::class, 'updateProfile'])->name('update-profile');
         Route::post('/change-password', [ParentPortalController::class, 'changePassword'])->name('change-password');

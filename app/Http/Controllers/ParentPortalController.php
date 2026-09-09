@@ -197,9 +197,11 @@ class ParentPortalController extends Controller
             ? round($moyennes_valides->avg(), 2)
             : null;
 
+        $rejets = $this->rejetsAAnnoncer($parent);
+
         return view('parent-portal.dashboard', compact(
             'user', 'parent', 'children', 'stats', 'recentPayments',
-            'fiches', 'bilan', 'annee', 'dernieresNotes', 'dernieresAbsences'
+            'fiches', 'bilan', 'annee', 'dernieresNotes', 'dernieresAbsences', 'rejets'
         ));
     }
 
@@ -360,7 +362,9 @@ class ParentPortalController extends Controller
             'en_ligne' => OnlinePayment::where('parent_id', $parent->id)->count(),
         ];
 
-        return view('parent-portal.payment-history', compact('parent', 'payments', 'enfants', 'bilan'));
+        $rejets = $this->rejetsAAnnoncer($parent);
+
+        return view('parent-portal.payment-history', compact('parent', 'payments', 'enfants', 'bilan', 'rejets'));
     }
 
     /**
@@ -666,6 +670,7 @@ class ParentPortalController extends Controller
             ->values();
 
         return view('parent-portal.paiement', [
+            'rejets' => $this->rejetsAAnnoncer($parent),
             'parent' => $parent,
             'reglages' => $reglages,
             'operateurs' => $operateurs,
@@ -752,6 +757,50 @@ class ParentPortalController extends Controller
 
         return redirect()->route('payments.receipt', $paiement)
             ->with('success', 'Votre versement a été déclaré. Le secrétariat le validera après vérification auprès de l’opérateur.');
+    }
+
+    /**
+     * Les versements refusés dont le parent n'a pas encore pris connaissance.
+     *
+     * Le refus se lit sur le versement lui-même : pas de table de
+     * notifications, pas de copie qui divergerait de l'original. Il reste
+     * annoncé tant que le parent n'a pas dit l'avoir lu — un message qui
+     * disparaît au premier changement de page n'a averti personne.
+     */
+    private function rejetsAAnnoncer(ParentModel $parent)
+    {
+        return \App\Models\Payment::with('student:id,first_name,last_name,student_id')
+            ->whereIn('student_id', $parent->students->pluck('id'))
+            ->where('status', 'cancelled')
+            ->whereNotNull('metadata')
+            ->orderByDesc('updated_at')
+            ->get()
+            ->filter(fn ($p) => ($p->metadata['rejet'] ?? null) && empty($p->metadata['rejet']['vu_le']))
+            ->values();
+    }
+
+    /**
+     * Le parent accuse lecture d'un refus.
+     */
+    public function accuserLeRejet(\App\Models\Payment $payment)
+    {
+        $parent = $this->getCurrentParent();
+
+        // Le versement est-il bien celui d'un de ses enfants ?
+        abort_unless(
+            $parent->students()->where('students.id', $payment->student_id)->exists(),
+            403,
+            'Ce versement ne relève pas de votre compte.'
+        );
+
+        $metadonnees = (array) $payment->metadata;
+
+        if (isset($metadonnees['rejet'])) {
+            $metadonnees['rejet']['vu_le'] = now()->toDateTimeString();
+            $payment->forceFill(['metadata' => $metadonnees])->save();
+        }
+
+        return back()->with('success', 'Vous avez pris connaissance de ce refus.');
     }
 
     private function getCurrentParent()

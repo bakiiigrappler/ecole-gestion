@@ -76,16 +76,32 @@
                     <button type="submit" class="bouton-primaire">Valider ce versement</button>
                 </form>
 
-                <x-confirmation :action="route('payments.cancel', $payment)"
-                                methode="POST"
-                                titre="Rejeter ce versement ?"
-                                message="Le versement sera marqué comme annulé. À faire lorsque l’opération est introuvable chez l’opérateur."
-                                confirmer="Rejeter"
-                                bouton="bouton-secondaire text-corail-600">
-                    Rejeter
-                </x-confirmation>
+                <x-rejet-paiement :payment="$payment">Refuser…</x-rejet-paiement>
             </div>
         @endif
+    </div>
+@endif
+
+@php($rejet = $payment->metadata['rejet'] ?? null)
+
+@if ($payment->status === 'cancelled' && $rejet)
+    <div class="carte mb-6 border-corail-300 bg-corail-50 p-5 sans-impression">
+        <h2 class="text-sm font-semibold text-corail-900">Versement refusé</h2>
+        <p class="mt-1.5 text-sm font-medium text-gris-800">{{ $rejet['libelle'] }}</p>
+
+        @if (! empty($rejet['precision']))
+            <p class="mt-1 text-sm leading-relaxed text-gris-700">{{ $rejet['precision'] }}</p>
+        @endif
+
+        <p class="mt-2 text-sm leading-relaxed text-gris-600">
+            {{ \App\Support\MotifsDeRejet::consigne($rejet['motif'] ?? null) }}
+        </p>
+
+        <p class="mt-2 text-[11px] text-gris-500">
+            Refusé le {{ \Carbon\Carbon::parse($rejet['le'])->format('d/m/Y à H:i') }}
+            @if (! empty($rejet['par'])) par {{ $rejet['par'] }} @endif.
+            Aucun montant n’a été porté au dossier de l’élève.
+        </p>
     </div>
 @endif
 

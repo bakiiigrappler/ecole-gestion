@@ -145,7 +145,7 @@
                 <span class="text-xs text-gris-400">{{ $comptes->count() }}</span>
             </div>
 
-            <div class="max-h-96 divide-y divide-gris-100 overflow-y-auto">
+            <div class="relative max-h-96 divide-y divide-gris-100 overflow-y-auto">
                 @forelse ($comptes as $compte)
                     <div class="flex items-center gap-3 px-5 py-2.5">
                         <x-avatar :nom="$compte->name" class="h-8 w-8 shrink-0 text-[10px]"/>

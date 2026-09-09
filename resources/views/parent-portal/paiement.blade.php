@@ -14,6 +14,9 @@
 
 @section('contenu')
 
+{{-- Ce que l'école a refusé, en tête : c'est ce qui appelle une action. --}}
+<x-alerte-rejets :rejets="$rejets"/>
+
 @php
     $franc = fn ($v) => number_format((float) $v, 0, ',', ' ').' FCFA';
 
@@ -91,7 +94,15 @@
                 </div>
             </div>
 
-            <div class="max-h-96 divide-y divide-gris-100 overflow-y-auto">
+            {{-- Une fratrie nombreuse ne doit pas repousser « Où payer » hors de
+                 vue : la liste défile dans son cadre.
+
+                 `relative` n'est pas décoratif. Sans lui, la hauteur du contenu
+                 débordant de ce cadre s'ajoutait au défilement de la page
+                 entière : on descendait sur 400 px de blanc après le pied de
+                 page. Le cadre devient son propre bloc conteneur, et ce qu'il
+                 rogne cesse de compter ailleurs. --}}
+            <div class="relative max-h-96 divide-y divide-gris-100 overflow-y-auto">
                 @foreach ($dossiers as $dossier)
                     <label class="flex cursor-pointer flex-wrap items-center gap-4 px-5 py-4 transition"
                            :class="enfant === {{ $dossier['eleve']->id }} ? 'bg-ogar-50' : 'hover:bg-gris-50'">
