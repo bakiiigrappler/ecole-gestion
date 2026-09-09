@@ -110,6 +110,15 @@
                                     : 'border-transparent text-gris-600 hover:border-gris-300 hover:text-gris-900' }}">
                         <span class="h-1.5 w-1.5 shrink-0 rounded-full {{ $actif ? 'bg-ogar-600' : 'bg-gris-300' }}"></span>
                         {{ $lien['libelle'] }}
+
+                        {{-- Le meme compteur que dans la barre laterale : les deux
+                             dispositions lisent le meme menu. --}}
+                        @if (! empty($lien['pastille']))
+                            <span class="inline-flex min-w-5 items-center justify-center rounded-full bg-corail-500
+                                         px-1.5 text-[10px] font-bold text-white">
+                                {{ $lien['pastille'] > 99 ? '99+' : $lien['pastille'] }}
+                            </span>
+                        @endif
                     </a>
                 @endforeach
             </nav>

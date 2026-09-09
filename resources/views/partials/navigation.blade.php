@@ -48,6 +48,15 @@
                                         : 'text-gris-300 hover:bg-white/10 hover:text-white' }}">
                             <span class="h-1.5 w-1.5 shrink-0 rounded-full {{ $actif ? 'bg-white' : 'bg-ogar-400/60' }}"></span>
                             <span class="truncate">{{ $lien['libelle'] }}</span>
+
+                            {{-- Ce qui attend une action se compte dans le menu :
+                                 c'est le seul endroit visible de partout. --}}
+                            @if (! empty($lien['pastille']))
+                                <span class="ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-full
+                                             bg-corail-500 px-1.5 text-[10px] font-bold text-white">
+                                    {{ $lien['pastille'] > 99 ? '99+' : $lien['pastille'] }}
+                                </span>
+                            @endif
                         </a>
                     </li>
                 @endforeach

@@ -18,6 +18,28 @@ use App\Models\SchoolSettings;
  */
 class MenuPrincipal
 {
+    /** Mémorisé par requête : le menu se rend deux fois sur certaines pages. */
+    private static ?int $versementsAVerifier = null;
+
+    /**
+     * Combien de versements déclarés attendent une vérification.
+     *
+     * Compté ici parce que le menu est le seul endroit vu depuis n'importe
+     * quelle page. La requête est bornée à l'établissement courant par le
+     * filtre global du modèle.
+     */
+    private static function versementsAVerifier(): int
+    {
+        if (self::$versementsAVerifier !== null) {
+            return self::$versementsAVerifier;
+        }
+
+        return self::$versementsAVerifier = \App\Models\Payment::query()
+            ->whereIn('payment_method', array_keys(MobileMoney::OPERATEURS))
+            ->whereIn('status', ['pending', 'processing'])
+            ->count();
+    }
+
     /**
      * Les rubriques visibles par le compte connecté, liens déjà filtrés.
      *
@@ -119,7 +141,15 @@ class MenuPrincipal
                 'visible' => Roles::voitLesFinances($role) && $dansUnEtablissement,
                 'liens' => [
                     ['libelle' => 'Frais scolaires', 'route' => 'fees.index', 'motif' => 'fees.*'],
-                    ['libelle' => 'Paiements', 'route' => 'payments.index', 'motif' => 'payments.*'],
+                    ['libelle' => 'Paiements', 'route' => 'payments.index', 'motif' => 'payments.index'],
+                    [
+                        'libelle' => 'Versements déclarés',
+                        'route' => 'payments.declarations',
+                        'motif' => 'payments.declarations',
+                        // Le nombre qui attend : un versement oublie, c'est un
+                        // parent qui a paye et dont le dossier ne le dit pas.
+                        'pastille' => self::versementsAVerifier(),
+                    ],
                 ],
             ],
             [

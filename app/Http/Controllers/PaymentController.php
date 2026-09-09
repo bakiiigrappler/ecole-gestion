@@ -275,6 +275,55 @@ class PaymentController extends Controller
      * Afficher le reçu de paiement
      */
     /**
+     * Les versements déclarés par les parents : à vérifier, refusés, validés.
+     *
+     * Ils arrivaient au milieu du journal des paiements, entre deux
+     * encaissements de guichet, alors qu'ils appellent une action et une seule :
+     * retrouver l'opération chez l'opérateur, puis valider ou refuser. Ils ont
+     * donc leur écran, et le menu porte le nombre de ceux qui attendent — un
+     * versement oublié, c'est un parent qui a payé et dont le dossier ne le dit
+     * pas.
+     */
+    public function declarations(Request $request)
+    {
+        $moyens = array_keys(\App\Support\MobileMoney::OPERATEURS);
+
+        $etats = [
+            'a-verifier' => ['pending', 'processing'],
+            'refuses' => ['cancelled', 'failed'],
+            'valides' => ['completed'],
+        ];
+
+        $onglet = array_key_exists($request->input('onglet'), $etats)
+            ? $request->input('onglet')
+            : 'a-verifier';
+
+        $base = fn () => Payment::query()->whereIn('payment_method', $moyens);
+
+        $declarations = $base()
+            ->with(['student:id,first_name,last_name,student_id', 'enrollment.schoolClass:id,name'])
+            ->whereIn('status', $etats[$onglet])
+            // Les plus anciennes d'abord quand elles attendent : c'est le parent
+            // qui patiente le plus qu'il faut servir en premier.
+            ->orderBy('created_at', $onglet === 'a-verifier' ? 'asc' : 'desc')
+            ->paginate(20)
+            ->withQueryString();
+
+        $compte = [];
+
+        foreach ($etats as $cle => $statuts) {
+            $compte[$cle] = $base()->whereIn('status', $statuts)->count();
+        }
+
+        return view('payments.declarations', [
+            'declarations' => $declarations,
+            'onglet' => $onglet,
+            'compte' => $compte,
+            'attendu' => (float) $base()->whereIn('status', $etats['a-verifier'])->sum('amount'),
+        ]);
+    }
+
+    /**
      * Le recu d'un versement — le meme pour l'administration et pour le parent.
      *
      * Il en existait deux lectures : celle du secretariat, et rien du tout

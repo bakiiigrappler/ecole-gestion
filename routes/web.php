@@ -358,6 +358,14 @@ Route::get('/grades/student/{studentId}/bulletin-carte', [GradeController::class
     Route::delete('fees/{fee}', [FeeController::class, 'destroy'])->name('fees.destroy');
 
     // Routes pour la gestion des paiements
+    /*
+     * Avant la ressource : « payments/declarations » serait sinon capte par
+     * « payments/{payment} », qui tenterait de lire « declarations » comme un
+     * identifiant.
+     */
+    Route::get('payments/declarations', [PaymentController::class, 'declarations'])
+        ->name('payments.declarations');
+
     Route::resource('payments', PaymentController::class)->except(['create'])->names([
         'index' => 'payments.index',
         'store' => 'payments.store',
