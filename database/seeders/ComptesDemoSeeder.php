@@ -23,6 +23,17 @@ class ComptesDemoSeeder extends Seeder
             return;
         }
 
+        /*
+         * `User` ne porte pas le trait qui rattache un modele a son
+         * etablissement — le scope interrogerait l'utilisateur connecte, dont
+         * la resolution passe par le modele. Le rattachement se fait donc ici,
+         * a la main : sans lui, l'administrateur de demonstration n'appartenait
+         * a aucune ecole, et voyait donc les donnees de toutes.
+         *
+         * Le super administrateur reste hors etablissement : il les surplombe.
+         */
+        $ecole = \App\Support\EcoleCourante::id();
+
         foreach ($comptes as $compte) {
             User::updateOrCreate(
                 ['email' => $compte['email']],
@@ -31,6 +42,7 @@ class ComptesDemoSeeder extends Seeder
                     'password' => Hash::make($compte['mot_de_passe']),
                     'role' => $compte['role'],
                     'matricule' => $compte['matricule'],
+                    'school_id' => $compte['role'] === 'superadmin' ? null : $ecole,
                     'is_active' => true,
                     'email_verified_at' => now(),
                 ]

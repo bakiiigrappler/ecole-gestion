@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -o /dev/null -w \"http 8080 -> %{http_code}\\\\n\" http://127.0.0.1:8080/login)",
+      "PowerShell($t = Test-NetConnection -ComputerName 127.0.0.1 -Port 15432 -InformationLevel Quiet -WarningAction SilentlyContinue; \"postgres 15432 : $t\"; $d = Get-Process 'Docker Desktop' -ErrorAction SilentlyContinue; if \\($d\\) { \"Docker Desktop : lance\" } else { \"Docker Desktop : arrete\" })",
+      "PowerShell($exe = \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\"; if \\(Test-Path $exe\\) { Start-Process $exe; \"Docker Desktop demarre — attente du moteur\" } else { \"introuvable : $exe\" })",
+      "PowerShell(docker version --format '{{.Server.Version}}' 2>&1)",
+      "PowerShell(\"--- wsl --status ---\"; wsl --status 2>&1 | Out-String; \"--- distributions ---\"; wsl -l -v 2>&1 | Out-String; \"--- virtualisation ---\"; \\(Get-CimInstance Win32_ComputerSystem\\).HypervisorPresent; \"--- fonctionnalites ---\"; Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform, Microsoft-Windows-Subsystem-Linux 2>$null | Select-Object FeatureName, State | Format-Table -AutoSize | Out-String)",
+      "PowerShell($v = Get-Item \"$env:LOCALAPPDATA\\\\docker\\\\wsl\\\\main\\\\ext4.vhdx\"; \"attributs fichier : $\\($v.Attributes\\)\"; $d = Get-Item \"$env:LOCALAPPDATA\\\\docker\\\\wsl\\\\main\"; \"attributs dossier : $\\($d.Attributes\\)\"; \"--- lecteur ---\"; \\(Get-Item $env:LOCALAPPDATA\\).PSDrive.Name; Get-Volume -DriveLetter C | Select-Object FileSystemType, @{n='LibreGo';e={[math]::Round\\($_.SizeRemaining/1GB,1\\)}} | Format-Table -AutoSize | Out-String)",
+      "Bash(docker info *)",
+      "Bash(git check-ignore *)",
+      "Bash(php -r \"file_put_contents\\('storage/app/egesco-local.sqlite', ''\\);\")",
+      "Bash(DB_CONNECTION=sqlite DB_DATABASE=\"C:/Projet cursor/ecole/gestion-ecole/storage/app/egesco-local.sqlite\" php artisan migrate --force)",
+      "Bash(DB_CONNECTION=sqlite DB_DATABASE=\"C:/Projet cursor/ecole/gestion-ecole/storage/app/egesco-local.sqlite\" php artisan db:seed --force)",
+      "Bash(DB_CONNECTION=sqlite DB_DATABASE=\"C:/Projet cursor/ecole/gestion-ecole/storage/app/egesco-local.sqlite\" php artisan serve --host=127.0.0.1 --port=8080)",
+      "Bash(MSYS_NO_PATHCONV=1 NODE_PATH=\"C:/Users/V/Downloads/Telegram Desktop/drivebyafrica-main/node_modules\" node \"C:/Users/V/AppData/Local/Temp/claude/c--Projet-cursor-ecole-gestion-ecole/85462704-1ee1-4447-bfb5-cd7d86f53165/scratchpad/fumee-locale.cjs\")",
+      "Bash(MSYS_NO_PATHCONV=1 NODE_PATH=\"C:/Users/V/Downloads/Telegram Desktop/drivebyafrica-main/node_modules\" node \"C:/Users/V/AppData/Local/Temp/claude/c--Projet-cursor-ecole-gestion-ecole/85462704-1ee1-4447-bfb5-cd7d86f53165/scratchpad/diag-parent-404.cjs\")",
+      "Bash(DB_CONNECTION=sqlite DB_DATABASE='C:/Projet cursor/ecole/gestion-ecole/storage/app/egesco-local.sqlite' php artisan tinker '--execute= *)",
+      "Bash(python \"C:/Users/V/AppData/Local/Temp/claude/c--Projet-cursor-ecole-gestion-ecole/85462704-1ee1-4447-bfb5-cd7d86f53165/scratchpad/maj_seeder_ecole.py\")",
+      "Bash(php -l database/seeders/DatabaseSeeder.php)",
+      "Bash(php -l database/seeders/RattacherLesComptesDemoSeeder.php)",
+      "Bash(php -r \"file_put_contents\\('storage/app/egesco-local.sqlite',''\\);\")",
+      "Bash(DB_CONNECTION=sqlite DB_DATABASE=\"C:/Projet cursor/ecole/gestion-ecole/storage/app/egesco-local.sqlite\" php artisan migrate:fresh --seed --force)",
+      "Bash(DB_CONNECTION=sqlite DB_DATABASE=\"C:/Projet cursor/ecole/gestion-ecole/storage/app/egesco-local.sqlite\" php artisan db:seed --class=\"Database\\\\Seeders\\\\RattacherLesComptesDemoSeeder\" --force)",
+      "Bash(php -l database/seeders/DonneesDemoSeeder.php)",
+      "Bash(php -l database/seeders/ComptesDemoSeeder.php)",
+      "Bash(curl -s -o /dev/null -w \"avant redemarrage : %{http_code}\\\\n\" http://127.0.0.1:8080/login)",
+      "Bash(MSYS_NO_PATHCONV=1 NODE_PATH=\"C:/Users/V/Downloads/Telegram Desktop/drivebyafrica-main/node_modules\" node \"C:/Users/V/AppData/Local/Temp/claude/c--Projet-cursor-ecole-gestion-ecole/85462704-1ee1-4447-bfb5-cd7d86f53165/scratchpad/verif-cloisonnement.cjs\")",
+      "Bash(php -l database/seeders/SchoolSettingsSeeder.php)",
+      "Bash(DB_CONNECTION=sqlite DB_DATABASE=\"C:/Projet cursor/ecole/gestion-ecole/storage/app/egesco-local.sqlite\" php artisan db:seed --class=\"Database\\\\Seeders\\\\SchoolSettingsSeeder\" --force)",
+      "Bash(DB_CONNECTION=sqlite DB_DATABASE='C:/Projet cursor/ecole/gestion-ecole/storage/app/egesco-local.sqlite' php artisan tinker '--execute=$e = App\\\\Models\\\\School::withoutGlobalScopes\\(\\)->first\\(\\); echo $e->name.'\\\\'' | '\\\\''.$e->city.'\\\\'' | '\\\\''.$e->code;')",
+      "Bash(MSYS_NO_PATHCONV=1 MATRICULE_ELEVE=STU00002 NODE_PATH=\"C:/Users/V/Downloads/Telegram Desktop/drivebyafrica-main/node_modules\" node \"C:/Users/V/AppData/Local/Temp/claude/c--Projet-cursor-ecole-gestion-ecole/85462704-1ee1-4447-bfb5-cd7d86f53165/scratchpad/verif-cloisonnement.cjs\")"
+    ]
+  }
+}

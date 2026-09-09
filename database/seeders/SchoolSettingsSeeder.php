@@ -37,6 +37,9 @@ class SchoolSettingsSeeder extends Seeder
                 'is_active' => true,
             ]);
             
+            // La fiche de l'etablissement dit alors la meme chose que ses parametres.
+            $this->accorderLaFiche();
+
             $this->command->info('✅ Paramètres mis à jour avec succès.');
             return;
         }
@@ -71,6 +74,9 @@ class SchoolSettingsSeeder extends Seeder
             'is_active' => true,
         ]);
         
+        // La fiche de l'etablissement dit alors la meme chose que ses parametres.
+        $this->accorderLaFiche();
+
         $this->command->info('✅ Paramètres de l\'école créés avec succès.');
     }
 
@@ -81,6 +87,28 @@ class SchoolSettingsSeeder extends Seeder
      * `SchoolSettings::getLogoUrlAttribute()` prefixe par `storage/` : les
      * chemins rendus sont donc relatifs a `storage/app/public`.
      */
+    /**
+     * Aligner la fiche du premier etablissement sur ses parametres.
+     */
+    private function accorderLaFiche(): void
+    {
+        $reglages = SchoolSettings::orderBy('id')->first();
+        $ecole = \App\Models\School::withoutGlobalScopes()->orderBy('id')->first();
+
+        if (! $ecole) {
+            return;
+        }
+
+        $ecole->forceFill([
+            'name' => $reglages->school_name ?? 'Établissement Scolaire',
+            'city' => $reglages->city ?? 'Libreville',
+            'address' => $reglages->school_address ?? null,
+            'phone' => $reglages->school_phone ?? null,
+            'email' => $reglages->school_email ?? null,
+            'bp' => $reglages->school_bp ?? null,
+        ])->save();
+    }
+
     private function deposerLesImages(): array
     {
         $sources = [

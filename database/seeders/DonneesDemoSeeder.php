@@ -166,6 +166,13 @@ class DonneesDemoSeeder extends Seeder
                     'receipt_number' => sprintf('REC-%s-%06d', $paye->format('Y'), $inscription->id),
                     'created_at' => $paye,
                     'updated_at' => $paye,
+                    /*
+                     * Pose a la main : cette insertion passe par le
+                     * constructeur de requetes, qui ignore le trait chargé de
+                     * rattacher le modele a son etablissement. Les 600
+                     * paiements de demonstration n'appartenaient a personne.
+                     */
+                    'school_id' => $inscription->school_id ?? \App\Support\EcoleCourante::id(),
                 ];
             }
 
