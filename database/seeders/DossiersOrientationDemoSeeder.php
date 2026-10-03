@@ -57,8 +57,27 @@ class DossiersOrientationDemoSeeder extends Seeder
         $conseiller = User::whereIn('role', ['admin', 'directeur', 'proviseur', 'censeur'])->first();
         $poses = [];
 
+        /*
+         * Les comptes de démonstration d'abord, et avec un état choisi.
+         *
+         * Celui qui ouvre l'application par l'accès rapide tombe sur le compte
+         * élève et sur le compte parent : s'ils n'ont pas de dossier, il voit
+         * un écran vide et conclut que la fonction n'existe pas. L'élève reçoit
+         * donc un vœu accordé, un enfant du parent un désaccord motivé — c'est
+         * là qu'on voit ce que l'établissement répond — et un autre un dossier
+         * en attente.
+         */
+        foreach ($this->comptesDeDemonstration($annee) as $statut => $eleve) {
+            $this->poser($eleve, $annee, $statut, $conseiller);
+            $poses[$statut] = ($poses[$statut] ?? 0) + 1;
+
+            $eleves = $eleves->reject(fn ($autre) => $autre->id === $eleve->id)->values();
+        }
+
         foreach (self::PAR_ETAT as $statut => $nombre) {
-            foreach ($eleves->splice(0, $nombre) as $eleve) {
+            $restant = max(0, $nombre - ($poses[$statut] ?? 0));
+
+            foreach ($eleves->splice(0, $restant) as $eleve) {
                 $this->poser($eleve, $annee, $statut, $conseiller);
                 $poses[$statut] = ($poses[$statut] ?? 0) + 1;
             }
@@ -67,6 +86,77 @@ class DossiersOrientationDemoSeeder extends Seeder
         $this->command?->info('Dossiers d’orientation posés : '.collect($poses)
             ->map(fn ($n, $statut) => $n.' '.OrientationDossier::STATUTS[$statut])
             ->join(', ').'.');
+    }
+
+    /**
+     * Les élèves que l'accès rapide met sous les yeux, avec l'état à leur donner.
+     *
+     * L'élève de la page de connexion est celui du plus petit matricule : la
+     * même règle que la vue, pour qu'ils désignent le même. Les enfants du
+     * compte parent viennent ensuite, du plus avancé au moins avancé dans la
+     * scolarité — le dossier décidé revient à l'aîné.
+     *
+     * @return array<string, Student>
+     */
+    private function comptesDeDemonstration(?AcademicYear $annee): array
+    {
+        $concerne = fn (?Student $eleve) => $eleve
+            && $this->niveauDe($eleve) !== null
+            && $eleve->grades()->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id))->exists();
+
+        $choisis = [];
+
+        // Le compte élève de l'accès rapide.
+        $compteEleve = User::where('role', 'student')->whereNotNull('matricule')->orderBy('matricule')->first();
+        $eleve = $compteEleve
+            ? Student::where('user_id', $compteEleve->id)
+                ->with(['enrollments.schoolClass.level', 'enrollments.schoolClass.serie'])
+                ->first()
+            : null;
+
+        if ($concerne($eleve)) {
+            $choisis['accorde'] = $eleve;
+        }
+
+        // Les enfants du compte parent.
+        $courriels = collect(config('demo.comptes', []))->where('role', 'parent')->pluck('email')->all();
+        $compteParent = $courriels ? User::whereIn('email', $courriels)->first() : null;
+        $parent = $compteParent
+            ? \App\Models\ParentModel::withoutGlobalScopes()->where('user_id', $compteParent->id)->first()
+            : null;
+
+        if ($parent) {
+            $enfants = $parent->students()
+                ->with(['enrollments.schoolClass.level', 'enrollments.schoolClass.serie'])
+                ->get()
+                ->filter($concerne)
+                ->values();
+
+            foreach (['refuse', 'soumis'] as $rang => $statut) {
+                $enfant = $enfants->get($rang);
+
+                if ($enfant && ! collect($choisis)->contains(fn ($e) => $e->id === $enfant->id)) {
+                    $choisis[$statut] = $enfant;
+                }
+            }
+        }
+
+        return $choisis;
+    }
+
+    /**
+     * Le niveau d'orientation d'un élève, ou null s'il n'y est pas.
+     */
+    private function niveauDe(Student $eleve): ?string
+    {
+        $nom = mb_strtolower((string) ($eleve->enrollments->firstWhere('status', 'active')
+            ?->schoolClass?->level?->name ?? ''));
+
+        if (str_contains($nom, 'erminale')) {
+            return 'terminale';
+        }
+
+        return str_contains($nom, '3') ? 'troisieme' : null;
     }
 
     /**

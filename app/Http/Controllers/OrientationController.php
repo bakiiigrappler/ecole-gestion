@@ -520,11 +520,32 @@ class OrientationController extends Controller
 
             abort_if($enfants->isEmpty(), 404, 'Aucun enfant n’est rattaché à votre compte.');
 
-            $choisi = $request->integer('eleve');
+            if ($choisi = $request->integer('eleve')) {
+                return $enfants->firstWhere('id', $choisi) ?? $enfants->first();
+            }
 
-            $eleve = $enfants->firstWhere('id', $choisi) ?? $enfants->first();
+            /*
+             * Sans choix explicite, l'enfant que l'ecran a quelque chose a dire.
+             *
+             * Une fratrie nombreuse tombait sur le premier par ordre de
+             * naissance — souvent un eleve de CM1, pour qui l'orientation
+             * n'existe pas — et le parent en concluait que la rubrique etait
+             * vide. On montre donc d'abord celui dont le voeu attend d'etre lu,
+             * puis celui qui est en age d'etre oriente.
+             */
+            $dossiers = OrientationDossier::whereIn('student_id', $enfants->pluck('id'))
+                ->get()
+                ->keyBy('student_id');
 
-            return $eleve;
+            $aLire = $enfants->first(fn ($e) => ($d = $dossiers->get($e->id))
+                && $d->estDecide()
+                && ! $d->decision_vue_le);
+
+            $avecDossier = $enfants->first(fn ($e) => $dossiers->has($e->id));
+
+            $enAge = $enfants->first(fn ($e) => $this->niveau($e) !== null);
+
+            return $aLire ?? $avecDossier ?? $enAge ?? $enfants->first();
         }
 
         // Direction et secrétariat consultent par le dossier, pas par ici.
