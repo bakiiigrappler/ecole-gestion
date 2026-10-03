@@ -79,6 +79,13 @@ class DatabaseSeeder extends Seeder
              * Apres les liens parent-eleve, donc.
              */
             RattacherLesComptesDemoSeeder::class,
+
+            /*
+             * Le repertoire d'orientation : lycees, universites et grandes
+             * ecoles du Gabon. National, donc hors etablissement — mais seme
+             * ici, pour qu'une base neuve ait de quoi orienter.
+             */
+            RepertoireOrientationSeeder::class,
         ]);
 
         /*

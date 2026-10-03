@@ -171,3 +171,7 @@ cookies.txt
 /test_*.pdf
 /test_*.csv
 /test_*.xlsx
+
+# Fichiers generes par le serveur de langage de l IDE : ils ne regardent que
+# la machine qui les produit.
+storage/framework/lsp-*.php
