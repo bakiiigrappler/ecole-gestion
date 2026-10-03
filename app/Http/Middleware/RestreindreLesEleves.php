@@ -32,6 +32,11 @@ class RestreindreLesEleves
         // de rendre quoi que ce soit.
         'grades.bulletin',
         'grades.bulletin.pdf',
+        // Son orientation : le controleur ne lui montre que son propre dossier.
+        'orientation.mon-dossier',
+        'orientation.enregistrer',
+        'orientation.soumettre',
+        'orientation.decision-lue',
     ];
 
     /**
@@ -49,6 +54,11 @@ class RestreindreLesEleves
         'grades.bulletin',
         'grades.bulletin.pdf',
         'payments.receipt',
+        // L'orientation de ses enfants : meme garde que pour l'eleve.
+        'orientation.mon-dossier',
+        'orientation.enregistrer',
+        'orientation.soumettre',
+        'orientation.decision-lue',
     ];
 
     /**

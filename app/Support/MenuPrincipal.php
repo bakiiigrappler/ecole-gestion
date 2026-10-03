@@ -21,6 +21,24 @@ class MenuPrincipal
     /** Mémorisé par requête : le menu se rend deux fois sur certaines pages. */
     private static ?int $versementsAVerifier = null;
 
+    private static ?int $dossiersAEtudier = null;
+
+    /**
+     * Combien de dossiers d'orientation attendent une décision.
+     *
+     * Un dossier oublié, c'est un élève qui n'a pas d'affectation à la rentrée.
+     */
+    private static function dossiersAEtudier(): int
+    {
+        if (self::$dossiersAEtudier !== null) {
+            return self::$dossiersAEtudier;
+        }
+
+        return self::$dossiersAEtudier = \App\Models\OrientationDossier::query()
+            ->where('statut', 'soumis')
+            ->count();
+    }
+
     /**
      * Combien de versements déclarés attendent une vérification.
      *
@@ -80,6 +98,7 @@ class MenuPrincipal
                     ['libelle' => 'Mon emploi du temps', 'route' => 'mon-espace.emploi-du-temps', 'motif' => 'mon-espace.emploi-du-temps'],
                     ['libelle' => 'Mes absences', 'route' => 'mon-espace.absences', 'motif' => 'mon-espace.absences'],
                     ['libelle' => 'Ma fiche élève', 'route' => 'mon-espace.fiche', 'motif' => 'mon-espace.fiche'],
+                    ['libelle' => 'Mon orientation', 'route' => 'orientation.mon-dossier', 'motif' => 'orientation.mon-dossier'],
                 ],
             ],
             [
@@ -90,6 +109,7 @@ class MenuPrincipal
                     ['libelle' => 'Mes enfants', 'route' => 'parent-portal.children', 'motif' => 'parent-portal.children'],
                     ['libelle' => 'Mes paiements', 'route' => 'parent-portal.payment-history', 'motif' => 'parent-portal.payment-history'],
                     ['libelle' => 'Régler la scolarité', 'route' => 'parent-portal.paiement', 'motif' => 'parent-portal.paiement'],
+                    ['libelle' => 'Orientation', 'route' => 'orientation.mon-dossier', 'motif' => 'orientation.mon-dossier'],
                     ['libelle' => 'Mon profil', 'route' => 'parent-portal.profile', 'motif' => 'parent-portal.profile'],
                 ],
             ],
@@ -133,6 +153,25 @@ class MenuPrincipal
                     ['libelle' => 'Bulletins', 'route' => 'bulletins.index', 'motif' => 'bulletins*'],
                     ['libelle' => 'Présences', 'route' => 'attendances.index', 'motif' => 'attendances.*'],
                     ['libelle' => 'Emplois du temps', 'route' => 'schedules.index', 'motif' => 'schedules.*', 'visible' => $estAdmin],
+                ],
+            ],
+            [
+                'titre' => 'Orientation',
+                /*
+                 * De la 3eme au lycee, de la terminale au superieur. La
+                 * scolarite est le domaine de la direction et du censeur ; le
+                 * secretariat monte les dossiers. L'enseignant n'y figure pas :
+                 * son avis passe par le conseil de classe.
+                 */
+                'visible' => ($estAdmin || $estSecretaire) && $dansUnEtablissement,
+                'liens' => [
+                    [
+                        'libelle' => 'Dossiers d’orientation',
+                        'route' => 'orientation.index',
+                        'motif' => 'orientation.index',
+                        'pastille' => self::dossiersAEtudier(),
+                    ],
+                    ['libelle' => 'Répertoire', 'route' => 'orientation.repertoire', 'motif' => 'orientation.repertoire'],
                 ],
             ],
             [

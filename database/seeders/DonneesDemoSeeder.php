@@ -198,12 +198,30 @@ class DonneesDemoSeeder extends Seeder
             return;
         }
 
-        // Le préprimaire et le primaire sont évalués par compétences, pas par notes.
-        $inscriptions = Enrollment::with('schoolClass.level')
+        /*
+         * Le préprimaire et le primaire sont évalués par compétences, pas par
+         * notes.
+         *
+         * Les classes de 3ème et de terminale passent d'abord : ce sont elles
+         * que le service d'orientation regarde, et un dossier d'orientation
+         * sans notes ne montre rien — le profil se calcule sur elles.
+         */
+        $aOrienter = Enrollment::with('schoolClass.level')
+            ->where('academic_year_id', $annee->id)
+            ->whereHas('schoolClass.level', fn ($q) => $q
+                ->whereIn('cycle', ['college', 'lycee'])
+                ->where(fn ($n) => $n->where('name', 'like', '%3%')->orWhere('name', 'like', '%erminale%')))
+            ->limit(80)
+            ->get();
+
+        $autres = Enrollment::with('schoolClass.level')
             ->where('academic_year_id', $annee->id)
             ->whereHas('schoolClass.level', fn ($q) => $q->whereIn('cycle', ['college', 'lycee']))
+            ->whereNotIn('id', $aOrienter->pluck('id')->all() ?: [0])
             ->limit(120)
             ->get();
+
+        $inscriptions = $aOrienter->concat($autres);
 
         if ($inscriptions->isEmpty()) {
             $this->command->warn('Aucune inscription au secondaire : notes ignorées.');

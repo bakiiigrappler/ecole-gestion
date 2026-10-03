@@ -475,6 +475,30 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
         Route::get('/mon-espace/emploi-du-temps', 'emploiDuTemps')->name('mon-espace.emploi-du-temps');
         Route::get('/mon-espace/absences', 'absences')->name('mon-espace.absences');
         Route::get('/mon-espace/fiche', 'fiche')->name('mon-espace.fiche');
+
+    /*
+     * Le service d'orientation : de la 3eme au lycee, de la terminale au
+     * superieur. Deux portes d'entree — celle de l'eleve et de sa famille,
+     * celle du conseiller — sur les memes dossiers.
+     */
+    Route::controller(\App\Http\Controllers\OrientationController::class)->group(function () {
+        Route::get('/mon-orientation', 'monDossier')->name('orientation.mon-dossier');
+        Route::post('/mon-orientation', 'enregistrer')->name('orientation.enregistrer');
+        Route::post('/mon-orientation/transmettre', 'soumettre')->name('orientation.soumettre');
+        Route::post('/mon-orientation/{dossier}/lu', 'accuserLaDecision')->name('orientation.decision-lue');
+
+        Route::get('/orientation', 'index')->name('orientation.index');
+        Route::get('/orientation/repertoire', 'repertoire')->name('orientation.repertoire');
+        Route::post('/orientation/repertoire', 'enregistrerEtablissement')->name('orientation.repertoire.ajouter');
+        Route::post('/orientation/repertoire/{etablissement}', 'enregistrerEtablissement')
+            ->name('orientation.repertoire.modifier');
+
+        // Apres le repertoire : « orientation/{dossier} » capterait sinon
+        // « repertoire » et tenterait de le lire comme un identifiant.
+        Route::get('/orientation/{dossier}', 'show')->name('orientation.show');
+        Route::post('/orientation/{dossier}/decider', 'decider')->name('orientation.decider');
+    });
+
     });
 
     // Routes d'administration (pour admins et superadmins)

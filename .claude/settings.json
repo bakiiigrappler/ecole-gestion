@@ -43,7 +43,12 @@
       "Bash(php -l app/Http/Middleware/ParentAvecFiche.php)",
       "Bash(MSYS_NO_PATHCONV=1 NODE_PATH=\"C:/Users/V/Downloads/Telegram Desktop/drivebyafrica-main/node_modules\" node \"C:/Users/V/AppData/Local/Temp/claude/c--Projet-cursor-ecole-gestion-ecole/85462704-1ee1-4447-bfb5-cd7d86f53165/scratchpad/verif-sans-fiche.cjs\")",
       "Bash(DB_CONNECTION=sqlite DB_DATABASE=\"C:/Projet cursor/ecole/gestion-ecole/storage/app/egesco-local.sqlite\" php artisan tinker --execute=\"App\\\\Models\\\\ParentModel::withoutGlobalScopes\\(\\)->whereNotNull\\('user_id'\\)->update\\(['user_id'=>null]\\); echo 'lien retire';\")",
-      "Bash(DB_CONNECTION=sqlite DB_DATABASE=\"C:/Projet cursor/ecole/gestion-ecole/storage/app/egesco-local.sqlite\" php artisan db:seed --class='Database\\\\Seeders\\\\RattacherLesComptesDemoSeeder' --force)"
+      "Bash(DB_CONNECTION=sqlite DB_DATABASE=\"C:/Projet cursor/ecole/gestion-ecole/storage/app/egesco-local.sqlite\" php artisan db:seed --class='Database\\\\Seeders\\\\RattacherLesComptesDemoSeeder' --force)",
+      "Bash(MSYS_NO_PATHCONV=1 NODE_PATH=\"C:/Users/V/Downloads/Telegram Desktop/drivebyafrica-main/node_modules\" node \"C:/Users/V/AppData/Local/Temp/claude/c--Projet-cursor-ecole-gestion-ecole/85462704-1ee1-4447-bfb5-cd7d86f53165/scratchpad/attendre-render.cjs\")",
+      "Bash(curl -s -o /dev/null -w \"serveur 8080 -> %{http_code}\\\\n\" http://127.0.0.1:8080/login)",
+      "Bash(docker volume *)",
+      "Bash(curl -s http://127.0.0.1:8080/login)",
+      "Bash(netstat -ano)"
     ]
   }
 }

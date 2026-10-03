@@ -18,11 +18,25 @@ class ClassSeeder extends Seeder
         foreach ($levels as $level) {
             // Créer 2 à 3 classes par niveau selon le cycle
             $classCount = in_array($level->cycle, ['preprimaire', 'primaire']) ? 2 : 3;
-            
+
+            /*
+             * Au lycee, une classe sans serie n'existe pas : on est en
+             * terminale C ou en terminale A2, pas en « terminale ». Le bulletin
+             * la porte, et le service d'orientation la lit pour savoir ce que
+             * le superieur ouvre a l'eleve — sans elle, il ne peut rien
+             * proposer.
+             */
+            $series = $level->cycle === 'lycee'
+                ? \App\Models\Series::where('level_id', $level->id)->orderBy('order')->get()
+                : collect();
+
             for ($i = 1; $i <= $classCount; $i++) {
+                $serie = $series->isNotEmpty() ? $series[($i - 1) % $series->count()] : null;
+
                 SchoolClass::create([
                     'name' => $level->name . ' ' . $i,
                     'level_id' => $level->id, // Relation correcte avec la table levels
+                    'series_id' => $serie?->id,
                     'capacity' => $this->getCapacityByLevel($level->cycle),
                     'description' => 'Classe ' . $level->name . ' section ' . $i,
                     'is_active' => true,
