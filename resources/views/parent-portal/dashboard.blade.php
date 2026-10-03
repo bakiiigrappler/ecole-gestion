@@ -5,6 +5,7 @@
 
 @section('actions-entete')
     <a href="{{ route('parent-portal.payment-history') }}" class="bouton-secondaire">Mes paiements</a>
+    <a href="{{ route('orientation.mon-dossier') }}" class="bouton-secondaire">Orientation</a>
     <a href="{{ route('parent-portal.children') }}" class="bouton-primaire">Mes enfants</a>
 @endsection
 

@@ -10,24 +10,32 @@
 @section('contenu')
 
 @php
+    /*
+     * Le vocabulaire est celui du service d'orientation : on « accorde » ou on
+     * marque son « désaccord », motif à l'appui. Dire « refusé » laisserait
+     * croire à une sanction, quand il s'agit d'un avis sur un vœu.
+     */
     $onglets = [
-        'a-etudier' => 'À étudier',
-        'accordes' => 'Accordés',
-        'refuses' => 'Refusés',
+        'a-orienter' => 'À orienter',
+        'a-etudier' => 'En attente',
+        'accordes' => 'Accord',
+        'refuses' => 'Désaccord',
         'brouillons' => 'En cours chez l’élève',
     ];
 
     $puce = [
         'soumis' => 'amber', 'accorde' => 'emerald', 'refuse' => 'rose', 'brouillon' => 'slate',
     ];
+
+    $niveaux = ['' => 'Tous les niveaux', 'troisieme' => '3ème vers 2nde', 'terminale' => 'Terminale vers supérieur'];
 @endphp
 
     <div class="grid gap-4 sm:grid-cols-4">
-        <x-statistique libelle="À étudier" :valeur="$compte['a-etudier']"
+        <x-statistique libelle="En attente" :valeur="$compte['a-etudier']"
                        detail="Transmis par les élèves" couleur="amber"/>
-        <x-statistique libelle="Accordés" :valeur="$compte['accordes']"
+        <x-statistique libelle="Accord" :valeur="$compte['accordes']"
                        detail="Vœux suivis" couleur="emerald"/>
-        <x-statistique libelle="Refusés" :valeur="$compte['refuses']"
+        <x-statistique libelle="Désaccord" :valeur="$compte['refuses']"
                        detail="Avec motif transmis" couleur="rose"/>
         <x-statistique libelle="En cours" :valeur="$compte['brouillons']"
                        detail="Pas encore transmis" couleur="slate"/>
@@ -62,9 +70,24 @@
         </div>
     @endif
 
-    <div class="mt-6 flex flex-wrap items-center gap-1 border-b border-gris-200">
+    {{-- Le filtre par niveau : on ne traite pas les 3ème et les terminales
+         dans la même séance. --}}
+    <div class="mt-6 flex flex-wrap items-center gap-2">
+        <span class="text-[11px] font-semibold uppercase tracking-wide text-gris-500">Niveau</span>
+        @foreach ($niveaux as $cle => $libelle)
+            <a href="{{ route('orientation.index', array_filter(['onglet' => $onglet, 'niveau' => $cle])) }}"
+               class="rounded-full border px-3 py-1 text-sm transition
+                      {{ ($niveau ?? '') === $cle
+                            ? 'border-ogar-500 bg-ogar-50 font-semibold text-ogar-800'
+                            : 'border-gris-200 text-gris-600 hover:border-gris-300' }}">
+                {{ $libelle }}
+            </a>
+        @endforeach
+    </div>
+
+    <div class="mt-4 flex flex-wrap items-center gap-1 border-b border-gris-200">
         @foreach ($onglets as $cle => $libelle)
-            <a href="{{ route('orientation.index', ['onglet' => $cle]) }}"
+            <a href="{{ route('orientation.index', array_filter(['onglet' => $cle, 'niveau' => $niveau])) }}"
                class="border-b-2 px-4 py-2 text-sm font-semibold transition
                       {{ $onglet === $cle
                             ? 'border-ogar-700 text-ogar-700'
@@ -74,6 +97,66 @@
             </a>
         @endforeach
     </div>
+
+    @if ($onglet === 'a-orienter')
+
+        {{-- C'est ici que l'orientation s'initie côté établissement : le
+             conseiller ouvre les dossiers de la promotion, et les familles les
+             trouvent déjà commencés. Sans cela, l'élève qui ne se connecte
+             jamais n'aurait aucun dossier le jour du conseil. --}}
+        <div class="carte mt-4 overflow-hidden">
+            <div class="carte-entete">
+                <div>
+                    <h2 class="text-sm font-semibold text-gris-900">Élèves sans dossier</h2>
+                    <p class="mt-0.5 text-xs text-gris-400">
+                        3ème et terminale, inscription active, aucun dossier ouvert cette année.
+                    </p>
+                </div>
+
+                @if ($aOrienter->isNotEmpty())
+                    <form method="POST" action="{{ route('orientation.ouvrir') }}">
+                        @csrf
+                        <input type="hidden" name="tous" value="1">
+                        @if ($niveau)<input type="hidden" name="niveau" value="{{ $niveau }}">@endif
+                        <button type="submit" class="bouton-primaire">
+                            Ouvrir les {{ $aOrienter->count() }} dossiers
+                        </button>
+                    </form>
+                @endif
+            </div>
+
+            <ul class="divide-y divide-gris-100">
+                @forelse ($aOrienter as $eleve)
+                    @php($classe = $eleve->enrollments->firstWhere('status', 'active')?->schoolClass)
+
+                    <li class="flex flex-wrap items-center gap-3 px-5 py-3">
+                        <x-avatar :nom="$eleve->first_name.' '.$eleve->last_name" class="h-9 w-9 shrink-0 text-[11px]"/>
+
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-medium text-gris-900">
+                                {{ $eleve->first_name }} {{ $eleve->last_name }}
+                            </p>
+                            <p class="truncate text-[11px] text-gris-500">
+                                <span class="font-mono">{{ $eleve->student_id }}</span>
+                                @if ($classe) · {{ $classe->name }} @endif
+                            </p>
+                        </div>
+
+                        <form method="POST" action="{{ route('orientation.ouvrir') }}" class="shrink-0">
+                            @csrf
+                            <input type="hidden" name="student_id" value="{{ $eleve->id }}">
+                            <button type="submit" class="bouton-mini">Ouvrir le dossier</button>
+                        </form>
+                    </li>
+                @empty
+                    <li class="px-5 py-8 text-center text-sm text-gris-500">
+                        Tous les élèves concernés ont déjà un dossier.
+                    </li>
+                @endforelse
+            </ul>
+        </div>
+
+    @else
 
     <div class="carte mt-4 overflow-hidden">
         <div class="overflow-x-auto">
@@ -131,6 +214,11 @@
                                     <x-puce :couleur="$puce[$dossier->statut] ?? 'slate'">
                                         {{ $dossier->libelle_statut }}
                                     </x-puce>
+                                    @if ($dossier->statut === 'refuse' && $dossier->motif_code)
+                                        <span class="hidden text-[11px] text-gris-500 sm:inline">
+                                            {{ \App\Support\Orientation\MotifsOrientation::libelle($dossier->motif_code) }}
+                                        </span>
+                                    @endif
                                     <a href="{{ route('orientation.show', $dossier) }}" class="bouton-mini">
                                         {{ $dossier->estSoumis() ? 'Étudier' : 'Le dossier' }}
                                     </a>
@@ -148,5 +236,7 @@
             <div class="border-t border-gris-200 px-4 py-3">{{ $dossiers->links() }}</div>
         @endif
     </div>
+
+    @endif
 
 @endsection

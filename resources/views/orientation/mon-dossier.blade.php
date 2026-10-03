@@ -61,7 +61,9 @@
             <div class="border-b px-5 py-3 {{ $dossier->statut === 'accorde'
                     ? 'border-emerald-200 bg-emerald-50' : 'border-corail-200 bg-corail-50' }}">
                 <h2 class="text-sm font-semibold {{ $dossier->statut === 'accorde' ? 'text-emerald-900' : 'text-corail-900' }}">
-                    {{ $dossier->statut === 'accorde' ? 'Vœu accordé' : 'Vœu refusé' }}
+                    {{ $dossier->statut === 'accorde'
+                        ? 'Accord du service d’orientation'
+                        : 'Désaccord du service d’orientation' }}
                 </h2>
                 <p class="mt-0.5 text-[11px] text-gris-600">
                     Décision rendue le {{ optional($dossier->decide_le)->format('d/m/Y') }}

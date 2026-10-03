@@ -488,6 +488,7 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
         Route::post('/mon-orientation/{dossier}/lu', 'accuserLaDecision')->name('orientation.decision-lue');
 
         Route::get('/orientation', 'index')->name('orientation.index');
+        Route::post('/orientation/ouvrir', 'ouvrir')->name('orientation.ouvrir');
         Route::get('/orientation/repertoire', 'repertoire')->name('orientation.repertoire');
         Route::post('/orientation/repertoire', 'enregistrerEtablissement')->name('orientation.repertoire.ajouter');
         Route::post('/orientation/repertoire/{etablissement}', 'enregistrerEtablissement')

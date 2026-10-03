@@ -5,6 +5,7 @@
 
 @section('actions-entete')
     <a href="{{ route('mon-espace.fiche') }}" class="bouton-secondaire">Ma fiche élève</a>
+    <a href="{{ route('orientation.mon-dossier') }}" class="bouton-secondaire">Mon orientation</a>
     <a href="{{ route('mon-espace.notes') }}" class="bouton-primaire">Mes notes</a>
 @endsection
 

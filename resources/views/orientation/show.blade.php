@@ -162,7 +162,7 @@
                 <div class="border-b px-5 py-3 {{ $dossier->statut === 'accorde'
                         ? 'border-emerald-200 bg-emerald-50' : 'border-corail-200 bg-corail-50' }}">
                     <h2 class="text-sm font-semibold {{ $dossier->statut === 'accorde' ? 'text-emerald-900' : 'text-corail-900' }}">
-                        {{ $dossier->statut === 'accorde' ? 'Vœu accordé' : 'Vœu refusé' }}
+                        {{ $dossier->statut === 'accorde' ? 'Accord' : 'Désaccord' }}
                     </h2>
                 </div>
 
@@ -198,7 +198,9 @@
                 <div class="carte-entete">
                     <div>
                         <h2 class="text-sm font-semibold text-gris-900">Trancher</h2>
-                        <p class="mt-0.5 text-xs text-gris-400">Le refus exige un motif : l’élève n’aura que lui.</p>
+                        <p class="mt-0.5 text-xs text-gris-400">
+                            Le désaccord exige un motif : l’élève n’aura que lui pour comprendre.
+                        </p>
                     </div>
                 </div>
 
@@ -220,7 +222,7 @@
                             <span class="block rounded-xl border border-gris-200 px-4 py-3 text-center text-sm
                                          font-semibold text-gris-700 transition
                                          peer-checked:border-corail-400 peer-checked:bg-corail-50">
-                                Refuser
+                                Désaccord
                             </span>
                         </label>
                     </div>
@@ -261,7 +263,7 @@
 
                 <div class="border-t border-gris-100 p-5">
                     <button type="submit" class="bouton-primaire w-full justify-center"
-                            x-text="decision === 'accorde' ? 'Accorder ce vœu' : 'Refuser ce vœu'">
+                            x-text="decision === 'accorde' ? 'Accorder ce vœu' : 'Marquer le désaccord'">
                         Accorder ce vœu
                     </button>
                 </div>

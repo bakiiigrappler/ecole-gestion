@@ -86,6 +86,13 @@ class DatabaseSeeder extends Seeder
              * ici, pour qu'une base neuve ait de quoi orienter.
              */
             RepertoireOrientationSeeder::class,
+
+            /*
+             * Des dossiers dans les quatre etats : un ecran de service
+             * d'orientation vide ne se juge pas. Apres le repertoire, dont les
+             * voeux se servent.
+             */
+            DossiersOrientationDemoSeeder::class,
         ]);
 
         /*

@@ -42,11 +42,16 @@ class OrientationDossier extends Model
         'terminale' => 'Terminale — vers le supérieur',
     ];
 
+    /*
+     * Le vocabulaire du service d'orientation : on accorde un voeu, ou l'on
+     * marque son desaccord, motif a l'appui. « Refuse » laisserait croire a une
+     * sanction, quand il s'agit d'un avis sur un voeu.
+     */
     public const STATUTS = [
-        'brouillon' => 'Brouillon',
-        'soumis' => 'À étudier',
-        'accorde' => 'Accordé',
-        'refuse' => 'Refusé',
+        'brouillon' => 'En cours',
+        'soumis' => 'En attente',
+        'accorde' => 'Accord',
+        'refuse' => 'Désaccord',
     ];
 
     public function student(): BelongsTo

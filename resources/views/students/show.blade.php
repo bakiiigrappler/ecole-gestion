@@ -4,6 +4,37 @@
 @section('sous-titre', 'Matricule '.$student->student_id)
 
 @section('actions-entete')
+    @php
+        /*
+         * Le dossier d'orientation se tient depuis la fiche de l'eleve : c'est
+         * la qu'on arrive quand on cherche « ou en est cet eleve », et le
+         * conseiller n'a pas a repasser par la liste.
+         */
+        $dossierOrientation = \App\Models\OrientationDossier::where('student_id', $student->id)
+            ->when(
+                \App\Models\AcademicYear::where('is_current', true)->value('id'),
+                fn ($q, $annee) => $q->where('academic_year_id', $annee)
+            )
+            ->first();
+
+        $niveauEleve = mb_strtolower((string) ($student->enrollments
+            ->firstWhere('status', 'active')?->schoolClass?->level?->name ?? ''));
+
+        $aOrienter = str_contains($niveauEleve, '3') || str_contains($niveauEleve, 'erminale');
+    @endphp
+
+    @if ($dossierOrientation)
+        <a href="{{ route('orientation.show', $dossierOrientation) }}" class="bouton-secondaire">
+            Dossier d’orientation
+        </a>
+    @elseif ($aOrienter)
+        <form method="POST" action="{{ route('orientation.ouvrir') }}" class="contents">
+            @csrf
+            <input type="hidden" name="student_id" value="{{ $student->id }}">
+            <button type="submit" class="bouton-secondaire">Ouvrir l’orientation</button>
+        </form>
+    @endif
+
     <a href="{{ route('students.edit', $student->id) }}" class="bouton-secondaire">Modifier</a>
     <a href="{{ route('enrollments.index') }}" class="bouton-primaire">Nouvelle inscription</a>
 @endsection

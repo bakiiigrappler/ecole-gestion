@@ -175,6 +175,7 @@ class OrientationController extends Controller
         $this->seulementLeConseil();
 
         $etats = [
+            'a-orienter' => [],
             'a-etudier' => ['soumis'],
             'accordes' => ['accorde'],
             'refuses' => ['refuse'],
@@ -183,33 +184,137 @@ class OrientationController extends Controller
 
         $onglet = array_key_exists($request->input('onglet'), $etats) ? $request->input('onglet') : 'a-etudier';
 
+        // Le filtre par niveau, comme le service d'orientation en connait un :
+        // on ne traite pas les 3eme et les terminales dans la meme seance.
+        $niveau = in_array($request->input('niveau'), ['troisieme', 'terminale'], true)
+            ? $request->input('niveau')
+            : null;
+
         $annee = $this->annee();
 
         $base = fn () => OrientationDossier::query()
-            ->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id));
+            ->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id))
+            ->when($niveau, fn ($q) => $q->where('niveau', $niveau));
 
-        $dossiers = $base()
-            ->with(['student:id,first_name,last_name,student_id', 'decideur:id,name'])
-            ->whereIn('statut', $etats[$onglet])
-            // Les plus anciennement transmis d'abord : c'est l'élève qui
-            // attend depuis le plus longtemps qu'il faut servir.
-            ->orderBy($onglet === 'a-etudier' ? 'soumis_le' : 'decide_le', $onglet === 'a-etudier' ? 'asc' : 'desc')
-            ->paginate(20)
-            ->withQueryString();
+        $dossiers = $onglet === 'a-orienter'
+            ? collect()
+            : $base()
+                ->with(['student:id,first_name,last_name,student_id', 'decideur:id,name'])
+                ->whereIn('statut', $etats[$onglet])
+                // Les plus anciennement transmis d'abord : c'est l'élève qui
+                // attend depuis le plus longtemps qu'il faut servir.
+                ->orderBy($onglet === 'a-etudier' ? 'soumis_le' : 'decide_le', $onglet === 'a-etudier' ? 'asc' : 'desc')
+                ->paginate(20)
+                ->withQueryString();
 
-        $compte = [];
+        $aOrienter = $this->elevesSansDossier($annee, $niveau);
+
+        $compte = ['a-orienter' => $aOrienter->count()];
 
         foreach ($etats as $cle => $statuts) {
-            $compte[$cle] = $base()->whereIn('statut', $statuts)->count();
+            if ($statuts !== []) {
+                $compte[$cle] = $base()->whereIn('statut', $statuts)->count();
+            }
         }
 
         return view('orientation.index', [
             'dossiers' => $dossiers,
+            'aOrienter' => $aOrienter,
             'onglet' => $onglet,
+            'niveau' => $niveau,
             'compte' => $compte,
             'annee' => $annee,
             'repartition' => $this->repartitionDesVoeux($annee),
         ]);
+    }
+
+    /**
+     * Ouvrir le dossier d'un élève depuis l'établissement.
+     *
+     * L'initiative n'est pas toujours celle de la famille : le conseiller qui
+     * prépare le conseil de classe ouvre les dossiers de la promotion, et
+     * l'élève les trouve déjà commencés sur son espace. Sans cela, celui qui ne
+     * se connecte jamais n'aurait aucun dossier le jour de la décision.
+     */
+    public function ouvrir(Request $request)
+    {
+        $this->seulementLeConseil();
+
+        $donnees = $request->validate([
+            'student_id' => 'nullable|integer',
+            'tous' => 'nullable|boolean',
+            'niveau' => 'nullable|in:troisieme,terminale',
+        ]);
+
+        $annee = $this->annee();
+
+        if ($request->boolean('tous')) {
+            $eleves = $this->elevesSansDossier($annee, $donnees['niveau'] ?? null);
+        } else {
+            $eleve = Student::find($donnees['student_id'] ?? 0);
+
+            abort_unless($eleve, 404, 'Élève introuvable.');
+
+            $eleves = collect([$eleve]);
+        }
+
+        $ouverts = 0;
+
+        foreach ($eleves as $eleve) {
+            $niveau = $this->niveau($eleve);
+
+            if (! $niveau) {
+                continue;
+            }
+
+            OrientationDossier::firstOrCreate(
+                ['student_id' => $eleve->id, 'academic_year_id' => $annee?->id],
+                [
+                    'school_id' => $eleve->school_id,
+                    'niveau' => $niveau,
+                    'serie_actuelle' => $this->serie($eleve),
+                    'statut' => 'brouillon',
+                ]
+            );
+
+            $ouverts++;
+        }
+
+        return back()->with('success', $ouverts === 1
+            ? 'Dossier ouvert. L’élève et sa famille peuvent le compléter depuis leur espace.'
+            : $ouverts.' dossiers ouverts. Les familles peuvent les compléter depuis leur espace.');
+    }
+
+    /**
+     * Les élèves de 3ème et de terminale qui n'ont pas encore de dossier.
+     */
+    private function elevesSansDossier(?AcademicYear $annee, ?string $niveau = null)
+    {
+        $avecDossier = OrientationDossier::query()
+            ->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id))
+            ->pluck('student_id')
+            ->all();
+
+        return Student::query()
+            ->whereNotIn('id', $avecDossier ?: [0])
+            ->whereHas('enrollments', function ($q) use ($annee, $niveau) {
+                $q->where('status', 'active')
+                    ->when($annee, fn ($r) => $r->where('academic_year_id', $annee->id))
+                    ->whereHas('schoolClass.level', function ($n) use ($niveau) {
+                        $n->where(function ($m) use ($niveau) {
+                            if ($niveau === 'troisieme') {
+                                $m->where('name', 'like', '%3%');
+                            } elseif ($niveau === 'terminale') {
+                                $m->where('name', 'like', '%erminale%');
+                            } else {
+                                $m->where('name', 'like', '%3%')->orWhere('name', 'like', '%erminale%');
+                            }
+                        });
+                    });
+            })
+            ->with(['enrollments.schoolClass.level'])
+            ->orderBy('last_name')
+            ->get();
     }
 
     /**

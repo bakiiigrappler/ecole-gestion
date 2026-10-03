@@ -125,12 +125,73 @@ class BulletinController extends Controller
     /**
      * Affiche les notes d'un étudiant
      */
+    /**
+     * Le releve de notes d'un eleve, matiere par matiere et trimestre par
+     * trimestre.
+     *
+     * L'ecran affichait la moyenne brute des notes — additionner un devoir sur
+     * 10 et un autre sur 20 donnait un chiffre qui ne voulait rien dire — et
+     * lisait des colonnes qui n'existent pas (`exam_date`, `exam_type`), ce qui
+     * le faisait tomber des qu'une note n'en portait pas. Tout est desormais
+     * ramene sur 20, et ponderе par les coefficients comme le bulletin.
+     */
     public function studentGrades($studentId)
     {
-        $student = Student::with(['grades.subject', 'grades.teacher'])
+        $student = Student::with(['enrollments.schoolClass.level', 'enrollments.schoolClass.serie'])
             ->findOrFail($studentId);
-            
-        return view('bulletin.student-grades', compact('student'));
+
+        // Un releve nominatif se protege : l'eleve, ses parents, ses
+        // enseignants et l'administration, et personne d'autre.
+        \App\Support\AccesEleve::verifier($student);
+
+        $annee = AcademicYear::where('is_current', true)->first();
+
+        $notes = StudentGrade::with(['subject:id,name,coefficient', 'teacher:id,first_name,last_name'])
+            ->where('student_id', $student->id)
+            ->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id))
+            ->where('max_score', '>', 0)
+            ->get();
+
+        $trimestres = $notes->pluck('term')->unique()->filter()->sort()->values();
+
+        // Une ligne par matiere : la moyenne de chaque trimestre, puis celle
+        // de l'annee.
+        $parMatiere = $notes
+            ->filter(fn ($n) => $n->subject)
+            ->groupBy('subject_id')
+            ->map(function ($lot) use ($trimestres) {
+                $sur20 = fn ($collection) => $collection->isEmpty()
+                    ? null
+                    : round($collection->avg(fn ($n) => $n->score / $n->max_score * 20), 2);
+
+                return [
+                    'matiere' => $lot->first()->subject->name,
+                    'coefficient' => (float) ($lot->first()->subject->coefficient ?: 1),
+                    'enseignant' => trim(($lot->first()->teacher->first_name ?? '').' '.($lot->first()->teacher->last_name ?? '')),
+                    'trimestres' => $trimestres->mapWithKeys(fn ($t) => [
+                        $t => $sur20($lot->where('term', $t)),
+                    ])->all(),
+                    'moyenne' => $sur20($lot),
+                    'notes' => $lot->sortBy('term')->values(),
+                ];
+            })
+            ->sortBy('matiere')
+            ->values();
+
+        $inscription = $student->enrollments->firstWhere('status', 'active')
+            ?? $student->enrollments->sortByDesc('id')->first();
+
+        return view('bulletin.student-grades', [
+            'student' => $student,
+            'annee' => $annee,
+            'inscription' => $inscription,
+            'trimestres' => $trimestres,
+            'parMatiere' => $parMatiere,
+            'profil' => \App\Support\Orientation\ProfilEleve::etablir($student, $annee),
+            'dossier' => \App\Models\OrientationDossier::where('student_id', $student->id)
+                ->when($annee, fn ($q) => $q->where('academic_year_id', $annee->id))
+                ->first(),
+        ]);
     }
 
     /**
