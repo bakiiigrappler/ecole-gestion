@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Examen;
 use App\Models\ExamenCandidat;
 use App\Models\ExamenCorrecteur;
+use App\Models\ExamenEpreuve;
 use App\Models\ExamenNote;
 use App\Models\School;
 use App\Models\Student;
@@ -332,39 +333,37 @@ class SessionExamenDemoSeeder extends Seeder
      */
     private function convoquerDesCorrecteurs(Examen $examen, $centres, float $part = 1.0)
     {
-        $avecCompte = Teacher::withoutGlobalScopes()
-            ->whereNotNull('user_id')
+        $enseignants = Teacher::withoutGlobalScopes()
+            ->with('subjects:id,name')
             ->inRandomOrder()
             ->get();
 
-        $sansCompte = Teacher::withoutGlobalScopes()
-            ->whereNull('user_id')
-            ->inRandomOrder()
-            ->take(max(1, $examen->epreuves->count()))
-            ->get();
-
-        if ($avecCompte->isEmpty() && $sansCompte->isEmpty()) {
+        if ($enseignants->isEmpty()) {
             return collect();
         }
 
         $epreuves = $examen->epreuves->values();
         $faites = (int) ceil($epreuves->count() * $part);
 
-        // Deux blocs : ce qui reste à corriger, puis ce qui est déjà fait.
-        // Chacun recommence par les enseignants qui ont un compte, de sorte
-        // qu'un correcteur connecté ait à la fois un paquet terminé et un
-        // paquet en cours.
+        // Deux blocs : ce qui reste à corriger, puis ce qui est déjà fait. Un
+        // correcteur connecté a ainsi à la fois un paquet terminé et un paquet
+        // en cours, et le panel montre les deux états.
         $correcteurs = collect();
+        $aFaire = $epreuves->slice($faites);
 
-        foreach ([$epreuves->slice($faites), $epreuves->take($faites)] as $bloc) {
-            foreach ($bloc->values() as $rang => $epreuve) {
-                $enseignant = $avecCompte[$rang]
-                    ?? $sansCompte[($rang - $avecCompte->count()) % max(1, $sansCompte->count())]
-                    ?? $avecCompte->first();
+        foreach ([$aFaire, $epreuves->take($faites)] as $bloc) {
+            // Un enseignant par épreuve dans un même bloc : un jury où le même
+            // nom corrige tout ne ressemble a rien.
+            $pris = [];
+
+            foreach ($bloc->values() as $epreuve) {
+                $enseignant = $this->correcteurPour($epreuve, $enseignants, $pris);
 
                 if (! $enseignant) {
                     continue;
                 }
+
+                $pris[] = $enseignant->id;
 
                 $correcteurs->push(ExamenCorrecteur::create([
                     'examen_id' => $examen->id,
@@ -383,7 +382,7 @@ class SessionExamenDemoSeeder extends Seeder
         }
 
         // Un président de jury par centre : c'est lui qui signera.
-        $president = $avecCompte->first() ?? $sansCompte->first();
+        $president = $enseignants->first(fn ($e) => $e->user_id !== null) ?? $enseignants->first();
 
         foreach ($centres as $centre) {
             if (! $president) {
@@ -404,7 +403,92 @@ class SessionExamenDemoSeeder extends Seeder
             ]);
         }
 
+        /*
+         * Un paquet en cours pour quelqu'un qui peut se connecter.
+         *
+         * L'affectation suit la discipline, et il peut donc arriver qu'aucun
+         * enseignant titulaire d'un compte n'enseigne l'une des épreuves
+         * restantes. La session serait alors ouverte sans que personne puisse
+         * y saisir une note : le panel du correcteur redeviendrait la page
+         * vide qu'on voulait éviter. On déplace donc la première épreuve a
+         * corriger vers un enseignant qui a un compte.
+         */
+        $connecte = $enseignants->first(fn ($e) => $e->user_id !== null);
+
+        if ($connecte && $aFaire->isNotEmpty()) {
+            $ouvertes = $correcteurs->whereIn('epreuve_id', $aFaire->pluck('id'));
+
+            if ($ouvertes->isNotEmpty() && $ouvertes->whereNotNull('user_id')->isEmpty()) {
+                $ouvertes->first()->forceFill([
+                    'teacher_id' => $connecte->id,
+                    'user_id' => $connecte->user_id,
+                    'school_id' => $connecte->school_id,
+                    'nom' => trim($connecte->first_name.' '.$connecte->last_name),
+                ])->save();
+            }
+        }
+
         return $correcteurs;
+    }
+
+    /**
+     * L'enseignant à convoquer sur une épreuve.
+     *
+     * On corrige la discipline qu'on enseigne : c'est ainsi que se composent
+     * les jurys, et une convocation de professeur de français sur une copie de
+     * mathématiques ne tromperait personne. On cherche donc d'abord parmi ceux
+     * qui enseignent la matière, en préférant ceux qui ont un compte — un
+     * paquet confié à quelqu'un qui ne peut pas se connecter est un paquet que
+     * personne ne corrigera. A défaut, n'importe quel enseignant : un centre
+     * n'a pas toujours le spécialiste sous la main, et cela se voit aussi.
+     *
+     * @param  array<int, int>  $pris
+     */
+    private function correcteurPour(ExamenEpreuve $epreuve, $enseignants, array $pris): ?Teacher
+    {
+        $libres = $enseignants->reject(fn ($e) => in_array($e->id, $pris, true));
+
+        if ($libres->isEmpty()) {
+            $libres = $enseignants;
+        }
+
+        $discipline = $libres->filter(
+            fn ($e) => $e->subjects->contains(fn ($m) => $this->memeDiscipline($m->name, $epreuve->intitule))
+        );
+
+        return $discipline->first(fn ($e) => $e->user_id !== null)
+            ?? $discipline->first()
+            ?? $libres->first(fn ($e) => $e->user_id !== null)
+            ?? $libres->first();
+    }
+
+    /**
+     * Deux intitulés désignent-ils la même discipline ?
+     *
+     * Les matières de l'établissement et les épreuves de l'examen ne portent
+     * pas toujours le même nom : on compare donc sans accents ni casse, et on
+     * accepte qu'un intitulé contienne l'autre.
+     */
+    private function memeDiscipline(?string $matiere, ?string $epreuve): bool
+    {
+        if (! $matiere || ! $epreuve) {
+            return false;
+        }
+
+        $normaliser = function (string $texte): string {
+            $texte = \Illuminate\Support\Str::ascii($texte);
+
+            return trim(preg_replace('/[^a-z0-9]+/', ' ', strtolower($texte)));
+        };
+
+        $a = $normaliser($matiere);
+        $b = $normaliser($epreuve);
+
+        if ($a === '' || $b === '') {
+            return false;
+        }
+
+        return $a === $b || str_contains($a, $b) || str_contains($b, $a);
     }
 
     /**
