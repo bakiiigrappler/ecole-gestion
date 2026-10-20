@@ -505,6 +505,7 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
             Route::get('/{examen}', 'show')->name('show');
             Route::put('/{examen}', 'update')->name('update');
             Route::get('/{examen}/candidats', 'candidats')->name('candidats');
+            Route::get('/{examen}/proces-verbal', 'procesVerbal')->name('proces-verbal');
             Route::get('/{examen}/correcteurs', 'correcteurs')->name('correcteurs');
 
             Route::post('/{examen}/epreuves', 'ajouterEpreuve')->name('epreuves.ajouter');

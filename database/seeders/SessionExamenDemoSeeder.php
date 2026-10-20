@@ -33,12 +33,24 @@ class SessionExamenDemoSeeder extends Seeder
 {
     public function run(): void
     {
-        if (Examen::where('type', 'bac_general')->exists()) {
-            $this->command?->info('Une session de baccalauréat existe déjà : rien à poser.');
+        if (Examen::exists()) {
+            $this->command?->info('Des sessions d’examen existent déjà : rien à poser.');
 
             return;
         }
 
+        $this->poserLeBaccalaureat();
+        $this->poserLeBrevet();
+    }
+
+    /**
+     * Le baccalauréat, mené jusqu'à la proclamation.
+     *
+     * C'est la session qui montre le bout de la chaîne : délibération, procès-
+     * verbal scellé, résultats consultables par numéro de candidat.
+     */
+    private function poserLeBaccalaureat(): void
+    {
         $annee = (int) now()->year;
 
         $examen = Examen::create([
@@ -55,7 +67,7 @@ class SessionExamenDemoSeeder extends Seeder
 
         $this->poserLesEpreuves($examen);
         $centres = $this->poserLesCentres($examen);
-        $candidats = $this->inscrireLesTerminales($examen, $centres);
+        $candidats = $this->inscrireUnNiveau($examen, $centres, 'terminale');
 
         if ($candidats === 0) {
             $this->command?->warn('Aucun élève de terminale : la session reste vide.');
@@ -80,6 +92,74 @@ class SessionExamenDemoSeeder extends Seeder
             $bilan['admis'],
             $bilan['second_tour'],
             $bilan['ajournes']
+        ));
+    }
+
+    /**
+     * Le brevet, laissé en pleine correction.
+     *
+     * Une session proclamée ferme la saisie : le panel du correcteur n'y
+     * montrerait qu'un tableau en lecture seule. Celle-ci reste ouverte, avec
+     * un paquet à moitié corrigé — c'est l'écran que l'enseignant convoqué a
+     * réellement sous les yeux, et c'est celui qu'il faut pouvoir juger.
+     */
+    private function poserLeBrevet(): void
+    {
+        $annee = (int) now()->year;
+
+        $examen = Examen::create([
+            'nom' => 'Brevet d’études du premier cycle, session '.$annee,
+            'type' => 'bepc',
+            'annee' => $annee,
+            'statut' => 'correction',
+            'debut_epreuves' => now()->subDays(8)->toDateString(),
+            'fin_epreuves' => now()->subDays(5)->toDateString(),
+            'moyenne_admission' => 10,
+            'moyenne_second_tour' => 8,
+        ]);
+
+        foreach ([
+            ['Mathématiques', 4, 20, 180],
+            ['Français', 4, 20, 180],
+            ['Sciences physiques', 2, 20, 120],
+            ['Sciences de la vie et de la terre', 2, 20, 120],
+            ['Histoire-Géographie', 2, 20, 120],
+            ['Anglais', 2, 20, 120],
+        ] as $rang => [$intitule, $coefficient, $bareme, $duree]) {
+            $examen->epreuves()->create([
+                'intitule' => $intitule,
+                'coefficient' => $coefficient,
+                'bareme' => $bareme,
+                'duree_minutes' => $duree,
+                'date_epreuve' => $examen->debut_epreuves?->copy()->addDays(intdiv($rang, 2)),
+                'ordre' => $rang + 1,
+            ]);
+        }
+
+        $centres = $this->poserLesCentres($examen);
+        $candidats = $this->inscrireUnNiveau($examen, $centres, 'troisieme');
+
+        if ($candidats === 0) {
+            $this->command?->warn('Aucun élève de 3ème : la session du brevet reste vide.');
+
+            return;
+        }
+
+        $this->ajouterDesCandidatsLibres($examen, $centres);
+        $this->tirerLAnonymat($examen);
+
+        $correcteurs = $this->convoquerDesCorrecteurs($examen, $centres, 0.5);
+
+        // À moitié corrigé : les premières épreuves sont faites, les dernières
+        // attendent. C'est l'état normal d'une session, et celui qui donne au
+        // correcteur quelque chose à faire.
+        $notes = $this->corriger($examen, $correcteurs, 0.5);
+
+        $this->command?->info(sprintf(
+            'Session « %s » : %d candidats, %d notes saisies, correction en cours.',
+            $examen->nom,
+            $examen->candidats()->count(),
+            $notes
         ));
     }
 
@@ -142,14 +222,20 @@ class SessionExamenDemoSeeder extends Seeder
     }
 
     /**
-     * Les élèves de terminale de la plateforme deviennent candidats.
+     * Les élèves d'un niveau deviennent candidats.
+     *
+     * Le niveau commande l'examen : la terminale passe le baccalauréat, la
+     * troisième le brevet. Inscrire les uns à l'examen des autres n'aurait
+     * aucun sens, et le peuplement ne doit pas raconter une scolarité fausse.
      */
-    private function inscrireLesTerminales(Examen $examen, $centres): int
+    private function inscrireUnNiveau(Examen $examen, $centres, string $niveau = 'terminale'): int
     {
+        $motif = $niveau === 'troisieme' ? '%3%' : '%erminale%';
+
         $eleves = Student::withoutGlobalScopes()
             ->whereHas('enrollments', fn ($q) => $q
                 ->where('status', 'active')
-                ->whereHas('schoolClass.level', fn ($n) => $n->where('name', 'like', '%erminale%')))
+                ->whereHas('schoolClass.level', fn ($n) => $n->where('name', 'like', $motif)))
             ->with(['enrollments.schoolClass.serie', 'school:id,name'])
             ->get();
 
@@ -164,20 +250,62 @@ class SessionExamenDemoSeeder extends Seeder
                 // Les candidats se répartissent entre les centres : un centre
                 // unique ne montrerait pas le regroupement par centre.
                 'centre_id' => $centres[$rang % $centres->count()]->id,
-                'numero_candidat' => 'BAC'.substr((string) $examen->annee, -2).'-'
+                'numero_candidat' => $this->prefixe($examen)
                     .str_pad((string) $rang, 5, '0', STR_PAD_LEFT),
                 'nom' => $eleve->last_name,
                 'prenom' => $eleve->first_name,
                 'date_naissance' => $eleve->date_of_birth,
                 'lieu_naissance' => $eleve->place_of_birth,
                 'sexe' => $eleve->gender,
-                'serie' => $eleve->enrollments->firstWhere('status', 'active')?->schoolClass?->serie?->code ?? 'TERM-C',
+                'serie' => $examen->type === 'bepc'
+                    ? null
+                    : ($eleve->enrollments->firstWhere('status', 'active')?->schoolClass?->serie?->code ?? 'TERM-C'),
                 'etablissement_origine' => $eleve->school->name ?? null,
                 'statut' => 'present',
             ]);
         }
 
         return $rang;
+    }
+
+    /**
+     * Quelques candidats libres : ils existent, et ils ne sont rattachés à
+     * aucun établissement. Un module qui ne les prévoirait pas laisserait une
+     * part des candidats réels à la porte.
+     */
+    private function ajouterDesCandidatsLibres(Examen $examen, $centres): void
+    {
+        $libres = [
+            ['Ondo', 'Christelle', '2008-03-14', 'Libreville'],
+            ['Mba', 'Serge', '2007-11-02', 'Oyem'],
+            ['Nguema', 'Prisca', '2008-07-21', 'Port-Gentil'],
+        ];
+
+        $rang = $examen->candidats()->count();
+
+        foreach ($libres as [$nom, $prenom, $naissance, $lieu]) {
+            $rang++;
+
+            $examen->candidats()->create([
+                'student_id' => null,
+                'school_id' => null,
+                'centre_id' => $centres[$rang % $centres->count()]->id,
+                'numero_candidat' => $this->prefixe($examen).str_pad((string) $rang, 5, '0', STR_PAD_LEFT),
+                'nom' => $nom,
+                'prenom' => $prenom,
+                'date_naissance' => $naissance,
+                'lieu_naissance' => $lieu,
+                'etablissement_origine' => 'Candidat libre',
+                'statut' => 'present',
+            ]);
+        }
+    }
+
+    /** Le préfixe d'un numéro de candidat : « BAC26- », « BEP26- ». */
+    private function prefixe(Examen $examen): string
+    {
+        return strtoupper(substr(str_replace('_', '', $examen->type), 0, 3))
+            .substr((string) $examen->annee, -2).'-';
     }
 
     private function tirerLAnonymat(Examen $examen): void
@@ -193,52 +321,72 @@ class SessionExamenDemoSeeder extends Seeder
     }
 
     /**
-     * Un correcteur par épreuve, pris chez les enseignants qui ont un compte.
+     * Un correcteur par épreuve, réparti sur plusieurs enseignants.
      *
-     * Avec un compte, parce qu'un correcteur sans compte ne peut pas saisir :
-     * la démonstration montrerait un paquet que personne ne peut corriger.
+     * Les épreuves qui restent à corriger passent d'abord aux enseignants qui
+     * ont un compte : un paquet confié à quelqu'un qui ne peut pas se connecter
+     * est un paquet que personne ne corrigera. Les autres épreuves vont aux
+     * enseignants convoqués sans compte — c'est le cas courant, et la liste des
+     * correcteurs doit le montrer plutôt que de poser tout le jury sur un seul
+     * nom.
      */
-    private function convoquerDesCorrecteurs(Examen $examen, $centres)
+    private function convoquerDesCorrecteurs(Examen $examen, $centres, float $part = 1.0)
     {
-        $enseignants = Teacher::withoutGlobalScopes()
+        $avecCompte = Teacher::withoutGlobalScopes()
             ->whereNotNull('user_id')
+            ->inRandomOrder()
+            ->get();
+
+        $sansCompte = Teacher::withoutGlobalScopes()
+            ->whereNull('user_id')
             ->inRandomOrder()
             ->take(max(1, $examen->epreuves->count()))
             ->get();
 
-        if ($enseignants->isEmpty()) {
-            $enseignants = Teacher::withoutGlobalScopes()->take(1)->get();
+        if ($avecCompte->isEmpty() && $sansCompte->isEmpty()) {
+            return collect();
         }
 
+        $epreuves = $examen->epreuves->values();
+        $faites = (int) ceil($epreuves->count() * $part);
+
+        // Deux blocs : ce qui reste à corriger, puis ce qui est déjà fait.
+        // Chacun recommence par les enseignants qui ont un compte, de sorte
+        // qu'un correcteur connecté ait à la fois un paquet terminé et un
+        // paquet en cours.
         $correcteurs = collect();
 
-        foreach ($examen->epreuves as $rang => $epreuve) {
-            $enseignant = $enseignants[$rang % max(1, $enseignants->count())] ?? null;
+        foreach ([$epreuves->slice($faites), $epreuves->take($faites)] as $bloc) {
+            foreach ($bloc->values() as $rang => $epreuve) {
+                $enseignant = $avecCompte[$rang]
+                    ?? $sansCompte[($rang - $avecCompte->count()) % max(1, $sansCompte->count())]
+                    ?? $avecCompte->first();
 
-            if (! $enseignant) {
-                continue;
+                if (! $enseignant) {
+                    continue;
+                }
+
+                $correcteurs->push(ExamenCorrecteur::create([
+                    'examen_id' => $examen->id,
+                    'epreuve_id' => $epreuve->id,
+                    // Sans centre : il corrige tout le paquet de son épreuve.
+                    'centre_id' => null,
+                    'teacher_id' => $enseignant->id,
+                    'user_id' => $enseignant->user_id,
+                    'school_id' => $enseignant->school_id,
+                    'nom' => trim($enseignant->first_name.' '.$enseignant->last_name),
+                    'role' => 'correcteur',
+                    'statut' => 'accepte',
+                    'convoque_le' => now()->subDays(20),
+                ]));
             }
-
-            $correcteurs->push(ExamenCorrecteur::create([
-                'examen_id' => $examen->id,
-                'epreuve_id' => $epreuve->id,
-                // Sans centre : il corrige tout le paquet de son épreuve.
-                'centre_id' => null,
-                'teacher_id' => $enseignant->id,
-                'user_id' => $enseignant->user_id,
-                'school_id' => $enseignant->school_id,
-                'nom' => trim($enseignant->first_name.' '.$enseignant->last_name),
-                'role' => 'correcteur',
-                'statut' => 'accepte',
-                'convoque_le' => now()->subDays(20),
-            ]));
         }
 
         // Un président de jury par centre : c'est lui qui signera.
-        foreach ($centres as $centre) {
-            $enseignant = $enseignants->first();
+        $president = $avecCompte->first() ?? $sansCompte->first();
 
-            if (! $enseignant) {
+        foreach ($centres as $centre) {
+            if (! $president) {
                 continue;
             }
 
@@ -246,9 +394,9 @@ class SessionExamenDemoSeeder extends Seeder
                 'examen_id' => $examen->id,
                 'epreuve_id' => null,
                 'centre_id' => $centre->id,
-                'teacher_id' => $enseignant->id,
-                'user_id' => $enseignant->user_id,
-                'school_id' => $enseignant->school_id,
+                'teacher_id' => $president->id,
+                'user_id' => $president->user_id,
+                'school_id' => $president->school_id,
                 'nom' => $centre->president_jury ?: 'Président du jury',
                 'role' => 'president_jury',
                 'statut' => 'accepte',
@@ -262,11 +410,15 @@ class SessionExamenDemoSeeder extends Seeder
     /**
      * Toutes les copies notées, avec un niveau propre à chaque candidat.
      */
-    private function corriger(Examen $examen, $correcteurs): int
+    private function corriger(Examen $examen, $correcteurs, float $part = 1.0): int
     {
         $parEpreuve = $correcteurs->keyBy('epreuve_id');
         $notes = [];
         $maintenant = now();
+
+        // Les épreuves corrigées d'abord, dans l'ordre : une session à moitié
+        // faite l'est épreuve par épreuve, pas copie par copie au hasard.
+        $corrigees = $examen->epreuves->take((int) ceil($examen->epreuves->count() * $part));
 
         foreach ($examen->candidats()->get() as $candidat) {
             // Un niveau par candidat, autour duquel les notes gravitent : sans
@@ -274,7 +426,7 @@ class SessionExamenDemoSeeder extends Seeder
             // n'aurait rien à trancher.
             $niveau = mt_rand(55, 150) / 10;
 
-            foreach ($examen->epreuves as $epreuve) {
+            foreach ($corrigees as $epreuve) {
                 $note = max(0, min($epreuve->bareme, $niveau + mt_rand(-30, 30) / 10));
 
                 $notes[] = [
@@ -296,8 +448,11 @@ class SessionExamenDemoSeeder extends Seeder
             ExamenNote::insert($lot);
         }
 
+        // Seuls ceux dont l'épreuve est finie ont terminé.
         foreach ($correcteurs as $correcteur) {
-            $correcteur->forceFill(['statut' => 'termine', 'termine_le' => now()])->save();
+            if ($corrigees->contains('id', $correcteur->epreuve_id)) {
+                $correcteur->forceFill(['statut' => 'termine', 'termine_le' => now()])->save();
+            }
         }
 
         return count($notes);

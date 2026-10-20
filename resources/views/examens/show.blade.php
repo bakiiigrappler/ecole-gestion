@@ -318,6 +318,14 @@
                     </div>
                 </div>
 
+                {{-- On ne signe pas un enregistrement : on signe un document.
+                     Il faut pouvoir le lire avant. --}}
+                <a href="{{ route('examens.proces-verbal', $examen) }}"
+                   class="block border-b border-gris-100 bg-gris-50 px-5 py-3 text-sm font-semibold
+                          text-ogar-700 hover:bg-gris-100">
+                    Lire le procès-verbal avant de signer →
+                </a>
+
                 <div class="space-y-3 p-5">
                     <div class="grid gap-2 sm:grid-cols-2">
                         <label class="cursor-pointer">
@@ -411,12 +419,18 @@
                                 @endif
                             </p>
 
-                            @if ($document->fichier)
-                                <a href="{{ \Illuminate\Support\Facades\Storage::url($document->fichier) }}"
-                                   target="_blank" rel="noopener" class="bouton-mini mt-2">
-                                    Voir le document déposé
-                                </a>
-                            @endif
+                            <div class="mt-2 flex flex-wrap gap-1">
+                                <a href="{{ route('examens.proces-verbal', array_filter([
+                                        'examen' => $examen->id, 'centre' => $document->centre_id,
+                                    ])) }}" class="bouton-mini">Relire</a>
+
+                                @if ($document->fichier)
+                                    <a href="{{ \Illuminate\Support\Facades\Storage::url($document->fichier) }}"
+                                       target="_blank" rel="noopener" class="bouton-mini">
+                                        Le document déposé
+                                    </a>
+                                @endif
+                            </div>
                         </li>
                     @endforeach
                 </ul>

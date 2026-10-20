@@ -34,10 +34,15 @@ class CorrectionController extends Controller
             ->load(['examen:id,nom,type,annee,serie,statut', 'epreuve:id,intitule,bareme,coefficient', 'centre:id,nom,ville']);
 
         return view('examens.correction.index', [
-            'convocations' => $convocations->map(fn ($c) => [
-                'convocation' => $c,
-                'avancement' => $this->avancement($c),
-            ]),
+            // Ce qui reste à corriger d'abord : un correcteur qui arrive ici a
+            // un paquet en attente, pas une archive à relire.
+            'convocations' => $convocations
+                ->map(fn ($c) => [
+                    'convocation' => $c,
+                    'avancement' => $this->avancement($c),
+                ])
+                ->sortByDesc(fn ($ligne) => $ligne['avancement']['reste'])
+                ->values(),
         ]);
     }
 

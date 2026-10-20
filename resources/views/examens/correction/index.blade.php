@@ -42,24 +42,33 @@
                     </div>
 
                     <div class="p-5">
-                        <div class="flex flex-wrap items-center justify-between gap-3">
-                            <p class="text-sm text-gris-700">
-                                <span class="font-semibold tabular-nums text-gris-900">{{ $avancement['notees'] }}</span>
-                                copie(s) notée(s) sur {{ $avancement['attendues'] }}
-                                @if ($avancement['reste'] > 0)
-                                    — <span class="text-soleil-700">{{ $avancement['reste'] }} restante(s)</span>
-                                @endif
+                        {{-- Une convocation au jury ne porte aucun paquet : il n'y a ni copie
+                             à compter ni écran de saisie à ouvrir. --}}
+                        @if (! $convocation->epreuve)
+                            <p class="text-sm leading-relaxed text-gris-600">
+                                Convocation au jury, sans paquet de copies : vous siégez à la
+                                délibération, vous ne corrigez pas d’épreuve.
                             </p>
+                        @else
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <p class="text-sm text-gris-700">
+                                    <span class="font-semibold tabular-nums text-gris-900">{{ $avancement['notees'] }}</span>
+                                    copie(s) notée(s) sur {{ $avancement['attendues'] }}
+                                    @if ($avancement['reste'] > 0)
+                                        — <span class="text-soleil-700">{{ $avancement['reste'] }} restante(s)</span>
+                                    @endif
+                                </p>
 
-                            <a href="{{ route('correction.copies', $convocation) }}" class="bouton-primaire">
-                                {{ $avancement['reste'] > 0 ? 'Corriger' : 'Revoir les notes' }}
-                            </a>
-                        </div>
+                                <a href="{{ route('correction.copies', $convocation) }}" class="bouton-primaire">
+                                    {{ $avancement['reste'] > 0 ? 'Corriger' : 'Revoir les notes' }}
+                                </a>
+                            </div>
 
-                        <div class="mt-3 h-2 overflow-hidden rounded-full bg-gris-100">
-                            <div class="h-full rounded-full {{ $avancement['part'] >= 100 ? 'bg-emerald-500' : 'bg-ogar-500' }}"
-                                 style="width: {{ max(2, min(100, $avancement['part'])) }}%"></div>
-                        </div>
+                            <div class="mt-3 h-2 overflow-hidden rounded-full bg-gris-100">
+                                <div class="h-full rounded-full {{ $avancement['part'] >= 100 ? 'bg-emerald-500' : 'bg-ogar-500' }}"
+                                     style="width: {{ max(2, min(100, $avancement['part'])) }}%"></div>
+                            </div>
+                        @endif
                     </div>
                 </div>
             @endforeach

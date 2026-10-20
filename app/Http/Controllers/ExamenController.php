@@ -390,6 +390,40 @@ class ExamenController extends Controller
     }
 
     /**
+     * Le procès-verbal, tel que le signataire va le lire.
+     *
+     * On ne signe pas un enregistrement en base : on signe un document. Celui
+     * qui engage sa responsabilité doit voir la liste nominative qu'il arrête,
+     * le bilan qu'il arrête, et pouvoir l'imprimer avant de décider.
+     */
+    public function procesVerbal(Request $request, Examen $examen)
+    {
+        $this->seulementLOrganisateur();
+
+        $centre = $request->integer('centre')
+            ? ExamenCentre::where('examen_id', $examen->id)->find($request->integer('centre'))
+            : null;
+
+        $candidats = $examen->candidats()
+            ->when($centre, fn ($q) => $q->where('centre_id', $centre->id))
+            ->orderBy('nom')
+            ->orderBy('prenom')
+            ->get();
+
+        return view('examens.proces-verbal', [
+            'examen' => $examen,
+            'centre' => $centre,
+            'candidats' => $candidats,
+            'document' => $examen->documents()
+                ->where('type', 'proces_verbal')
+                ->when($centre, fn ($q) => $q->where('centre_id', $centre->id), fn ($q) => $q->whereNull('centre_id'))
+                ->whereNotNull('signe_le')
+                ->latest('signe_le')
+                ->first(),
+        ]);
+    }
+
+    /**
      * Sceller le procès-verbal, ou déposer le scan signé à la main.
      */
     public function signer(Request $request, Examen $examen)
