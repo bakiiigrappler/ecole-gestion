@@ -78,22 +78,77 @@ class ComptesDeDemonstration
     }
 
     /**
-     * L'établissement de démonstration, et ses quatre métiers.
+     * L'établissement de démonstration, et ceux qui y vivent.
      */
     private static function lePremierEtablissement(): array
     {
         $ecole = School::withoutGlobalScopes()->orderBy('id')->first();
 
+        $comptes = self::parRoles(['admin', 'secretary', 'teacher', 'parent'], [
+            'admin' => 'Élèves, classes, finances, paramètres de l’établissement.',
+            'secretary' => 'La caisse : encaisser, et valider ou refuser une déclaration de paiement mobile.',
+            'teacher' => 'Ses classes, ses notes, ses bulletins.',
+            'parent' => 'Le portail des parents : bulletins, paiement mobile, décision d’orientation.',
+        ]);
+
+        /*
+         * Un élève, toujours.
+         *
+         * Les cartes d'examen et d'orientation désignent des élèves précis, et
+         * elles disparaissent quand aucun des élèves concernés n'a de compte —
+         * ce qui arrive, puisque seuls les lycéens en ont. L'espace de l'élève
+         * resterait alors introuvable depuis cette page, alors que c'est l'un
+         * des cinq profils de l'application.
+         */
+        $eleve = self::unEleveDe($ecole?->id);
+
+        if ($eleve) {
+            $comptes[] = $eleve;
+        }
+
         return [
             'titre' => $ecole->name ?? 'L’établissement',
-            'sous_titre' => 'Les métiers d’une école',
-            'comptes' => self::parRoles(['admin', 'secretary', 'teacher', 'parent'], [
-                'admin' => 'Élèves, classes, finances, paramètres de l’établissement.',
-                'secretary' => 'La caisse : encaisser, et valider ou refuser une déclaration de paiement mobile.',
-                'teacher' => 'Ses classes, ses notes, ses bulletins.',
-                'parent' => 'Le portail des parents : bulletins, paiement mobile, décision d’orientation.',
-            ]),
+            'sous_titre' => 'Ceux qui y travaillent et ceux qui y étudient',
+            'comptes' => $comptes,
         ];
+    }
+
+    /**
+     * Un lycéen de cet établissement, de préférence un dont les écrans sont pleins.
+     *
+     * Un élève sans note donne un espace vide : ses bulletins, ses moyennes et
+     * son orientation n'ont rien à montrer. On cherche donc d'abord un élève
+     * qui a des notes, et l'on se rabat sur n'importe lequel plutôt que de ne
+     * rien proposer.
+     */
+    private static function unEleveDe(?int $ecoleId): ?array
+    {
+        $requete = fn () => Student::withoutGlobalScopes()
+            ->whereNotNull('user_id')
+            ->when($ecoleId, fn ($q) => $q->where('school_id', $ecoleId));
+
+        $eleve = (clone $requete())->whereHas('grades')->first() ?? $requete()->first();
+
+        if (! $eleve) {
+            return null;
+        }
+
+        $compte = self::compteDeLEleve($eleve->id, 'Élève');
+
+        if (! $compte) {
+            return null;
+        }
+
+        $classe = $eleve->enrollments()
+            ->where('status', 'active')
+            ->with('schoolClass:id,name')
+            ->first()?->schoolClass?->name;
+
+        $compte['cas'] = 'Son espace : ses notes, son emploi du temps, ses absences, son orientation'
+            .($classe ? ' — '.$classe : '')
+            .'. Identifiant et mot de passe initial : son matricule.';
+
+        return $compte;
     }
 
     /**
@@ -122,6 +177,20 @@ class ComptesDeDemonstration
                     .($ecole ? ' — '.$ecole->name : '')
                     .' : c’est le cloisonnement qu’on vérifie ici.',
             ];
+        }
+
+        // Un élève de ce second établissement : c'est de son côté que le
+        // cloisonnement se vérifie le mieux, puisqu'il ne doit rien voir de
+        // l'autre école.
+        foreach ($comptes as $compte) {
+            $utilisateur = User::where('email', $compte['email'])->first();
+            $eleve = $utilisateur ? self::unEleveDe($utilisateur->school_id) : null;
+
+            if ($eleve) {
+                $comptes[] = $eleve;
+            }
+
+            break;
         }
 
         return [
