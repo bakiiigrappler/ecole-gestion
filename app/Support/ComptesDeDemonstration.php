@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Examen;
 use App\Models\ExamenCandidat;
 use App\Models\ExamenCorrecteur;
 use App\Models\OrientationDossier;
@@ -83,17 +84,13 @@ class ComptesDeDemonstration
     {
         $ecole = School::withoutGlobalScopes()->orderBy('id')->first();
 
-        $correcteur = self::convocationDuCompte('enseignant@ecole.com');
-
         return [
             'titre' => $ecole->name ?? 'L’établissement',
             'sous_titre' => 'Les métiers d’une école',
             'comptes' => self::parRoles(['admin', 'secretary', 'teacher', 'parent'], [
                 'admin' => 'Élèves, classes, finances, paramètres de l’établissement.',
                 'secretary' => 'La caisse : encaisser, et valider ou refuser une déclaration de paiement mobile.',
-                'teacher' => $correcteur
-                    ? 'Ses classes et ses notes — et sa convocation à la correction : '.$correcteur
-                    : 'Ses classes, ses notes, ses bulletins.',
+                'teacher' => 'Ses classes, ses notes, ses bulletins.',
                 'parent' => 'Le portail des parents : bulletins, paiement mobile, décision d’orientation.',
             ]),
         ];
@@ -135,49 +132,180 @@ class ComptesDeDemonstration
     }
 
     /**
-     * Les cas d'examen : une session proclamée se lit depuis plusieurs places.
+     * Les examens nationaux, du côté de ceux qui les font.
+     *
+     * Le candidat et sa famille lisent déjà leur résultat depuis leur propre
+     * espace : ces deux vues sont couvertes ailleurs. Ce qui manquait ici, ce
+     * sont les trois rôles qui font tourner une session et qu'on ne trouve
+     * nulle part ailleurs — celui qui la conduit et la signe, celui qui corrige
+     * sous anonymat, et l'établissement qui suit ses élèves.
      */
     private static function lesExamens(): array
     {
-        $comptes = [];
-
-        // Les trois décisions : la décision change tout l'écran, et c'est
-        // précisément ce qu'il faut pouvoir comparer en deux clics.
-        foreach ([
-            'admis' => 'Admis au baccalauréat',
-            'second_tour' => 'Au second tour',
-            'ajourne' => 'Ajourné au baccalauréat',
-        ] as $statut => $libelle) {
-            $candidats = ExamenCandidat::withoutGlobalScopes()
-                ->whereNotNull('student_id')
-                ->where('statut', $statut)
-                ->whereHas('examen', fn ($q) => $q->where('statut', 'proclame'))
-                ->with('centre:id,nom')
-                ->limit(self::PARCOURUS)
-                ->get();
-
-            foreach ($candidats as $candidat) {
-                $compte = self::compteDeLEleve($candidat->student_id, $libelle);
-
-                if (! $compte) {
-                    continue;
-                }
-
-                $compte['cas'] = 'Son relevé d’examen'
-                    .($candidat->numero_candidat ? ', n° '.$candidat->numero_candidat : '')
-                    .($candidat->centre ? ' · '.$candidat->centre->nom : '')
-                    .'.';
-
-                $comptes[] = $compte;
-                break;
-            }
-        }
+        $comptes = array_filter([
+            self::lOrganisateur(),
+            self::leCorrecteur(),
+            self::leProviseurDUnCentre(),
+            self::lienDuResultatPublic(),
+        ]);
 
         return [
             'titre' => 'Les examens nationaux',
-            'sous_titre' => 'Du côté des candidats',
-            'comptes' => $comptes,
+            'sous_titre' => 'Ceux qui font la session',
+            'comptes' => array_values($comptes),
         ];
+    }
+
+    /**
+     * Celui qui conduit la session : convocation, délibération, signature.
+     */
+    private static function lOrganisateur(): ?array
+    {
+        $compte = collect(config('demo.comptes', []))->firstWhere('role', 'superadmin');
+
+        if (! $compte || ! User::where('email', $compte['email'])->exists()) {
+            return null;
+        }
+
+        $sessions = Examen::withoutGlobalScopes()->count();
+
+        if ($sessions === 0) {
+            return null;
+        }
+
+        $enCours = Examen::withoutGlobalScopes()
+            ->whereIn('statut', ['epreuves', 'correction', 'deliberation'])
+            ->count();
+
+        return [
+            'libelle' => 'Conduire la session',
+            'email' => $compte['email'],
+            'mot_de_passe' => $compte['mot_de_passe'],
+            'cas' => $sessions.' session(s)'
+                .($enCours > 0 ? ', dont '.$enCours.' en cours' : '')
+                .' : candidats, centres, convocations, délibération, procès-verbal et signature.',
+        ];
+    }
+
+    /**
+     * L'enseignant convoqué : son paquet de copies, sous anonymat.
+     *
+     * Le libellé nomme l'épreuve et dit ce qui reste, parce que c'est ce qui
+     * décide si l'écran a quelque chose à montrer : une session proclamée ferme
+     * la saisie, et le panel n'y est plus qu'une archive.
+     */
+    private static function leCorrecteur(): ?array
+    {
+        $compte = collect(config('demo.comptes', []))->firstWhere('role', 'teacher');
+
+        if (! $compte) {
+            return null;
+        }
+
+        $utilisateur = User::where('email', $compte['email'])->first();
+
+        if (! $utilisateur) {
+            return null;
+        }
+
+        $convocations = ExamenCorrecteur::withoutGlobalScopes()
+            ->where('user_id', $utilisateur->id)
+            ->whereNotNull('epreuve_id')
+            ->with(['epreuve:id,intitule', 'examen:id,statut'])
+            ->get();
+
+        if ($convocations->isEmpty()) {
+            return null;
+        }
+
+        // Celle qui reste à corriger d'abord : c'est l'écran utile.
+        $ouverte = $convocations->first(fn ($c) => in_array($c->examen?->statut, ['epreuves', 'correction'], true));
+        $convocation = $ouverte ?? $convocations->first();
+
+        $restantes = $ouverte
+            ? ExamenCandidat::withoutGlobalScopes()
+                ->where('examen_id', $convocation->examen_id)
+                ->whereNotNull('numero_anonymat')
+                ->whereDoesntHave('notes', fn ($q) => $q->where('epreuve_id', $convocation->epreuve_id))
+                ->count()
+            : 0;
+
+        return [
+            'libelle' => 'Corriger les copies',
+            'email' => $compte['email'],
+            'mot_de_passe' => $compte['mot_de_passe'],
+            'cas' => $convocations->count().' convocation(s). '
+                .($restantes > 0
+                    ? $restantes.' copie(s) de '.($convocation->epreuve?->intitule ?? 'son épreuve').' à noter, sous numéro d’anonymat.'
+                    : 'Paquets terminés : les notes se relisent, la saisie est fermée.'),
+        ];
+    }
+
+    /**
+     * Un lien direct vers la fiche publique d'un candidat.
+     *
+     * La page accepte le numéro et la date de naissance en paramètres : le
+     * lien est donc un essai complet, et il ne touche pas la base — il lit la
+     * fiche écrite à la proclamation.
+     */
+    private static function lienDuResultatPublic(): ?array
+    {
+        $candidat = ExamenCandidat::withoutGlobalScopes()
+            ->where('statut', 'admis')
+            ->whereNotNull('date_naissance')
+            ->whereHas('examen', fn ($q) => $q->where('statut', 'proclame'))
+            ->with('examen:id')
+            ->first();
+
+        if (! $candidat) {
+            return null;
+        }
+
+        return [
+            'libelle' => 'Résultat public, sans compte',
+            'email' => $candidat->numero_candidat,
+            'mot_de_passe' => '',
+            'cas' => 'La page où arrive tout le pays le jour de la proclamation. Numéro et date de naissance déjà posés.',
+            'lien' => route('resultats.chercher', [
+                'examen' => $candidat->examen_id,
+                'numero' => $candidat->numero_candidat,
+                'naissance' => $candidat->date_naissance instanceof \DateTimeInterface
+                    ? $candidat->date_naissance->format('Y-m-d')
+                    : $candidat->date_naissance,
+            ]),
+        ];
+    }
+
+    /**
+     * Le chef d'un établissement qui a des candidats dans la session.
+     */
+    private static function leProviseurDUnCentre(): ?array
+    {
+        foreach (config('demo.comptes_etablissements', []) as $compte) {
+            $utilisateur = User::where('email', $compte['email'])->first();
+
+            if (! $utilisateur || ! $utilisateur->school_id) {
+                continue;
+            }
+
+            $candidats = ExamenCandidat::withoutGlobalScopes()
+                ->where('school_id', $utilisateur->school_id)
+                ->whereHas('examen', fn ($q) => $q->where('statut', 'proclame'))
+                ->count();
+
+            if ($candidats === 0) {
+                continue;
+            }
+
+            return [
+                'libelle' => 'L’établissement, côté examen',
+                'email' => $compte['email'],
+                'mot_de_passe' => $compte['mot_de_passe'],
+                'cas' => 'Ses '.$candidats.' candidat(s) : leurs résultats, leur centre d’examen, et si ses enseignants ont corrigé.',
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -340,26 +468,4 @@ class ComptesDeDemonstration
         ];
     }
 
-    /**
-     * Ce à quoi ce compte est convoqué, dit en une ligne.
-     */
-    private static function convocationDuCompte(string $courriel): ?string
-    {
-        $utilisateur = User::where('email', $courriel)->first();
-
-        if (! $utilisateur) {
-            return null;
-        }
-
-        $convocation = ExamenCorrecteur::withoutGlobalScopes()
-            ->where('user_id', $utilisateur->id)
-            ->whereNotNull('epreuve_id')
-            ->whereHas('examen', fn ($q) => $q->whereIn('statut', ['epreuves', 'correction']))
-            ->with('epreuve:id,intitule')
-            ->first();
-
-        return $convocation?->epreuve?->intitule
-            ? 'un paquet de '.$convocation->epreuve->intitule.' à corriger.'
-            : null;
-    }
 }

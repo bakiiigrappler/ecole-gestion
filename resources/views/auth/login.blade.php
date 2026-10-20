@@ -282,19 +282,32 @@
 
                                         <div class="grid gap-2 sm:grid-cols-2">
                                             @foreach ($groupe['comptes'] as $compte)
-                                                <button type="button"
-                                                        @click="remplir({{ Js::from(['email' => $compte['email'], 'motDePasse' => $compte['mot_de_passe']]) }})"
-                                                        :aria-pressed="profil === @js($compte['email'])"
-                                                        :class="profil === @js($compte['email'])
-                                                            ? 'border-ogar-600 bg-ogar-50 text-ogar-800'
-                                                            : 'border-gris-200 bg-white text-gris-700 hover:border-ogar-300 hover:bg-gris-50'"
-                                                        class="flex min-h-11 cursor-pointer flex-col items-start justify-center gap-0.5 rounded-lg border px-3 py-2 text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ogar-600">
-                                                    <span class="text-xs font-semibold leading-tight">{{ $compte['libelle'] }}</span>
-                                                    @if ($compte['cas'])
-                                                        <span class="text-[11px] leading-snug text-gris-500">{{ $compte['cas'] }}</span>
-                                                    @endif
-                                                    <span class="truncate text-[11px] text-gris-400">{{ $compte['email'] }}</span>
-                                                </button>
+                                                {{-- Un cas qui ne demande aucun compte s'ouvre directement :
+                                                     remplir le formulaire de connexion n'aurait aucun sens. --}}
+                                                @if (! empty($compte['lien']))
+                                                    <a href="{{ $compte['lien'] }}" target="_blank" rel="noopener"
+                                                       class="flex min-h-11 flex-col items-start justify-center gap-0.5 rounded-lg border border-dashed border-gris-300 bg-white px-3 py-2 text-left text-gris-700 transition-colors duration-200 hover:border-ogar-400 hover:bg-gris-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ogar-600">
+                                                        <span class="text-xs font-semibold leading-tight">{{ $compte['libelle'] }} &rarr;</span>
+                                                        @if ($compte['cas'])
+                                                            <span class="text-[11px] leading-snug text-gris-500">{{ $compte['cas'] }}</span>
+                                                        @endif
+                                                        <span class="truncate text-[11px] text-gris-400">{{ $compte['email'] }}</span>
+                                                    </a>
+                                                @else
+                                                    <button type="button"
+                                                            @click="remplir({{ Js::from(['email' => $compte['email'], 'motDePasse' => $compte['mot_de_passe']]) }})"
+                                                            :aria-pressed="profil === @js($compte['email'])"
+                                                            :class="profil === @js($compte['email'])
+                                                                ? 'border-ogar-600 bg-ogar-50 text-ogar-800'
+                                                                : 'border-gris-200 bg-white text-gris-700 hover:border-ogar-300 hover:bg-gris-50'"
+                                                            class="flex min-h-11 cursor-pointer flex-col items-start justify-center gap-0.5 rounded-lg border px-3 py-2 text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ogar-600">
+                                                        <span class="text-xs font-semibold leading-tight">{{ $compte['libelle'] }}</span>
+                                                        @if ($compte['cas'])
+                                                            <span class="text-[11px] leading-snug text-gris-500">{{ $compte['cas'] }}</span>
+                                                        @endif
+                                                        <span class="truncate text-[11px] text-gris-400">{{ $compte['email'] }}</span>
+                                                    </button>
+                                                @endif
                                             @endforeach
                                         </div>
                                     </div>
