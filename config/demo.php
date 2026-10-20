@@ -30,6 +30,39 @@ return [
             'matricule' => 'ADMIN001',
             'nom' => 'Administrateur',
         ],
+        /*
+         * Les trois rôles de direction.
+         *
+         * Ils existaient au catalogue des rôles, avec leurs droits, mais aucun
+         * compte ne les portait : trois profils de l'application que personne
+         * ne pouvait ouvrir. Le censeur surtout, dont l'intérêt est justement
+         * de ne **pas** voir les finances — une restriction qu'on ne peut
+         * vérifier qu'en se connectant sous lui.
+         */
+        [
+            'libelle' => 'Directeur',
+            'email' => 'directeur@ecole.com',
+            'mot_de_passe' => 'directeur123',
+            'role' => 'directeur',
+            'matricule' => 'DIR001',
+            'nom' => 'Directeur',
+        ],
+        [
+            'libelle' => 'Proviseur',
+            'email' => 'proviseur@ecole.com',
+            'mot_de_passe' => 'proviseur123',
+            'role' => 'proviseur',
+            'matricule' => 'PROV001',
+            'nom' => 'Proviseur',
+        ],
+        [
+            'libelle' => 'Censeur',
+            'email' => 'censeur@ecole.com',
+            'mot_de_passe' => 'censeur123',
+            'role' => 'censeur',
+            'matricule' => 'CENS001',
+            'nom' => 'Censeur',
+        ],
         [
             'libelle' => 'Secrétariat',
             'email' => 'secretariat@ecole.com',

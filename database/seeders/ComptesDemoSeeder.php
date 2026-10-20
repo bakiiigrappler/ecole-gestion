@@ -32,7 +32,19 @@ class ComptesDemoSeeder extends Seeder
          *
          * Le super administrateur reste hors etablissement : il les surplombe.
          */
-        $ecole = \App\Support\EcoleCourante::id();
+        /*
+         * Un repli sur le premier etablissement quand aucun n'est force.
+         *
+         * Ce seeder tourne d'ordinaire dans la chaine, ou l'etablissement
+         * courant est pose. Lance seul — pour ajouter un role, par exemple — il
+         * n'en avait aucun, et `updateOrCreate` remettait alors `school_id` a
+         * nul sur des comptes deja rattaches : l'administrateur de
+         * demonstration se retrouvait a voir les donnees de toutes les ecoles.
+         * Un seeder ne doit pas pouvoir elargir des droits parce qu'on l'a
+         * appele hors de son contexte habituel.
+         */
+        $ecole = \App\Support\EcoleCourante::id()
+            ?? \App\Models\School::withoutGlobalScopes()->orderBy('id')->value('id');
 
         foreach ($comptes as $compte) {
             User::updateOrCreate(

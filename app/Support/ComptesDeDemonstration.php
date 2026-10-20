@@ -10,6 +10,7 @@ use App\Models\ParentModel;
 use App\Models\School;
 use App\Models\Student;
 use App\Models\User;
+use App\Support\Roles;
 
 /**
  * Les accès rapides de la page de connexion, groupés par cas.
@@ -84,8 +85,14 @@ class ComptesDeDemonstration
     {
         $ecole = School::withoutGlobalScopes()->orderBy('id')->first();
 
-        $comptes = self::parRoles(['admin', 'secretary', 'teacher', 'parent'], [
+        $comptes = self::parRoles(['admin', 'directeur', 'proviseur', 'censeur', 'secretary', 'teacher', 'parent'], [
             'admin' => 'Élèves, classes, finances, paramètres de l’établissement.',
+            // Le directeur et le proviseur se decrivent tres bien eux-memes :
+            // leur description vient du catalogue des roles, par le repli de
+            // parRoles(). Le censeur recoit la sienne, parce qu'elle nomme une
+            // restriction verifiable plutot qu'un perimetre — et elle a ete
+            // verifiee : la caisse et les frais lui repondent 403.
+            'censeur' => 'Scolarité, évaluations et discipline — mais aucun accès aux finances : la caisse et les frais lui répondent 403.',
             'secretary' => 'La caisse : encaisser, et valider ou refuser une déclaration de paiement mobile.',
             'teacher' => 'Ses classes, ses notes, ses bulletins.',
             'parent' => 'Le portail des parents : bulletins, paiement mobile, décision d’orientation.',
@@ -532,7 +539,13 @@ class ComptesDeDemonstration
                 'libelle' => $compte['libelle'],
                 'email' => $compte['email'],
                 'mot_de_passe' => $compte['mot_de_passe'],
-                'cas' => $cas[$role] ?? '',
+                /*
+                 * A defaut de description ecrite ici, celle du catalogue des
+                 * roles. C'est lui qui definit les droits : lui laisser dire ce
+                 * qu'un role peut faire evite que les deux divergent, et c'est
+                 * le principe qui regit deja la liste des comptes.
+                 */
+                'cas' => $cas[$role] ?? Roles::detail($role),
             ];
         }
 
