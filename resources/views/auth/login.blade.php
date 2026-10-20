@@ -248,72 +248,61 @@
                         <span x-text="envoi ? 'Connexion en cours...' : 'Se connecter'">Se connecter</span>
                     </button>
 
-                    {{-- Accès rapide : un bouton par profil, qui remplit les deux champs.
+                    {{-- Accès rapide : un bouton par cas, qui remplit les deux champs.
                          Confort de démonstration, coupé en production. --}}
                     @php
                         $accesRapide = config('demo.acces_rapide') && ($marque['login_acces_rapide'] ?? true);
-
-                        $comptesDemo = $accesRapide ? config('demo.comptes', []) : [];
-
-                        if ($accesRapide) {
-                            /*
-                             * Les comptes portés par un établissement — le
-                             * proviseur du second lycée, par exemple — ne sont
-                             * proposés que s'ils existent vraiment. Un bouton qui
-                             * ne connecte à rien vaut moins que pas de bouton.
-                             */
-                            foreach (config('demo.comptes_etablissements', []) as $compte) {
-                                if (\App\Models\User::where('email', $compte['email'])->exists()) {
-                                    $comptesDemo[] = $compte;
-                                }
-                            }
-
-                            /*
-                             * Un élève réel du lycée : son compte n'est pas fixé en
-                             * configuration, il naît de son inscription. Identifiant
-                             * et mot de passe initial sont son matricule.
-                             */
-                            $eleve = \App\Models\User::where('role', 'student')
-                                ->whereNotNull('matricule')
-                                ->orderBy('matricule')
-                                ->first();
-
-                            if ($eleve) {
-                                $comptesDemo[] = [
-                                    'libelle' => 'Élève (lycée)',
-                                    'email' => $eleve->matricule,
-                                    'mot_de_passe' => $eleve->matricule,
-                                ];
-                            }
-                        }
+                        $groupesDemo = $accesRapide ? \App\Support\ComptesDeDemonstration::groupes() : [];
                     @endphp
 
-                    @if ($accesRapide && ! empty($comptesDemo))
-                        <div class="border-t border-gris-200 pt-5">
+                    @if ($accesRapide && ! empty($groupesDemo))
+                        <div x-data="{ ouvert: true }" class="border-t border-gris-200 pt-5">
                             <div class="mb-3 flex items-baseline justify-between gap-3">
                                 <span class="text-xs font-semibold uppercase tracking-wide text-gris-500">
                                     Accès rapide
                                 </span>
-                                <span class="text-[11px] text-gris-400">Remplit les champs, ne connecte pas</span>
+                                <button type="button" @click="ouvert = ! ouvert"
+                                        class="text-[11px] text-gris-400 underline-offset-2 hover:text-ogar-600 hover:underline">
+                                    <span x-text="ouvert ? 'Replier' : 'Déplier'">Replier</span>
+                                </button>
                             </div>
 
-                            <div class="grid gap-2 sm:grid-cols-2">
-                                @foreach ($comptesDemo as $compte)
-                                    <button type="button"
-                                            @click="remplir({{ Js::from(['email' => $compte['email'], 'motDePasse' => $compte['mot_de_passe']]) }})"
-                                            :aria-pressed="profil === @js($compte['email'])"
-                                            :class="profil === @js($compte['email'])
-                                                ? 'border-ogar-600 bg-ogar-50 text-ogar-800'
-                                                : 'border-gris-200 bg-white text-gris-700 hover:border-ogar-300 hover:bg-gris-50'"
-                                            class="flex min-h-11 cursor-pointer flex-col items-start justify-center rounded-lg border px-3 py-2 text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ogar-600">
-                                        <span class="text-xs font-semibold leading-tight">{{ $compte['libelle'] }}</span>
-                                        <span class="truncate text-[11px] text-gris-400">{{ $compte['email'] }}</span>
-                                    </button>
+                            <p class="mb-4 text-[11px] leading-relaxed text-gris-400">
+                                Un bouton par cas de test, et non par rôle : le même compte sert
+                                souvent plusieurs écrans. Remplit les champs, ne connecte pas.
+                            </p>
+
+                            <div x-show="ouvert" x-cloak class="space-y-4">
+                                @foreach ($groupesDemo as $groupe)
+                                    <div>
+                                        <p class="text-[11px] font-semibold uppercase tracking-wide text-gris-600">
+                                            {{ $groupe['titre'] }}
+                                        </p>
+                                        <p class="mb-2 text-[11px] text-gris-400">{{ $groupe['sous_titre'] }}</p>
+
+                                        <div class="grid gap-2 sm:grid-cols-2">
+                                            @foreach ($groupe['comptes'] as $compte)
+                                                <button type="button"
+                                                        @click="remplir({{ Js::from(['email' => $compte['email'], 'motDePasse' => $compte['mot_de_passe']]) }})"
+                                                        :aria-pressed="profil === @js($compte['email'])"
+                                                        :class="profil === @js($compte['email'])
+                                                            ? 'border-ogar-600 bg-ogar-50 text-ogar-800'
+                                                            : 'border-gris-200 bg-white text-gris-700 hover:border-ogar-300 hover:bg-gris-50'"
+                                                        class="flex min-h-11 cursor-pointer flex-col items-start justify-center gap-0.5 rounded-lg border px-3 py-2 text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ogar-600">
+                                                    <span class="text-xs font-semibold leading-tight">{{ $compte['libelle'] }}</span>
+                                                    @if ($compte['cas'])
+                                                        <span class="text-[11px] leading-snug text-gris-500">{{ $compte['cas'] }}</span>
+                                                    @endif
+                                                    <span class="truncate text-[11px] text-gris-400">{{ $compte['email'] }}</span>
+                                                </button>
+                                            @endforeach
+                                        </div>
+                                    </div>
                                 @endforeach
                             </div>
 
-                            <p class="mt-3 text-[11px] leading-relaxed text-gris-400">
-                                Choisissez un profil, puis &laquo; Se connecter &raquo;. Le mot de passe
+                            <p class="mt-4 text-[11px] leading-relaxed text-gris-400">
+                                Choisissez un cas, puis &laquo; Se connecter &raquo;. Le mot de passe
                                 est pré-rempli : rendez-le visible avec l’icône en bout de champ.
                             </p>
                         </div>
