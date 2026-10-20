@@ -67,13 +67,6 @@ class DatabaseSeeder extends Seeder
             DonneesDemoSeeder::class,
 
             /*
-             * Comptes des lyceens : leur matricule leur sert d'identifiant.
-             * Apres les inscriptions, forcement — il n'y a de compte que pour
-             * un eleve inscrit au lycee.
-             */
-            ComptesElevesSeeder::class,
-
-            /*
              * Le compte parent et le compte enseignant recoivent leur fiche :
              * leur portail part d'elle, et sans elle il n'a rien a afficher.
              * Apres les liens parent-eleve, donc.
@@ -111,6 +104,17 @@ class DatabaseSeeder extends Seeder
          * ce qui est la pire des facons de s'en apercevoir.
          */
         $this->call([
+            /*
+             * Comptes des lyceens : leur matricule leur sert d'identifiant et
+             * de mot de passe initial.
+             *
+             * Apres les deux etablissements, et c'est tout l'interet : appele
+             * plus haut, il n'ouvrait de compte qu'aux lyceens du premier, et
+             * les terminales du second — les seules a passer le baccalaureat —
+             * n'avaient aucun moyen de se connecter pour lire leur releve.
+             */
+            ComptesElevesSeeder::class,
+
             // Lycees, universites et grandes ecoles du Gabon.
             RepertoireOrientationSeeder::class,
 
