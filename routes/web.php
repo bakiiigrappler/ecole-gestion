@@ -534,6 +534,7 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
         Route::get('/examens-etablissement/{examen}', 'parEtablissement')->name('examens.etablissement.session');
         Route::get('/mes-examens', 'mesExamens')->name('examens.mes-examens');
         Route::get('/mes-examens/{candidat}', 'releve')->name('examens.releve');
+        Route::get('/mes-examens/{candidat}/attestation', 'attestation')->name('examens.attestation');
     });
 
     /*

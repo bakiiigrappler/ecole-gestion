@@ -40,6 +40,7 @@ class RestreindreLesEleves
         // Ses examens : le controleur ne lui montre que ses propres copies.
         'examens.mes-examens',
         'examens.releve',
+        'examens.attestation',
         'resultats.*',
     ];
 
@@ -66,6 +67,7 @@ class RestreindreLesEleves
         // Les examens de ses enfants : meme garde que pour l'eleve.
         'examens.mes-examens',
         'examens.releve',
+        'examens.attestation',
         'resultats.*',
     ];
 

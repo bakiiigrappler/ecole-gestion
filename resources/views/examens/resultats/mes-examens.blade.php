@@ -20,6 +20,8 @@
                 @php($examen = $candidat->examen)
                 @php($proclame = $examen->estProclame())
                 @php($admis = $candidat->statut === 'admis')
+                @php($attestation = $proclame && $admis
+                    && \App\Http\Controllers\ResultatExamenController::sceauDe($examen))
 
                 <div class="carte overflow-hidden">
                     <div class="carte-entete">
@@ -55,19 +57,51 @@
                                     @endif
                                 </div>
 
-                                <a href="{{ route('examens.releve', $candidat) }}" class="bouton-primaire">
-                                    Le relevé de notes
-                                </a>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <a href="{{ route('examens.releve', $candidat) }}" class="bouton-primaire">
+                                        Le relevé de notes
+                                    </a>
+                                    @if ($attestation)
+                                        <a href="{{ route('examens.attestation', $candidat) }}"
+                                           class="bouton-secondaire">
+                                            Attestation de réussite
+                                        </a>
+                                    @endif
+                                </div>
                             </div>
                         @else
+                            {{-- Une session en cours : dire où elle en est vaut mieux que
+                                 répéter qu'il n'y a rien à voir. --}}
                             <p class="text-sm leading-relaxed text-gris-600">
-                                Les résultats ne sont pas encore proclamés. Le centre de composition est
+                                @switch($examen->statut)
+                                    @case('epreuves')
+                                        Les épreuves se déroulent.
+                                        @break
+                                    @case('correction')
+                                        Les copies sont en correction, sous numéro d’anonymat.
+                                        @break
+                                    @case('deliberation')
+                                        Le jury délibère : les résultats sont calculés, la décision n’est pas
+                                        encore arrêtée.
+                                        @break
+                                    @case('signe')
+                                        Le procès-verbal est signé ; la proclamation suit.
+                                        @break
+                                    @default
+                                        La session se prépare.
+                                @endswitch
+                                Le centre de composition est
                                 <strong class="text-gris-800">{{ $candidat->centre->nom ?? 'à préciser' }}</strong>
                                 @if ($candidat->centre?->ville) ({{ $candidat->centre->ville }}) @endif.
                                 @if ($examen->debut_epreuves)
-                                    Les épreuves commencent le
+                                    Les épreuves {{ $examen->debut_epreuves->isPast() ? 'ont commencé' : 'commencent' }} le
                                     {{ $examen->debut_epreuves->format('d/m/Y') }}.
                                 @endif
+                            </p>
+
+                            <p class="mt-2 text-[11px] leading-relaxed text-gris-400">
+                                Aucune note n’est consultable avant la proclamation : c’est la règle de
+                                l’anonymat, et elle protège aussi le candidat.
                             </p>
                         @endif
                     </div>

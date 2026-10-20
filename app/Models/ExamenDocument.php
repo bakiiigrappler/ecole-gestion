@@ -85,17 +85,38 @@ class ExamenDocument extends Model
      * On n'empreinte pas le PDF — il se régénère et son octet change — mais ce
      * qu'il dit : la session, le centre, et chaque candidat avec sa moyenne et
      * sa décision. C'est cela qu'un fraudeur voudrait changer.
+     *
+     * **Et ses notes par épreuve.** Elles ne figurent pas au procès-verbal, mais
+     * le relevé de notes les publie — et il les publie sous cette signature,
+     * en portant la mention « Document scellé ». Tant qu'elles restaient hors
+     * de l'empreinte, une note pouvait être modifiée après la signature :
+     * l'application continuait d'annoncer un document intact, et de délivrer
+     * l'attestation de réussite qui en dépend. Vérifié : la moyenne ne bougeant
+     * qu'à la délibération, le sceau ne s'en apercevait pas.
+     *
+     * Conséquence voulue : toucher à une note après la signature rompt le
+     * sceau. C'est le comportement juste — on délibère et l'on signe à
+     * nouveau — mais il rend « non intacts » les documents signés avant ce
+     * changement, dont l'empreinte a été calculée autrement.
      */
     public static function empreinteDu(Examen $examen, ?ExamenCentre $centre = null): string
     {
-        $lignes = ExamenCandidat::where('examen_id', $examen->id)
+        $candidats = ExamenCandidat::where('examen_id', $examen->id)
             ->when($centre, fn ($q) => $q->where('centre_id', $centre->id))
             ->orderBy('numero_candidat')
-            ->get(['numero_candidat', 'nom', 'prenom', 'moyenne', 'statut', 'mention'])
+            ->with(['notes' => fn ($q) => $q->orderBy('epreuve_id')])
+            ->get(['id', 'numero_candidat', 'nom', 'prenom', 'moyenne', 'statut', 'mention']);
+
+        $lignes = $candidats
             ->map(fn ($c) => implode('|', [
                 $c->numero_candidat, $c->nom, $c->prenom,
                 $c->moyenne === null ? '' : number_format($c->moyenne, 2, '.', ''),
                 $c->statut, $c->mention,
+                // Les notes dans l'ordre des épreuves : l'absence compte autant
+                // qu'un zéro, et elle doit donc entrer dans l'empreinte.
+                $c->notes->map(fn ($n) => $n->epreuve_id.':'
+                    .($n->absent ? 'abs' : ($n->note === null ? '' : number_format($n->note, 2, '.', ''))))
+                    ->join(','),
             ]))
             ->join("\n");
 

@@ -75,7 +75,7 @@
         Procès-verbal de délibération
     </h1>
     <p class="text-center text-sm text-gris-700">
-        {{ $examen->intitule_complet }} — session {{ $examen->annee }}
+        {{ $examen->intitule_complet }}
     </p>
     @if ($centre)
         <p class="text-center text-[11px] text-gris-600">

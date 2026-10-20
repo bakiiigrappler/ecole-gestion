@@ -11,6 +11,11 @@
             data-nom-fichier="Releve_{{ $candidat->numero_candidat }}.pdf">
         Télécharger le relevé
     </button>
+    @if ($attestation)
+        <a href="{{ route('examens.attestation', $candidat) }}" class="bouton-secondaire">
+            Attestation de réussite
+        </a>
+    @endif
     <a href="{{ route('examens.mes-examens') }}" class="bouton-secondaire">Mes examens</a>
 @endsection
 
@@ -21,6 +26,19 @@
     $admis = $candidat->statut === 'admis';
     $total = 0;
 @endphp
+
+{{-- Pourquoi l'attestation n'est pas là, quand elle devrait l'être --}}
+@if ($admis && ! $attestation)
+    <div class="carte mb-6 border-soleil-300 bg-soleil-50 p-5 sans-impression">
+        <h2 class="text-sm font-semibold text-soleil-900">Attestation de réussite indisponible</h2>
+        <p class="mt-1.5 text-sm leading-relaxed text-gris-700">
+            Le procès-verbal de cette session n’est pas signé, ou ses résultats ont changé depuis
+            la signature. Une attestation affirme un succès et s’utilise pour une inscription :
+            elle ne peut être délivrée que sur un document scellé. Le relevé ci-dessous, lui,
+            reste consultable.
+        </p>
+    </div>
+@endif
 
 {{-- ----------------------------------------------------------------------
      Le document, taillé pour une feuille A4 portrait : 794 × 1123 px à 96 ppp.
@@ -45,7 +63,7 @@
     <h1 class="mt-5 text-center text-base font-bold uppercase tracking-wide">
         Relevé de notes
     </h1>
-    <p class="text-center text-sm text-gris-700">{{ $examen->intitule_complet }} — session {{ $examen->annee }}</p>
+    <p class="text-center text-sm text-gris-700">{{ $examen->intitule_complet }}</p>
 
     {{-- Le candidat --}}
     <dl class="mt-5 grid grid-cols-2 gap-x-8 gap-y-1.5 text-[11px]">

@@ -258,9 +258,22 @@ class SessionExamenDemoSeeder extends Seeder
                 'date_naissance' => $eleve->date_of_birth,
                 'lieu_naissance' => $eleve->place_of_birth,
                 'sexe' => $eleve->gender,
-                'serie' => $examen->type === 'bepc'
-                    ? null
-                    : ($eleve->enrollments->firstWhere('status', 'active')?->schoolClass?->serie?->code ?? 'TERM-C'),
+                /*
+                 * La serie du candidat est celle de l'EXAMEN, pas celle de sa
+                 * classe.
+                 *
+                 * On compose dans une serie, et une session de serie C ne
+                 * delivre que des resultats de serie C. Recopier la serie de la
+                 * classe produisait des releves qui annoncaient « serie C » en
+                 * titre et « F1 » dans le corps : le document se contredisait
+                 * lui-meme, et une attestation qui se contredit ne vaut rien.
+                 *
+                 * Le brevet n'a pas de serie : elle n'existe qu'au lycee.
+                 */
+                'serie' => $examen->serie
+                    ?: ($examen->type === 'bepc'
+                        ? null
+                        : $eleve->enrollments->firstWhere('status', 'active')?->schoolClass?->serie?->code),
                 'etablissement_origine' => $eleve->school->name ?? null,
                 'statut' => 'present',
             ]);
@@ -504,11 +517,22 @@ class SessionExamenDemoSeeder extends Seeder
         // faite l'est épreuve par épreuve, pas copie par copie au hasard.
         $corrigees = $examen->epreuves->take((int) ceil($examen->epreuves->count() * $part));
 
+        $favorise = $this->candidatDeDemonstration($examen);
+
         foreach ($examen->candidats()->get() as $candidat) {
             // Un niveau par candidat, autour duquel les notes gravitent : sans
             // cela, toutes les moyennes se vaudraient et la délibération
             // n'aurait rien à trancher.
-            $niveau = mt_rand(55, 150) / 10;
+            //
+            // Un seul candidat reçoit un bon niveau : celui par lequel la
+            // démonstration passe. Voir à quoi ressemble une réussite — le
+            // relevé, l'attestation, le sceau — est la moitié de ce qu'il y a à
+            // montrer, et le tirage au sort la retirait une fois sur deux. On
+            // ne touche pas à la décision pour autant : elle reste calculée sur
+            // les notes, et c'est bien le jury qui l'arrête.
+            $niveau = $candidat->id === $favorise
+                ? mt_rand(130, 165) / 10
+                : mt_rand(55, 150) / 10;
 
             foreach ($corrigees as $epreuve) {
                 $note = max(0, min($epreuve->bareme, $niveau + mt_rand(-30, 30) / 10));
@@ -540,6 +564,42 @@ class SessionExamenDemoSeeder extends Seeder
         }
 
         return count($notes);
+    }
+
+    /**
+     * Le candidat par lequel la démonstration passe.
+     *
+     * L'enfant du compte parent d'abord : c'est son portail qui doit montrer un
+     * résultat proclamé à côté d'une session encore en cours. À défaut, un
+     * candidat qui a un compte élève, pour que la même chose se voie de son
+     * côté. À défaut encore, personne : on ne favorise pas au hasard.
+     */
+    private function candidatDeDemonstration(Examen $examen): ?int
+    {
+        $courriels = collect(config('demo.comptes', []))
+            ->where('role', 'parent')
+            ->pluck('email')
+            ->all();
+
+        $compte = $courriels === [] ? null : User::whereIn('email', $courriels)->first();
+
+        $fiche = $compte
+            ? \App\Models\ParentModel::withoutGlobalScopes()->where('user_id', $compte->id)->first()
+            : null;
+
+        if ($fiche) {
+            $enfant = $examen->candidats()
+                ->whereIn('student_id', $fiche->students()->pluck('students.id'))
+                ->value('id');
+
+            if ($enfant) {
+                return $enfant;
+            }
+        }
+
+        return $examen->candidats()
+            ->whereHas('student', fn ($q) => $q->whereNotNull('user_id'))
+            ->value('id');
     }
 
     private function signerEtProclamer(Examen $examen): void

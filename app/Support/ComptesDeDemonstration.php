@@ -116,10 +116,18 @@ class ComptesDeDemonstration
     /**
      * Un lycéen de cet établissement, de préférence un dont les écrans sont pleins.
      *
-     * Un élève sans note donne un espace vide : ses bulletins, ses moyennes et
-     * son orientation n'ont rien à montrer. On cherche donc d'abord un élève
-     * qui a des notes, et l'on se rabat sur n'importe lequel plutôt que de ne
-     * rien proposer.
+     * Trois préférences, dans cet ordre, et chacune tient à ce qu'il y aura à
+     * voir en se connectant :
+     *
+     * 1. un candidat **admis** à une session proclamée. C'est lui qui a tout :
+     *    son relevé de notes d'examen, son attestation de réussite, et le
+     *    reste de son dossier scolaire ;
+     * 2. à défaut, n'importe quel candidat d'une session proclamée ;
+     * 3. à défaut, un élève qui a des notes — sans elles, son espace, ses
+     *    bulletins et ses moyennes n'ont rien à montrer.
+     *
+     * Et n'importe quel élève plutôt que pas de carte du tout : son espace
+     * reste l'un des cinq profils de l'application.
      */
     private static function unEleveDe(?int $ecoleId): ?array
     {
@@ -127,7 +135,16 @@ class ComptesDeDemonstration
             ->whereNotNull('user_id')
             ->when($ecoleId, fn ($q) => $q->where('school_id', $ecoleId));
 
-        $eleve = (clone $requete())->whereHas('grades')->first() ?? $requete()->first();
+        $candidat = fn (?string $statut) => ExamenCandidat::withoutGlobalScopes()
+            ->whereNotNull('student_id')
+            ->when($statut, fn ($q) => $q->where('statut', $statut))
+            ->whereHas('examen', fn ($q) => $q->where('statut', 'proclame'))
+            ->pluck('student_id');
+
+        $eleve = (clone $requete())->whereIn('id', $candidat('admis'))->first()
+            ?? (clone $requete())->whereIn('id', $candidat(null))->first()
+            ?? (clone $requete())->whereHas('grades')->first()
+            ?? $requete()->first();
 
         if (! $eleve) {
             return null;
@@ -144,9 +161,23 @@ class ComptesDeDemonstration
             ->with('schoolClass:id,name')
             ->first()?->schoolClass?->name;
 
-        $compte['cas'] = 'Son espace : ses notes, son emploi du temps, ses absences, son orientation'
-            .($classe ? ' — '.$classe : '')
-            .'. Identifiant et mot de passe initial : son matricule.';
+        // Ce qu'il y a de notable dans SON dossier : la candidature, quand il y
+        // en a une, vaut mieux que la description générique d'un espace élève.
+        $candidature = ExamenCandidat::withoutGlobalScopes()
+            ->where('student_id', $eleve->id)
+            ->whereHas('examen', fn ($q) => $q->where('statut', 'proclame'))
+            ->with('examen:id,nom,type,annee,serie')
+            ->first();
+
+        $compte['cas'] = $candidature
+            ? 'Son '.($candidature->examen?->intitule_complet ?? 'examen')
+                .' : '.mb_strtolower($candidature->libelle_statut)
+                .($candidature->mention ? ', mention '.$candidature->mention : '')
+                .' — relevé de notes et attestation de réussite'
+                .($classe ? '. Classe de '.$classe : '').'.'
+            : 'Son espace : ses notes, son emploi du temps, ses absences, son orientation'
+                .($classe ? ' — '.$classe : '')
+                .'. Identifiant et mot de passe initial : son matricule.';
 
         return $compte;
     }

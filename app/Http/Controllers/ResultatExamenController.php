@@ -205,7 +205,80 @@ class ResultatExamenController extends Controller
             'notes' => $notes,
             'diviseur' => $examen->totalDesCoefficients(),
             'document' => $examen->documents()->whereNotNull('signe_le')->latest('signe_le')->first(),
+            /*
+             * L'attestation s'offre-t-elle ? La vue s'en sert dans son en-tete,
+             * qui est rendu avant le corps : la calculer la-bas laissait la
+             * variable indefinie. Et c'est de toute facon au controleur de dire
+             * ce qui est permis.
+             */
+            'attestation' => $candidat->statut === 'admis' && self::sceauDe($examen) !== null,
         ]);
+    }
+
+    /**
+     * L'attestation de réussite, et sa condition : le sceau.
+     *
+     * Une attestation n'est pas un relevé. Le relevé rend compte de notes ;
+     * l'attestation **affirme un succès**, et c'est avec elle qu'on s'inscrit
+     * à l'université ou qu'on postule. Elle ne peut donc exister que si le
+     * procès-verbal est signé et scellé : sans signature, l'établissement
+     * délivrerait un document qui engage le ministère sur des résultats que
+     * personne n'a arrêtés.
+     *
+     * Trois verrous, donc, et chacun répond à une façon de se tromper :
+     *
+     * - le candidat doit être **admis**. On n'atteste pas d'un ajournement ;
+     * - un procès-verbal doit être **signé** ;
+     * - son empreinte doit être **intacte**. Si une note a changé depuis la
+     *   signature, le document signé ne dit plus ce que la base dit, et c'est
+     *   exactement le cas ou une attestation deviendrait un faux.
+     */
+    public function attestation(ExamenCandidat $candidat)
+    {
+        $examen = $candidat->examen;
+
+        abort_unless($examen->estProclame(), 404, 'Les résultats ne sont pas encore proclamés.');
+
+        $this->seulementLesSiens($candidat);
+
+        abort_unless(
+            $candidat->statut === 'admis',
+            404,
+            'L’attestation de réussite ne se délivre qu’aux candidats admis.'
+        );
+
+        $document = self::sceauDe($examen);
+
+        abort_unless(
+            $document,
+            404,
+            'Le procès-verbal de cette session n’est pas signé : aucune attestation ne peut être délivrée.'
+        );
+
+        $candidat->load(['centre', 'school:id,name']);
+
+        return view('examens.resultats.attestation', [
+            'examen' => $examen,
+            'candidat' => $candidat,
+            'document' => $document,
+        ]);
+    }
+
+    /**
+     * Le procès-verbal signé d'une session, s'il tient encore.
+     *
+     * Rendu public et statique parce que les vues s'en servent pour décider
+     * d'afficher ou non le bouton de l'attestation : il ne faut pas proposer un
+     * lien qui mènera à un refus.
+     */
+    public static function sceauDe(Examen $examen): ?\App\Models\ExamenDocument
+    {
+        $document = $examen->documents()
+            ->whereNotNull('signe_le')
+            ->latest('signe_le')
+            ->first();
+
+        return $document && $document->estIntact() ? $document : null;
     }
 
     /**

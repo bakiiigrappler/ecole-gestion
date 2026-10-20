@@ -52,11 +52,19 @@ class RattacherLesComptesDemoSeeder extends Seeder
     }
 
     /**
-     * Le compte parent reçoit la fiche d'une famille, la plus petite possible.
+     * Le compte parent reçoit la fiche d'une famille, choisie pour ce qu'elle
+     * donne à voir.
      *
      * Une fratrie, pour que la démonstration montre plusieurs dossiers — mais
      * la plus modeste que le tirage aléatoire ait produite : le parent aux
      * quarante enfants donnait des écrans qu'aucune famille ne connaîtra.
+     *
+     * Et, à taille égale, une famille **concernée par les examens**. Le portail
+     * des parents doit pouvoir montrer les deux moitiés de la chose : un enfant
+     * dont la session est encore en cours, dont on ne sait rien parce que
+     * l'anonymat l'interdit, et un enfant dont les résultats sont proclamés,
+     * avec son relevé et son attestation. Une fratrie de CP et de CE1 ne
+     * montrerait ni l'un ni l'autre.
      */
     private function rattacherLeParent(): void
     {
@@ -82,8 +90,15 @@ class RattacherLesComptesDemoSeeder extends Seeder
             ->sortByDesc('students_count')
             ->values();
 
-        $parent = $libres->first(fn ($p) => $p->students_count >= 2 && $p->students_count <= 4)
-            ?? $libres->last();
+        // De la plus petite fratrie a la plus grande : a egalite d'interet, c'est
+        // toujours la plus modeste qu'on veut.
+        $duPlusPetit = $libres->sortBy('students_count')->values();
+
+        $parent = $duPlusPetit->first(fn ($p) => $this->aUnEnfantEn($p, 'terminale') && $this->aUnEnfantEn($p, 'troisieme'))
+            ?? $duPlusPetit->first(fn ($p) => $this->aUnEnfantEn($p, 'terminale'))
+            ?? $duPlusPetit->first(fn ($p) => $this->aUnEnfantEn($p, 'troisieme'))
+            ?? $duPlusPetit->first(fn ($p) => $p->students_count >= 2)
+            ?? $duPlusPetit->first();
 
         if (! $parent) {
             $this->command?->warn('Aucun parent avec enfants : le compte parent reste sans fiche.');
@@ -106,6 +121,25 @@ class RattacherLesComptesDemoSeeder extends Seeder
             $parent->last_name,
             $parent->students_count
         ));
+    }
+
+    /**
+     * Cette famille a-t-elle un enfant dans la classe qui passe un examen ?
+     *
+     * La terminale passe le baccalauréat, la troisième le brevet. Les motifs
+     * sont ceux du peuplement des examens, et il faut qu'ils le restent : une
+     * famille choisie sur un autre critère que celui de l'inscription ne serait
+     * pas inscrite.
+     */
+    private function aUnEnfantEn(ParentModel $parent, string $niveau): bool
+    {
+        $motif = $niveau === 'troisieme' ? '%3%' : '%erminale%';
+
+        return $parent->students()
+            ->whereHas('enrollments', fn ($q) => $q
+                ->where('status', 'active')
+                ->whereHas('schoolClass.level', fn ($n) => $n->where('name', 'like', $motif)))
+            ->exists();
     }
 
     /**
