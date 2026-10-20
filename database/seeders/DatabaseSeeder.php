@@ -115,6 +115,17 @@ class DatabaseSeeder extends Seeder
              */
             ComptesElevesSeeder::class,
 
+            /*
+             * Les dossiers scolaires que le reste du peuplement laisse vides :
+             * notes, emplois du temps, appel. Le second etablissement n'en
+             * recoit aucun de son propre seeder, et les notes du premier ne
+             * couvraient que deux cents inscriptions sur un millier — un compte
+             * eleve ouvrait donc des ecrans vides.
+             *
+             * Avant l'orientation, qui calcule son profil sur les notes.
+             */
+            DossiersDemoSeeder::class,
+
             // Lycees, universites et grandes ecoles du Gabon.
             RepertoireOrientationSeeder::class,
 
