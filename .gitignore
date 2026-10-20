@@ -175,3 +175,6 @@ cookies.txt
 # Fichiers generes par le serveur de langage de l IDE : ils ne regardent que
 # la machine qui les produit.
 storage/framework/lsp-*.php
+
+# Les fiches de resultats publiees : elles se regenerent a la proclamation.
+storage/app/resultats/

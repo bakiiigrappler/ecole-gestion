@@ -34,6 +34,20 @@ Route::middleware('guest')->group(function () {
 });
 
 // Routes publiques pour le portail parent et paiements en ligne
+/*
+ * Les resultats d'examen, consultables sans compte.
+ *
+ * C'est le seul endroit de l'application ou tout le pays arrive en meme temps.
+ * Ces pages ne touchent pas la base : elles lisent les fiches ecrites a la
+ * proclamation.
+ */
+Route::controller(\App\Http\Controllers\ResultatExamenController::class)
+    ->prefix('resultats')->name('resultats.')->group(function () {
+        Route::get('/', 'accueil')->name('accueil');
+        Route::get('/{examen}/numero', 'retrouverLeNumero')->name('numero');
+        Route::match(['get', 'post'], '/{examen}', 'chercher')->name('chercher');
+    });
+
 Route::prefix('parent')->name('parent-portal.')->group(function () {
     // Connexion du portail parent
     Route::get('/login', [ParentPortalController::class, 'showLogin'])->name('login');
@@ -475,6 +489,51 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
         Route::get('/mon-espace/emploi-du-temps', 'emploiDuTemps')->name('mon-espace.emploi-du-temps');
         Route::get('/mon-espace/absences', 'absences')->name('mon-espace.absences');
         Route::get('/mon-espace/fiche', 'fiche')->name('mon-espace.fiche');
+    });
+
+    /*
+     * Les examens nationaux. Trois portes : l'organisateur (direction des
+     * examens), le correcteur convoque, et l'etablissement qui lit les
+     * resultats de ses eleves.
+     */
+    Route::controller(\App\Http\Controllers\ExamenController::class)
+        ->prefix('examens')->name('examens.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/nouveau', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+
+            Route::get('/{examen}', 'show')->name('show');
+            Route::put('/{examen}', 'update')->name('update');
+            Route::get('/{examen}/candidats', 'candidats')->name('candidats');
+            Route::get('/{examen}/correcteurs', 'correcteurs')->name('correcteurs');
+
+            Route::post('/{examen}/epreuves', 'ajouterEpreuve')->name('epreuves.ajouter');
+            Route::delete('/{examen}/epreuves/{epreuve}', 'supprimerEpreuve')->name('epreuves.supprimer');
+            Route::post('/{examen}/centres', 'ajouterCentre')->name('centres.ajouter');
+            Route::post('/{examen}/inscrire', 'inscrireUneEcole')->name('inscrire');
+            Route::post('/{examen}/anonymat', 'tirerLAnonymat')->name('anonymat');
+            Route::post('/{examen}/convoquer', 'convoquer')->name('convoquer');
+            Route::delete('/{examen}/correcteurs/{correcteur}', 'retirerLaConvocation')->name('correcteurs.retirer');
+            Route::post('/{examen}/etape', 'changerDEtape')->name('etape');
+            Route::post('/{examen}/deliberer', 'deliberer')->name('deliberer');
+            Route::post('/{examen}/signer', 'signer')->name('signer');
+            Route::post('/{examen}/proclamer', 'proclamer')->name('proclamer');
+        });
+
+    Route::controller(\App\Http\Controllers\CorrectionController::class)
+        ->prefix('correction')->name('correction.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/{convocation}', 'copies')->name('copies');
+            Route::post('/{convocation}', 'enregistrer')->name('enregistrer');
+            Route::post('/{convocation}/terminer', 'terminer')->name('terminer');
+        });
+
+    Route::controller(\App\Http\Controllers\ResultatExamenController::class)->group(function () {
+        Route::get('/examens-etablissement', 'sessionsDeLEtablissement')->name('examens.etablissement');
+        Route::get('/examens-etablissement/{examen}', 'parEtablissement')->name('examens.etablissement.session');
+        Route::get('/mes-examens', 'mesExamens')->name('examens.mes-examens');
+        Route::get('/mes-examens/{candidat}', 'releve')->name('examens.releve');
+    });
 
     /*
      * Le service d'orientation : de la 3eme au lycee, de la terminale au
@@ -498,8 +557,6 @@ Route::get('payments/export', [PaymentController::class, 'export'])->name('payme
         // « repertoire » et tenterait de le lire comme un identifiant.
         Route::get('/orientation/{dossier}', 'show')->name('orientation.show');
         Route::post('/orientation/{dossier}/decider', 'decider')->name('orientation.decider');
-    });
-
     });
 
     // Routes d'administration (pour admins et superadmins)

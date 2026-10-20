@@ -93,6 +93,12 @@ class DatabaseSeeder extends Seeder
              * voeux se servent.
              */
             DossiersOrientationDemoSeeder::class,
+
+            /*
+             * Une session d'examen menee jusqu'a la proclamation : le module
+             * ne se juge pas sur des ecrans vides.
+             */
+            SessionExamenDemoSeeder::class,
         ]);
 
         /*

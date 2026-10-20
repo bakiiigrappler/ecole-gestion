@@ -23,6 +23,26 @@ class MenuPrincipal
 
     private static ?int $dossiersAEtudier = null;
 
+    private static ?bool $convoque = null;
+
+    /**
+     * Le compte connecte est-il convoque a une correction en cours ?
+     *
+     * La rubrique ne parait que pour lui : un enseignant qui n'a pas ete
+     * appele n'a rien a y faire, et un menu qui propose un ecran vide use la
+     * confiance.
+     */
+    private static function convoqueALaCorrection(): bool
+    {
+        if (self::$convoque !== null) {
+            return self::$convoque;
+        }
+
+        return self::$convoque = \App\Models\ExamenCorrecteur::where('user_id', auth()->id())
+            ->whereHas('examen', fn ($q) => $q->whereIn('statut', ['epreuves', 'correction', 'deliberation']))
+            ->exists();
+    }
+
     /**
      * Combien de dossiers d'orientation attendent une décision.
      *
@@ -99,6 +119,7 @@ class MenuPrincipal
                     ['libelle' => 'Mes absences', 'route' => 'mon-espace.absences', 'motif' => 'mon-espace.absences'],
                     ['libelle' => 'Ma fiche élève', 'route' => 'mon-espace.fiche', 'motif' => 'mon-espace.fiche'],
                     ['libelle' => 'Mon orientation', 'route' => 'orientation.mon-dossier', 'motif' => 'orientation.mon-dossier'],
+                    ['libelle' => 'Mes examens', 'route' => 'examens.mes-examens', 'motif' => 'examens.mes-examens'],
                 ],
             ],
             [
@@ -110,6 +131,7 @@ class MenuPrincipal
                     ['libelle' => 'Mes paiements', 'route' => 'parent-portal.payment-history', 'motif' => 'parent-portal.payment-history'],
                     ['libelle' => 'Régler la scolarité', 'route' => 'parent-portal.paiement', 'motif' => 'parent-portal.paiement'],
                     ['libelle' => 'Orientation', 'route' => 'orientation.mon-dossier', 'motif' => 'orientation.mon-dossier'],
+                    ['libelle' => 'Examens', 'route' => 'examens.mes-examens', 'motif' => 'examens.mes-examens'],
                     ['libelle' => 'Mon profil', 'route' => 'parent-portal.profile', 'motif' => 'parent-portal.profile'],
                 ],
             ],
@@ -153,6 +175,26 @@ class MenuPrincipal
                     ['libelle' => 'Bulletins', 'route' => 'bulletins.index', 'motif' => 'bulletins*'],
                     ['libelle' => 'Présences', 'route' => 'attendances.index', 'motif' => 'attendances.*'],
                     ['libelle' => 'Emplois du temps', 'route' => 'schedules.index', 'motif' => 'schedules.*', 'visible' => $estAdmin],
+                ],
+            ],
+            [
+                'titre' => 'Examens',
+                /*
+                 * Les examens nationaux vus de l'etablissement : ses candidats,
+                 * leurs centres, leurs resultats, et ceux de ses professeurs
+                 * qui ont ete convoques pour corriger.
+                 */
+                'visible' => ($estAdmin || $estSecretaire) && $dansUnEtablissement,
+                'liens' => [
+                    ['libelle' => 'Nos candidats', 'route' => 'examens.etablissement', 'motif' => 'examens.etablissement*'],
+                ],
+            ],
+            [
+                'titre' => 'Correction',
+                // Un enseignant convoque corrige ; les autres ne voient rien.
+                'visible' => self::convoqueALaCorrection(),
+                'liens' => [
+                    ['libelle' => 'Mes copies', 'route' => 'correction.index', 'motif' => 'correction.*'],
                 ],
             ],
             [
@@ -205,6 +247,7 @@ class MenuPrincipal
                     ['libelle' => 'Établissements', 'route' => 'admin.schools.index', 'motif' => 'admin.schools.*'],
                     ['libelle' => 'Personnalisation', 'route' => 'admin.plateforme.personnalisation', 'motif' => 'admin.plateforme.personnalisation*'],
                     ['libelle' => 'Paramètres', 'route' => 'admin.plateforme.parametres', 'motif' => 'admin.plateforme.parametres*'],
+                    ['libelle' => 'Examens nationaux', 'route' => 'examens.index', 'motif' => 'examens.index'],
                     ['libelle' => 'Corbeille', 'route' => 'admin.plateforme.corbeille', 'motif' => 'admin.plateforme.corbeille*'],
                 ],
             ],

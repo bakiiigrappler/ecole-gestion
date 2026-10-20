@@ -37,6 +37,10 @@ class RestreindreLesEleves
         'orientation.enregistrer',
         'orientation.soumettre',
         'orientation.decision-lue',
+        // Ses examens : le controleur ne lui montre que ses propres copies.
+        'examens.mes-examens',
+        'examens.releve',
+        'resultats.*',
     ];
 
     /**
@@ -59,6 +63,10 @@ class RestreindreLesEleves
         'orientation.enregistrer',
         'orientation.soumettre',
         'orientation.decision-lue',
+        // Les examens de ses enfants : meme garde que pour l'eleve.
+        'examens.mes-examens',
+        'examens.releve',
+        'resultats.*',
     ];
 
     /**
