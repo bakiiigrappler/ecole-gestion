@@ -79,26 +79,6 @@ class DatabaseSeeder extends Seeder
              * Apres les liens parent-eleve, donc.
              */
             RattacherLesComptesDemoSeeder::class,
-
-            /*
-             * Le repertoire d'orientation : lycees, universites et grandes
-             * ecoles du Gabon. National, donc hors etablissement — mais seme
-             * ici, pour qu'une base neuve ait de quoi orienter.
-             */
-            RepertoireOrientationSeeder::class,
-
-            /*
-             * Des dossiers dans les quatre etats : un ecran de service
-             * d'orientation vide ne se juge pas. Apres le repertoire, dont les
-             * voeux se servent.
-             */
-            DossiersOrientationDemoSeeder::class,
-
-            /*
-             * Une session d'examen menee jusqu'a la proclamation : le module
-             * ne se juge pas sur des ecrans vides.
-             */
-            SessionExamenDemoSeeder::class,
         ]);
 
         /*
@@ -118,6 +98,31 @@ class DatabaseSeeder extends Seeder
         ]);
 
         EcoleCourante::oublier();
+
+        /*
+         * Orientation et examens viennent en dernier, hors etablissement.
+         *
+         * Ce ne sont pas des donnees d'ecole : un repertoire d'orientation est
+         * national, un examen national rassemble les candidats de tous les
+         * etablissements. Et surtout, ils ont besoin de TOUS les eleves : les
+         * terminales ne sont que dans le second etablissement, de sorte qu'un
+         * peuplement qui les appelait avant lui posait une session de
+         * baccalaureat sans un seul candidat — et sur base neuve seulement,
+         * ce qui est la pire des facons de s'en apercevoir.
+         */
+        $this->call([
+            // Lycees, universites et grandes ecoles du Gabon.
+            RepertoireOrientationSeeder::class,
+
+            // Des dossiers dans les quatre etats : un ecran de service
+            // d'orientation vide ne se juge pas. Apres le repertoire, dont les
+            // voeux se servent.
+            DossiersOrientationDemoSeeder::class,
+
+            // Deux sessions : un baccalaureat proclame, un brevet en cours de
+            // correction.
+            SessionExamenDemoSeeder::class,
+        ]);
     }
 
     /**
