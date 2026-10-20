@@ -255,7 +255,9 @@ class ResultatExamenController extends Controller
             'Le procès-verbal de cette session n’est pas signé : aucune attestation ne peut être délivrée.'
         );
 
-        $candidat->load(['centre', 'school:id,name']);
+        // La fiche de l'eleve sert de recours pour l'accord du document quand le
+        // sexe n'a pas ete recopie sur le candidat.
+        $candidat->load(['centre', 'school:id,name', 'student:id,gender']);
 
         return view('examens.resultats.attestation', [
             'examen' => $examen,

@@ -18,10 +18,18 @@
 
 @php
     /*
-     * Le genre tel qu'il est reellement stocke : « male » / « female ». Tester
-     * « F » ne rendait jamais vrai, et toute bacheliere etait declaree « admis ».
+     * L'accord du document, et il faut qu'il soit juste : une bacheliere
+     * declaree « admis » sur une attestation officielle, cela se remarque.
+     *
+     * Le sexe est recopie sur le candidat a l'inscription, mais il peut y etre
+     * vide — un candidat libre n'en declare pas toujours, et une fiche d'eleve
+     * incomplete n'en porte pas. On retombe alors sur la fiche de l'eleve.
+     *
+     * Les ecritures sont nombreuses selon les imports : « female », « F »,
+     * « feminin ». On les accepte toutes plutot que d'en elire une.
      */
-    $feminin = in_array(mb_strtolower((string) $candidat->sexe), ['female', 'f', 'feminin', 'féminin'], true);
+    $sexe = mb_strtolower(trim((string) ($candidat->sexe ?: $candidat->student?->gender)));
+    $feminin = in_array($sexe, ['female', 'f', 'feminin', 'féminin', 'femme', 'fille'], true);
 
     /*
      * Les centres de cette demonstration s'appellent « Centre de X ». Ecrit
